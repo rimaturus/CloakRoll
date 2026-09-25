@@ -1,0 +1,11 @@
+# never commit signing keys
+*.jks
+*.keystore
+build/
+sdk/
+*.apk
+*.aab
+__pycache__/
+out/
+vault.salt
+*.idsig
