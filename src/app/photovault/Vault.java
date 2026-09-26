@@ -70,9 +70,9 @@ public final class Vault {
 
     public static final class Opened {
         public final String meta;
-        public final byte[] plain;
+        public final byte[] plain, salt; // salt: which vault key this file was made with
         public final int dataOff;
-        Opened(String meta, byte[] plain, int dataOff) { this.meta = meta; this.plain = plain; this.dataOff = dataOff; }
+        Opened(String meta, byte[] plain, int dataOff, byte[] salt) { this.meta = meta; this.plain = plain; this.dataOff = dataOff; this.salt = salt; }
         public int dataLen() { return plain.length - dataOff; }
     }
 
@@ -100,7 +100,7 @@ public final class Vault {
         c.updateAAD(hdr);
         byte[] plain = c.doFinal(ct);
         int m = ((plain[0] & 0xFF) << 8) | (plain[1] & 0xFF);
-        return new Opened(new String(plain, 2, m, StandardCharsets.UTF_8), plain, 2 + m);
+        return new Opened(new String(plain, 2, m, StandardCharsets.UTF_8), plain, 2 + m, Arrays.copyOfRange(hdr, 4, 20));
     }
 
     /** Small local secrets (thumbnails, password check): nonce(12) | AES-GCM(data). */

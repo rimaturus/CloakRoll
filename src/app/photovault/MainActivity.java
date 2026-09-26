@@ -54,9 +54,9 @@ import javax.crypto.spec.GCMParameterSpec;
 import org.json.JSONObject;
 
 public class MainActivity extends Activity {
-    static final String VERIFY = "PhotoVault password check", BIO_ALIAS = "photovault_fingerprint";
+    static final String VERIFY = Store.VERIFY, BIO_ALIAS = "photovault_fingerprint";
     static final int REQ_PICK = 1, REQ_NOTIF = 2, OK = 0xFF2E7D32, BAD = 0xFFC62828, WARN = 0xFFE65100;
-    static final List<String> VAULT_SCREENS = Arrays.asList("gallery", "viewer", "info");
+    static final List<String> VAULT_SCREENS = Arrays.asList("gallery", "viewer", "info", "changepw");
 
     Store st;
     SharedPreferences prefs;
@@ -196,6 +196,7 @@ public class MainActivity extends Activity {
                 else finish();
                 break;
             case "info": showGallery(); break;
+            case "changepw": showInfo(); break;
             case "log": if (st.key != null && prefs.contains("verifier")) showGallery(); else start(); break;
             case "login":
                 if (web != null && web.canGoBack()) web.goBack();
@@ -584,11 +585,25 @@ public class MainActivity extends Activity {
             io.execute(new Runnable() { public void run() {
                 File f = new File(getCacheDir(), "sample.png");
                 try {
-                    Amazon.download(sampleId, st.owner(), f, null);
-                    byte[] salt;
-                    try (InputStream in = new FileInputStream(f)) { salt = Vault.readSalt(in); }
-                    final byte[] k = Vault.deriveKey(pw, salt);
-                    try (InputStream in = new FileInputStream(f)) { Vault.decryptPng(in, k); }
+                    // the folders file always uses the newest key (also during a password change); then one photo
+                    List<String> candidates = new ArrayList<>();
+                    JSONObject newest = null;
+                    for (JSONObject b : Amazon.listFiles(st.indexFolder(), 1000).files)
+                        if (newest == null || b.optString("createdDate").compareTo(newest.optString("createdDate")) > 0) newest = b;
+                    if (newest != null) candidates.add(newest.getString("id"));
+                    candidates.add(sampleId);
+                    byte[] key = null, salt = null;
+                    Throwable wrong = null;
+                    for (String c : candidates) {
+                        Amazon.download(c, st.owner(), f, null);
+                        byte[] s;
+                        try (InputStream in = new FileInputStream(f)) { s = Vault.readSalt(in); }
+                        byte[] kk = Vault.deriveKey(pw, s);
+                        try (InputStream in = new FileInputStream(f)) { Vault.decryptPng(in, kk); key = kk; salt = s; break; }
+                        catch (AEADBadTagException e) { wrong = e; Arrays.fill(kk, (byte) 0); }
+                    }
+                    if (key == null) throw wrong;
+                    final byte[] k = key;
                     prefs.edit().putString("salt", hex(salt))
                             .putString("verifier", Base64.encodeToString(Vault.seal(k, VERIFY.getBytes("UTF-8")), Base64.NO_WRAP)).apply();
                     st.writeIndex(k, new Store.Index());
@@ -811,7 +826,13 @@ public class MainActivity extends Activity {
             try { l = st.readIndex(k); st.writeIndex(k, l); } // also upgrades an older index to the current, encrypted format
             catch (Exception e) { Journal.add("local list unreadable, use Sync from Amazon: " + e); l = new Store.Index(); }
             final Store.Index ix = l;
-            post(new Runnable() { public void run() { st.key = k; st.items = ix.items; st.folders = ix.folders; showGallery(); } });
+            post(new Runnable() { public void run() {
+                st.key = k;
+                st.items = ix.items;
+                st.folders = ix.folders;
+                showGallery();
+                if (st.reencrypting()) startJob(SyncService.REENCRYPT); // a password change still being applied
+            }});
         }
     }
 
@@ -1169,7 +1190,8 @@ public class MainActivity extends Activity {
     }
 
     void moveTo(final String folder) {
-        final Set<String> ids = new HashSet<>(selected);
+        final Set<String> ids = new HashSet<>();
+        for (String id : selected) ids.add(st.currentId(id));
         editFolders(new Store.Edit() { public void apply(Store.Index ix) {
             String f = folder;
             for (String x : ix.folders) if (x.equalsIgnoreCase(folder)) f = x; // same name, different case: use the existing one
@@ -1190,7 +1212,9 @@ public class MainActivity extends Activity {
     }
 
     /** Moves items to the Amazon Photos trash, then removes them from the list and their local previews. */
-    void deleteItems(final List<String> ids) {
+    void deleteItems(List<String> requested) {
+        final List<String> ids = new ArrayList<>();
+        for (String id : requested) ids.add(st.currentId(id)); // replaced meanwhile by a password change
         final byte[] k = keyCopy();
         if (k == null) return;
         viewIo.execute(new Runnable() { public void run() {
@@ -1278,9 +1302,11 @@ public class MainActivity extends Activity {
         } catch (Exception e) { toast("Could not start the upload: " + explain(e)); }
     }
 
-    void startSync() {
-        try { SyncService.start(this, SyncService.SYNC, null, ""); }
-        catch (Exception e) { toast("Could not start the sync: " + explain(e)); }
+    void startSync() { startJob(SyncService.SYNC); }
+
+    void startJob(String action) {
+        try { SyncService.start(this, action, null, ""); }
+        catch (Exception e) { toast("Could not start the background job: " + explain(e)); }
     }
 
     // ================================================================ viewer
@@ -1358,7 +1384,7 @@ public class MainActivity extends Activity {
                 post(new Runnable() { public void run() { if (token == viewToken) info.setText("Low-resolution preview, decrypting..."); } });
                 long t = SystemClock.elapsedRealtime();
                 final Vault.Opened o;
-                try (InputStream in = new FileInputStream(png)) { o = Vault.decryptPng(in, k); }
+                o = st.decrypt(png, k);
                 final long ms = SystemClock.elapsedRealtime() - t;
                 final String line = "Decrypted and verified in " + ms + " ms (AES-GCM: not a single bit changed)\n"
                         + human(o.dataLen()) + " original, stored on Amazon as a " + human(png.length()) + " PNG of noise";
@@ -1459,6 +1485,94 @@ public class MainActivity extends Activity {
     /** Decrypted videos exist on disk only while you watch them (app-private cache). */
     void deletePlaying() { if (playing != null) { playing.delete(); playing = null; } }
 
+    // ================================================================ change password
+
+    static String duration(long s) {
+        if (s < 90) return "about a minute";
+        if (s < 90 * 60) return "about " + Math.round(s / 60.0) + " minutes";
+        return "about " + Math.round(s / 3600.0) + " hours";
+    }
+
+    void showChangePassword() {
+        LinearLayout l = vbox();
+        text(l, "Change vault password", 20);
+        long bytes = 0;
+        for (Store.Item it : st.items) bytes += it.size;
+        int n = st.items.size();
+        if (n == 0) text(l, "Your vault is empty, so the change is instant.", 15);
+        else {
+            long secs = 2 * bytes * 8 / 50_000_000L + n * 3L / 2; // 50 Mbit/s both ways + about 1.5 s of requests per file
+            text(l, "Before you start: what a password change costs", 17);
+            text(l, "The key comes from the password, so every file has to be encrypted again with the new key:\n"
+                    + "• All " + count(n, "item") + " (" + human(bytes) + ") are downloaded, re-encrypted on this phone and uploaded again: "
+                    + "about " + human(bytes) + " of download and " + human(bytes) + " of upload. On Wi-Fi at 50 Mbit/s that is " + duration(secs)
+                    + ". Use Wi-Fi and keep the phone charging.\n"
+                    + "• It runs in the background with a notification. Android allows background transfers up to 6 hours a day, "
+                    + "so a big vault may need more than one day: it resumes by itself every time you unlock PhotoVault.\n"
+                    + "• Until it has finished, the files not re-encrypted yet still open with the OLD password. At the end the old "
+                    + "password opens nothing in your vault on Amazon, except copies someone may already have downloaded.\n"
+                    + "• The old copies go to the Amazon Photos trash. Photos don't use your storage; videos do, and may keep "
+                    + "counting until Amazon empties the trash.\n"
+                    + "• New uploads wait until the re-encryption has finished (or tap Stop in its notification).\n"
+                    + "• Fingerprint unlock is switched off; you can switch it on again right after.\n"
+                    + "• Don't set up PhotoVault on another phone until it has finished.", 15);
+        }
+        final EditText cur = password(l, "Current password"), p1 = password(l, "New password"), p2 = password(l, "Repeat new password");
+        final CheckBox ok = new CheckBox(this);
+        ok.setText("I saved the new password somewhere safe. It cannot be recovered.");
+        l.addView(ok);
+        final TextView err = text(l, "", 15);
+        final Button go = button(l, n == 0 ? "Change password" : "Change password and re-encrypt", null);
+        String blocked = prefs.getBoolean("restore_pending", false) ? "Finish restoring your vault first: Menu > Sync from Amazon."
+                : st.busyJobs > 0 || st.jobRunning ? "Wait until the current upload or sync has finished." : null;
+        if (blocked != null) { go.setEnabled(false); err.setTextColor(BAD); err.setText(blocked); }
+        go.setOnClickListener(new View.OnClickListener() { public void onClick(final View btn) {
+            final String c = cur.getText().toString(), a = p1.getText().toString(), b = p2.getText().toString();
+            err.setTextColor(BAD);
+            if (a.length() < 10) { err.setText("Use at least 10 characters for the new password."); return; }
+            if (!a.equals(b)) { err.setText("The two new passwords don't match."); return; }
+            if (a.equals(c)) { err.setText("The new password is the same as the current one."); return; }
+            if (!ok.isChecked()) { err.setText("Please confirm you saved the new password."); return; }
+            if (st.busyJobs > 0 || st.jobRunning) { err.setText("Wait until the current upload or sync has finished."); return; }
+            final byte[] current = keyCopy();
+            if (current == null) return;
+            final boolean hadBio = bioEnabled();
+            btn.setEnabled(false);
+            err.setTextColor(p1.getCurrentTextColor());
+            err.setText("Checking the current password and deriving the new key...");
+            io.execute(new Runnable() { public void run() {
+                byte[] old = null, k = null;
+                try {
+                    old = Vault.deriveKey(c, st.salt());
+                    if (!Arrays.equals(old, current)) throw new AEADBadTagException("wrong current password");
+                    final byte[] salt = Vault.random(16);
+                    k = Vault.deriveKey(a, salt);
+                    st.changePassword(old, k, salt, Base64.encodeToString(Vault.seal(k, VERIFY.getBytes("UTF-8")), Base64.NO_WRAP));
+                    st.backupFolders(k); // the folders file on Amazon is the first thing another phone opens: new key right away
+                    Journal.add("password changed; re-encrypting the files on Amazon");
+                    post(new Runnable() { public void run() { // Store has already switched the open vault to the new key
+                        disableBio();
+                        startJob(SyncService.REENCRYPT);
+                        toast("Password changed." + (st.items.isEmpty() ? "" : " Re-encryption runs in the background."));
+                        showInfo();
+                        if (hadBio && bioAvailable()) enableBio();
+                    }});
+                } catch (final Throwable e) {
+                    post(new Runnable() { public void run() {
+                        btn.setEnabled(true);
+                        err.setTextColor(BAD);
+                        err.setText(e instanceof AEADBadTagException ? "The current password is wrong." : explain(e));
+                    }});
+                } finally {
+                    Arrays.fill(current, (byte) 0);
+                    if (old != null) Arrays.fill(old, (byte) 0);
+                    if (k != null) Arrays.fill(k, (byte) 0);
+                }
+            }});
+        }});
+        setScreen("changepw", "Change password", null, true, scroll(l));
+    }
+
     // ================================================================ info, log
 
     void showInfo() {
@@ -1496,8 +1610,16 @@ public class MainActivity extends Activity {
                 + "python photovault.py dec file.png -o out\n(photovault.py is part of PhotoVault's open-source code on GitHub). If you lose the phone: install the app, "
                 + "sign in, enter the same password; the app restores your vault from Amazon.", 15);
         text(l, "Limits of this version", 17);
-        text(l, "• Max 100 MB per item. • The password can't be changed (it would need re-encrypting everything). "
-                + "• Background jobs are limited by Android to 6 hours per day.", 15);
+        text(l, "• Max 100 MB per item. • Background jobs are limited by Android to 6 hours per day.", 15);
+        text(l, "Password", 17);
+        if (st.reencrypting()) {
+            int left = 0;
+            String cur = prefs.getString("salt", "");
+            for (Store.Item it : st.items) if (!cur.equals(it.salt)) left++;
+            text(l, "Password change in progress: " + count(left, "file") + " on Amazon still use the old password. They are "
+                    + "re-encrypted in the background; until then the old password still opens them.", 15).setTextColor(WARN);
+            button(l, "Continue re-encrypting now", new View.OnClickListener() { public void onClick(View v) { startJob(SyncService.REENCRYPT); } });
+        } else button(l, "Change vault password", new View.OnClickListener() { public void onClick(View v) { showChangePassword(); } });
         button(l, "Run the self-test again", new View.OnClickListener() { public void onClick(View v) { showSelfTest(); } });
         if (bioEnabled()) button(l, "Turn off fingerprint unlock", new View.OnClickListener() { public void onClick(View v) { disableBio(); showInfo(); } });
         else if (bioAvailable()) button(l, "Turn on fingerprint unlock", new View.OnClickListener() { public void onClick(View v) { enableBio(); } });
