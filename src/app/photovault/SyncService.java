@@ -25,7 +25,7 @@ import org.json.JSONObject;
  * The notification never shows file names.
  */
 public class SyncService extends Service {
-    static final String UPLOAD = "upload", SYNC = "sync", STOP = "stop", CHANNEL = "sync";
+    static final String UPLOAD = "upload", SYNC = "sync", REENCRYPT = "reencrypt", STOP = "stop", CHANNEL = "sync";
     static final int NOTE = 1, DONE_NOTE = 2;
 
     final ExecutorService worker = Executors.newSingleThreadExecutor();
@@ -72,24 +72,29 @@ public class SyncService extends Service {
         if (STOP.equals(action)) {
             cancelUpTo = seq;
             if (pending > 0) show("Stopping after the current file...", -1);
-        } else if (st.key != null && (UPLOAD.equals(action) || SYNC.equals(action))) {
-            final byte[] k = st.key.clone();
+        } else if (st.key != null && (UPLOAD.equals(action) || SYNC.equals(action) || REENCRYPT.equals(action))) {
+            final byte[] k = st.key.clone(), salt = st.salt(); // taken together: they always belong to the same key
             final int id = ++seq;
             final List<Uri> uris = new ArrayList<>();
             ClipData c = in.getClipData();
             if (c != null) for (int n = 0; n < c.getItemCount(); n++) uris.add(c.getItemAt(n).getUri());
-            final boolean upload = UPLOAD.equals(action);
+            final boolean upload = UPLOAD.equals(action), reencrypt = REENCRYPT.equals(action);
             final String into = in.getStringExtra("folder") == null ? "" : in.getStringExtra("folder");
             pending++;
+            st.busyJobs = pending;
             worker.execute(new Runnable() { public void run() {
                 try {
                     if (id <= cancelUpTo) return;
-                    if (upload) upload(k, uris, into, id); else sync(k, id);
+                    if (!st.keyIsCurrent(k)) { // the password was changed after this job was queued
+                        done(upload ? "Not added: the vault password changed meanwhile. Add these items again." : "Stopped: the vault password changed.");
+                        return;
+                    }
+                    if (upload) upload(k, salt, uris, into, id); else if (reencrypt) reencrypt(k, id); else sync(k, id);
                 } catch (Throwable e) {
                     Journal.add("background job failed: " + e);
                 } finally {
                     Arrays.fill(k, (byte) 0);
-                    st.post(new Runnable() { public void run() { if (--pending == 0) finish(); } });
+                    st.post(new Runnable() { public void run() { st.busyJobs = --pending; if (pending == 0) finish(); } });
                 }
             }});
         }
@@ -155,8 +160,7 @@ public class SyncService extends Service {
 
     // ---------------------------------------------------------------- jobs
 
-    void upload(byte[] k, List<Uri> uris, String into, int id) throws Exception {
-        byte[] salt = st.salt();
+    void upload(byte[] k, byte[] salt, List<Uri> uris, String into, int id) throws Exception {
         String folder = st.folder();
         int ok = 0, failed = 0;
         for (int n = 0; n < uris.size(); n++) {
@@ -205,6 +209,7 @@ public class SyncService extends Service {
                 });
                 Store.Item it = new Store.Item();
                 it.id = node.getString("id"); it.name = name; it.mime = mime; it.taken = taken; it.size = size; it.folder = into;
+                it.salt = Store.hex(salt);
                 if (thumb != null) Store.writeFile(st.thumbFile(it.id), Vault.seal(k, thumb));
                 st.add(k, it, false);
                 ok++;
@@ -221,7 +226,14 @@ public class SyncService extends Service {
     }
 
     /** Rebuilds the local list from the PhotoVault folder on Amazon (new phone, reinstall, items deleted on the website). */
-    void sync(final byte[] k, int id) throws Exception {
+    static final class SyncResult {
+        final Set<String> unopenable = new HashSet<>(); // files neither the current nor the previous key opens
+        int retry;                                        // temporary failures: another Sync may restore them
+        boolean ok;                                       // ran to the end
+    }
+
+    SyncResult sync(final byte[] k, int id) throws Exception {
+        SyncResult res = new SyncResult();
         int restored = 0, skipped = 0, retry = 0, removed = 0;
         try {
             show("Sync: listing your vault on Amazon...", -1);
@@ -229,7 +241,10 @@ public class SyncService extends Service {
             List<JSONObject> nodes = listing.files;
             final Set<String> remote = new HashSet<>(), local = new HashSet<>();
             for (JSONObject n : nodes) remote.add(n.getString("id"));
-            for (Store.Item it : st.readIndex(k).items) local.add(it.id);
+            Store.Index before = st.readIndex(k);
+            for (Store.Item it : before.items) local.add(it.id);
+            final Set<String> skip = new HashSet<>(local);
+            skip.addAll(before.retire); // old copies replaced during a password change: to be trashed, never restored
             if (listing.complete) { // drop items deleted on the Amazon website (only if Amazon listed everything)
                 final List<String> gone = new ArrayList<>();
                 for (String x : local) if (!remote.contains(x)) gone.add(x);
@@ -261,7 +276,7 @@ public class SyncService extends Service {
                 n++;
                 if (id <= cancelUpTo) break;
                 String nid = node.getString("id");
-                if (local.contains(nid)) continue;
+                if (skip.contains(nid)) continue;
                 show("Sync: restoring " + n + " of " + nodes.size(), 100 * n / nodes.size());
                 File f = new File(getCacheDir(), "sync.png");
                 try {
@@ -273,9 +288,17 @@ public class SyncService extends Service {
                         continue;
                     }
                     Vault.Opened o;
-                    try (InputStream in = new FileInputStream(f)) { o = Vault.decryptPng(in, k); }
-                    catch (Exception e) { // permanent: made with another key, or not a PhotoVault file
-                        Journal.add("sync: skipped a file this vault's key can't open: " + e);
+                    try { o = st.decrypt(f, k); }
+                    catch (Exception e) {
+                        String s = "";
+                        try (InputStream in = new FileInputStream(f)) { s = Store.hex(Vault.readSalt(in)); } catch (Exception ignored) { }
+                        if (s.equals(Store.hex(st.salt())) || s.equals(st.prefs.getString("old_salt", "-"))) {
+                            Journal.add("sync: a file of this vault didn't open (damaged download?), retried on the next Sync: " + e);
+                            retry++; // made with one of our keys: never treated as "not ours"
+                            continue;
+                        }
+                        Journal.add("sync: skipped a file this vault's key can't open: " + e); // another key, or not PhotoVault's
+                        res.unopenable.add(nid);
                         skipped++;
                         continue;
                     }
@@ -283,6 +306,7 @@ public class SyncService extends Service {
                     Store.Item it = new Store.Item();
                     it.id = nid; it.name = m.optString("name", "item"); it.mime = m.optString("mime", "");
                     it.taken = m.optLong("taken", System.currentTimeMillis()); it.size = o.dataLen(); it.folder = map.optString(nid, "");
+                    it.salt = Store.hex(o.salt);
                     byte[] thumb = Store.makeThumb(o.plain, o.dataOff, o.dataLen(), it.video());
                     if (thumb != null) Store.writeFile(st.thumbFile(nid), Vault.seal(k, thumb));
                     st.add(k, it, true);
@@ -301,10 +325,129 @@ public class SyncService extends Service {
             done("Sync done: " + restored + " restored, " + removed + " removed"
                     + (skipped > 0 ? ", " + skipped + " skipped (not openable with this vault's key, see Log)" : "")
                     + (retry > 0 ? ", " + retry + " to retry: run Sync again" : ""));
+            res.retry = retry;
+            res.ok = id > cancelUpTo;
         } catch (Throwable e) {
             Journal.add("sync failed: " + e);
             done("Sync failed: " + Store.explain(e));
             if (Store.isAuth(e)) st.post(new Runnable() { public void run() { st.needLogin = true; st.changed(); } });
         }
+        return res;
+    }
+
+    /**
+     * After a password change: every file still made with the previous key is downloaded, re-encrypted with the
+     * current key, uploaded again, and the old copy moved to the Amazon trash. Resumes where it stopped. The previous
+     * key is deleted only when Amazon's complete listing shows no file that still needs it.
+     */
+    void reencrypt(final byte[] k, int id) throws Exception {
+        if (!st.reencrypting()) return;
+        final byte[] salt = st.salt();
+        final String cur = Store.hex(salt);
+        int ok = 0, failed = 0;
+        try {
+            st.applyPendingPreviews(k);
+            // 1. replacements uploaded but never recorded (app killed in between): named "r" + old id + "-" + random
+            Store.Index ix = st.readIndex(k);
+            Set<String> oldIds = new HashSet<>();
+            for (Store.Item it : ix.items) if (!cur.equals(it.salt)) oldIds.add(it.id);
+            final List<String> orphans = new ArrayList<>();
+            for (JSONObject n : Amazon.listFiles(st.folder(), 1_000_000).files) {
+                String name = n.optString("name");
+                int dash = name.lastIndexOf('-'); // ids can contain '-' too; the random suffix comes last
+                if (name.startsWith("r") && dash > 1 && oldIds.contains(name.substring(1, dash))) orphans.add(n.getString("id"));
+            }
+            if (!orphans.isEmpty()) { // recorded first, so Sync never restores them as duplicates
+                st.edit(k, new Store.Edit() { public void apply(Store.Index x) { x.retire.addAll(orphans); } });
+                retire(k, orphans);
+            }
+            // 2. old copies already replaced
+            if (!ix.retire.isEmpty()) retire(k, new ArrayList<>(ix.retire));
+            // 3. the list must know every file first (new phone, website uploads...), so none is forgotten
+            SyncResult sr = sync(k, id);
+            if (!sr.ok) throw new IOException("the vault could not be listed completely");
+            // 4. re-encrypt
+            ix = st.readIndex(k);
+            List<Store.Item> todo = new ArrayList<>();
+            for (Store.Item it : ix.items) if (!cur.equals(it.salt)) todo.add(it);
+            for (int n = 0; n < todo.size(); n++) {
+                if (id <= cancelUpTo) break;
+                final Store.Item it = todo.get(n);
+                show("Password change: re-encrypting " + (n + 1) + " of " + todo.size() + ". New uploads wait until it's done.", 100 * n / todo.size());
+                File cached = st.blobFile(it.id), down = new File(getCacheDir(), "reenc-down.png"), up = new File(getCacheDir(), "reenc-up.png");
+                try {
+                    File src = cached.exists() ? cached : down;
+                    if (src == down) Amazon.download(it.id, st.owner(), down, null);
+                    Vault.Opened o = st.decrypt(src, k);
+                    if (Arrays.equals(o.salt, salt)) { // already made with the current key: just note it
+                        st.edit(k, new Store.Edit() { public void apply(Store.Index x) {
+                            for (Store.Item i : x.items) if (i.id.equals(it.id)) i.salt = cur;
+                        }});
+                        ok++;
+                        continue;
+                    }
+                    try (OutputStream out = new BufferedOutputStream(new FileOutputStream(up), 1 << 16)) { Vault.encryptToPng(k, salt, o.plain, out); }
+                    final String newId = Amazon.upload(up, "r" + it.id + "-" + Store.hex(Vault.random(4)) + ".png", st.folder(), null).getString("id");
+                    final boolean[] found = {false};
+                    st.edit(k, new Store.Edit() { public void apply(Store.Index x) {
+                        for (Store.Item i : x.items) if (i.id.equals(it.id)) { i.id = newId; i.salt = cur; found[0] = true; }
+                        x.retire.add(found[0] ? it.id : newId); // item deleted meanwhile: the new copy goes too
+                    }});
+                    if (found[0]) { st.renamed.put(it.id, newId); st.thumbFile(it.id).renameTo(st.thumbFile(newId)); }
+                    cached.delete();
+                    retire(k, Collections.singletonList(found[0] ? it.id : newId));
+                    ok++;
+                    if (ok % 25 == 0) st.backupFolders(k); // the folders file refers to item ids, which change
+                } catch (Throwable e) {
+                    if (Store.isAuth(e)) throw e;
+                    Journal.add("re-encryption of one file failed, retried later: " + e);
+                    cached.delete(); // a damaged cached copy must not be reused
+                    failed++;
+                } finally { down.delete(); up.delete(); }
+            }
+            st.backupFolders(k);
+            // 5. finished only if Amazon lists every file and none needs the old key any more
+            Amazon.Listing all = Amazon.listFiles(st.folder(), 1_000_000);
+            Store.Index after = st.readIndex(k);
+            Set<String> fine = new HashSet<>(after.retire);
+            fine.addAll(sr.unopenable); // opened by neither key: they don't depend on the old one
+            for (Store.Item i : after.items) if (cur.equals(i.salt)) fine.add(i.id);
+            int unknown = 0;
+            for (JSONObject n : all.files) if (!fine.contains(n.getString("id"))) unknown++;
+            int left = st.toReencrypt(after);
+            if (all.complete && unknown == 0 && left == 0 && after.retire.isEmpty()) {
+                st.finishPasswordChange();
+                Journal.add("password change complete: every file uses the new key");
+                done("Password change complete: every file in your vault now uses the new password.");
+            } else if (!all.complete) {
+                done("Password change: " + ok + " files re-encrypted. Amazon doesn't list vaults this big completely, "
+                        + "so the old key is kept to make sure no file becomes unreadable.");
+            } else done("Password change paused: " + Math.max(left, unknown) + " files left" + (failed > 0 ? " (" + failed + " failed, see Log)" : "")
+                    + ". It continues the next time you unlock PhotoVault.");
+        } catch (Throwable e) {
+            Journal.add("re-encryption stopped: " + e);
+            done("Password change paused: " + Store.explain(e) + ". It continues the next time you unlock PhotoVault.");
+            if (Store.isAuth(e)) st.post(new Runnable() { public void run() { st.needLogin = true; st.changed(); } });
+        }
+    }
+
+    /** Moves replaced files to the Amazon trash and forgets them. Kept for another try if Amazon refuses. */
+    void retire(byte[] k, List<String> ids) throws Exception {
+        final List<String> done = new ArrayList<>();
+        for (int i = 0; i < ids.size(); i += 50) {
+            List<String> batch = ids.subList(i, Math.min(ids.size(), i + 50));
+            try { Amazon.trash(batch); done.addAll(batch); }
+            catch (Amazon.ApiError e) {
+                if (e.isAuth()) throw e;
+                for (String one : batch) // one at a time: only "not found" counts as already gone
+                    try { Amazon.trash(Collections.singletonList(one)); done.add(one); }
+                    catch (Amazon.ApiError x) {
+                        if (x.isAuth()) throw x;
+                        if (x.code == 404) done.add(one);
+                        else Journal.add("old copy not trashed yet, retried later: " + x.getMessage());
+                    }
+            }
+        }
+        if (!done.isEmpty()) st.edit(k, new Store.Edit() { public void apply(Store.Index x) { x.retire.removeAll(done); } });
     }
 }

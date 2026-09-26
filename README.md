@@ -8,7 +8,7 @@ Amazon Prime includes unlimited full-resolution photo storage. PhotoVault uses t
 
 ![What you see vs. what Amazon stores](docs/comparison.png)
 
-> **Status: beta (v1.2).** Android 13 or newer. Not affiliated with, endorsed by or connected to Amazon.
+> **Status: beta (v1.3).** Android 13 or newer. Not affiliated with, endorsed by or connected to Amazon.
 
 ---
 
@@ -56,6 +56,8 @@ flowchart LR
 
 The key is derived from your password and never stored in plain form. Nobody can reset your password: not Amazon, not the developer.
 
+**Changing the password** gives a new salt and a new key. Every file on Amazon is then downloaded, re-encrypted with the new key, uploaded again, and the old copy moved to the Amazon trash. Meanwhile the previous key is kept on the phone, sealed with the new one, so both kinds of file open; it is deleted when the last file is done. Each file header carries its salt, so the app and `photovault.py` always know which password a file needs.
+
 ### What Amazon can and cannot see
 
 | Amazon **can** see | Amazon **cannot** see |
@@ -87,6 +89,7 @@ The key is derived from your password and never stored in plain form. Nobody can
 - Malware or someone with access to your phone while the vault is unlocked
 - The metadata listed above (number, size, timing of uploads)
 - **Losing your password: your photos are then gone for good.** This is the price of real encryption.
+- Someone who already downloaded your encrypted files and later learns your password. Changing the password protects everything stored from then on, but not copies taken before.
 - Amazon deleting files or closing the account. Keep a second backup of anything irreplaceable.
 
 The app has **not** had an independent security audit yet. Reviews and reports are very welcome (see [SECURITY](#reporting-a-security-issue)).
@@ -109,6 +112,7 @@ No storage, contacts, location, camera or microphone permission. Photos are chos
 - **Folders**: create folders, long-press photos to select several and *Move* or *Delete* them, rename or delete folders (their photos are kept). Folder names and contents are saved on Amazon in one more encrypted file, so Amazon can't read them and a new phone gets them back
 - *Amazon's view* button: see the exact file Amazon stores
 - Fingerprint unlock, auto-lock, no screenshots
+- **Change the vault password** (*Info > Change vault password*): the app shows first what it costs (data, time), then re-encrypts every file on Amazon with the new key in the background, resuming by itself if interrupted
 - *Sync from Amazon*: restores your vault on a new phone and removes items you deleted on the Amazon website
 - Save a decrypted copy back to your gallery
 - Self-test on your own account before you store anything: upload, check that Amazon keeps the file bit-for-bit, decrypt, check the photo quota, clean up
@@ -189,7 +193,7 @@ Source layout:
 - **Unofficial API.** Amazon has no public Photos API. PhotoVault uses the same private web requests as the Amazon Photos website (the endpoints documented by the open-source [amazon_photos](https://github.com/trevorhobenshield/amazon_photos) project). If Amazon changes them, uploads stop until the app is updated. Your stored files stay decryptable with `photovault.py`.
 - **Amazon's terms.** Prime includes unlimited *photos* and 5 GB for *videos*. Storing encrypted videos as PNG images goes against the spirit of that offer, and Amazon could restrict the account. Photos are the intended use.
 - **Size.** Up to 100 MB per item in this version.
-- **Password.** It can't be changed yet (that means re-encrypting everything) and it can't be recovered.
+- **Password.** It can't be recovered. Changing it re-encrypts the whole vault: every file is downloaded and uploaded again, and until that finishes the old password still opens the files not done yet.
 - Android limits background data sync to 6 hours a day.
 
 ## Support the project

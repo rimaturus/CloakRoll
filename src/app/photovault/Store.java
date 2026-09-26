@@ -7,6 +7,7 @@ import android.media.MediaDataSource;
 import android.media.MediaMetadataRetriever;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Base64;
 import android.util.LruCache;
 import android.util.Size;
 import java.io.*;
@@ -35,6 +36,7 @@ final class Store {
 
     static final class Item {
         String id, name, mime, folder = ""; // folder "" = not in a folder
+        String salt = "";                   // hex salt of the key the file on Amazon was made with ("" = before v1.3)
         long taken, size;
         boolean video() { return mime != null && mime.startsWith("video/"); }
     }
@@ -43,6 +45,7 @@ final class Store {
     static final class Index {
         final List<Item> items = new ArrayList<>();
         final List<String> folders = new ArrayList<>();
+        final List<String> retire = new ArrayList<>(); // old copies replaced during a password change, still to trash
 
         boolean hasFolder(String name) {
             for (String f : folders) if (f.equalsIgnoreCase(name)) return true;
@@ -63,7 +66,11 @@ final class Store {
         @Override protected int sizeOf(String k, Bitmap b) { return b.getByteCount(); }
     };
 
+    static final String VERIFY = "PhotoVault password check";
+
     byte[] key;                           // vault key: in memory only while unlocked
+    int busyJobs;                         // background jobs queued or running (main thread)
+    final Map<String, String> renamed = new java.util.concurrent.ConcurrentHashMap<>(); // old -> new item id (password change)
     List<Item> items = new ArrayList<>(); // decrypted index: in memory only while unlocked
     List<String> folders = new ArrayList<>();
     String status;                        // last background-job line shown in the gallery
@@ -128,35 +135,45 @@ final class Store {
     /** Reads the encrypted index (or the plaintext list of v1.0, which the next write replaces). */
     synchronized Index readIndex(byte[] k) throws Exception {
         File f = indexFile(), old = new File(app.getFilesDir(), "index.json");
-        String json = f.exists() ? new String(Vault.open(k, readFile(f)), "UTF-8") : old.exists() ? new String(readFile(old), "UTF-8") : "[]";
+        String json = f.exists() ? new String(openSealed(k, readFile(f)), "UTF-8") : old.exists() ? new String(readFile(old), "UTF-8") : "[]";
         Index ix = new Index();
-        JSONArray a, fs = null;
+        JSONArray a, fs = null, rs = null;
         if (json.trim().startsWith("[")) a = new JSONArray(json); // v1.0 / v1.1: just the items
-        else { JSONObject o = new JSONObject(json); a = o.getJSONArray("items"); fs = o.optJSONArray("folders"); }
+        else { JSONObject o = new JSONObject(json); a = o.getJSONArray("items"); fs = o.optJSONArray("folders"); rs = o.optJSONArray("retire"); }
         for (int i = 0; i < a.length(); i++) {
             JSONObject o = a.getJSONObject(i);
             Item it = new Item();
             it.id = o.getString("id"); it.name = o.optString("name"); it.mime = o.optString("mime");
             it.taken = o.optLong("taken"); it.size = o.optLong("size"); it.folder = o.optString("folder", "");
+            it.salt = o.optString("salt", "");
             ix.items.add(it);
         }
         if (fs != null) for (int i = 0; i < fs.length(); i++) ix.folders.add(fs.getString(i));
+        if (rs != null) for (int i = 0; i < rs.length(); i++) ix.retire.add(rs.getString(i));
         return ix;
     }
 
     synchronized void writeIndex(byte[] k, Index ix) throws Exception {
+        File tmp = new File(app.getFilesDir(), "index.bin.tmp");
+        writeSynced(tmp, Vault.seal(k, indexJson(ix)));
+        if (!tmp.renameTo(indexFile())) throw new IOException("cannot save the index");
+        new File(app.getFilesDir(), "index.json").delete(); // v1.0 plaintext index
+    }
+
+    private static byte[] indexJson(Index ix) throws Exception {
         Collections.sort(ix.items, new Comparator<Item>() { public int compare(Item a, Item b) { return Long.compare(b.taken, a.taken); } });
         Collections.sort(ix.folders, String.CASE_INSENSITIVE_ORDER);
         for (Item it : ix.items) if (!it.folder.isEmpty()) it.folder = ix.canonical(it.folder); // one spelling per folder
         JSONArray a = new JSONArray();
         for (Item it : ix.items)
             a.put(new JSONObject().put("id", it.id).put("name", it.name).put("mime", it.mime).put("taken", it.taken)
-                    .put("size", it.size).put("folder", it.folder));
-        String json = new JSONObject().put("items", a).put("folders", new JSONArray(ix.folders)).toString();
-        File tmp = new File(app.getFilesDir(), "index.bin.tmp");
-        try (FileOutputStream o = new FileOutputStream(tmp)) { o.write(Vault.seal(k, json.getBytes("UTF-8"))); o.getFD().sync(); }
-        if (!tmp.renameTo(indexFile())) throw new IOException("cannot save the index");
-        new File(app.getFilesDir(), "index.json").delete(); // v1.0 plaintext index
+                    .put("size", it.size).put("folder", it.folder).put("salt", it.salt));
+        return new JSONObject().put("items", a).put("folders", new JSONArray(ix.folders)).put("retire", new JSONArray(ix.retire))
+                .toString().getBytes("UTF-8");
+    }
+
+    static void writeSynced(File f, byte[] b) throws IOException {
+        try (FileOutputStream o = new FileOutputStream(f)) { o.write(b); o.getFD().sync(); }
     }
 
     interface Edit { void apply(Index ix); }
@@ -194,6 +211,7 @@ final class Store {
 
     private final ExecutorService bg = Executors.newSingleThreadExecutor();
     private boolean backupQueued; // guarded by this
+    private byte[] backupKey;     // guarded by this
 
     /** The folders on the phone are newer than the copy on Amazon: Sync must not apply that copy. Call before the change. */
     synchronized void markFoldersDirty() { prefs.edit().putBoolean("folders_dirty", true).commit(); }
@@ -212,19 +230,20 @@ final class Store {
      * gets them back with Sync. Any thread; runs in the background; calls made while one is waiting merge into it.
      */
     void backupFolders(byte[] jobKey) {
-        final byte[] k = jobKey.clone();
         synchronized (this) {
             markFoldersDirty();
             if (prefs.getBoolean("restore_pending", false)) { // the list may still be partial: upload after the restore
                 Journal.add("folders will be saved to Amazon when the restore from Amazon has finished");
-                Arrays.fill(k, (byte) 0);
                 return;
             }
-            if (backupQueued) { Arrays.fill(k, (byte) 0); return; }
+            if (backupKey != null) Arrays.fill(backupKey, (byte) 0);
+            backupKey = jobKey.clone(); // a waiting backup always uses the newest key
+            if (backupQueued) return;
             backupQueued = true;
         }
         bg.execute(new Runnable() { public void run() {
-            synchronized (Store.this) { backupQueued = false; }
+            final byte[] k;
+            synchronized (Store.this) { backupQueued = false; k = backupKey; backupKey = null; }
             File png = new File(app.getCacheDir(), "folders-up.png");
             try {
                 Index ix = readIndex(k);
@@ -257,10 +276,116 @@ final class Store {
         File f = new File(app.getCacheDir(), "folders-down.png");
         try {
             Amazon.download(newest.getString("id"), owner(), f, null);
-            Vault.Opened o;
-            try (InputStream in = new FileInputStream(f)) { o = Vault.decryptPng(in, k); }
+            Vault.Opened o = decrypt(f, k);
             return new JSONObject(new String(o.plain, o.dataOff, o.dataLen(), "UTF-8"));
         } finally { f.delete(); }
+    }
+
+    // ---------------------------------------------------------------- password change
+    //
+    // The key comes from the password, so a new password means a new key, and every file on Amazon must be
+    // re-encrypted with it (SyncService.reencrypt). Until that's done the previous key is kept, sealed with
+    // the new one ("old_key"), so both kinds of file keep opening. It is deleted when the last file is done.
+
+    /** True while files made with the previous password still exist. */
+    boolean reencrypting() { return prefs.contains("old_key"); }
+
+    /** The previous key, or null. The caller wipes it. */
+    byte[] oldKey(byte[] k) {
+        String s = prefs.getString("old_key", "");
+        if (s.isEmpty()) return null;
+        try { return Vault.open(k, Base64.decode(s, Base64.NO_WRAP)); } catch (Exception e) { return null; }
+    }
+
+    /** Local secret (index, preview) sealed with the current key, or with the previous one if a change was interrupted. */
+    byte[] openSealed(byte[] k, byte[] sealed) throws Exception {
+        try { return Vault.open(k, sealed); }
+        catch (AEADBadTagException e) {
+            byte[] old = oldKey(k);
+            if (old == null) throw e;
+            try { return Vault.open(old, sealed); } finally { Arrays.fill(old, (byte) 0); }
+        }
+    }
+
+    /** Decrypts a vault PNG with the key it was made with: the current one, or the previous one during a change. */
+    Vault.Opened decrypt(File png, byte[] k) throws Exception {
+        byte[] s;
+        try (InputStream in = new FileInputStream(png)) { s = Vault.readSalt(in); }
+        byte[] old = Arrays.equals(s, salt()) ? null : oldKey(k);
+        try (InputStream in = new FileInputStream(png)) { return Vault.decryptPng(in, old != null && hex(s).equals(prefs.getString("old_salt", "")) ? old : k); }
+        finally { if (old != null) Arrays.fill(old, (byte) 0); }
+    }
+
+    /** Items whose file on Amazon still uses an older key. */
+    int toReencrypt(Index ix) {
+        String cur = prefs.getString("salt", "");
+        int n = 0;
+        for (Item it : ix.items) if (!cur.equals(it.salt)) n++;
+        return n;
+    }
+
+    /**
+     * Switches this phone to the new key: previews and list re-sealed, new salt and password check saved, previous key
+     * kept (sealed with the new one) until SyncService has re-encrypted every file. Background thread.
+     */
+    synchronized void changePassword(byte[] oldK, byte[] newK, byte[] newSalt, String verifier) throws Exception {
+        if (reencrypting()) throw new IOException("a password change is still being applied");
+        Index ix = readIndex(oldK);
+        File[] thumbs = new File(app.getFilesDir(), "thumbs").listFiles();
+        List<File> ready = new ArrayList<>();
+        if (thumbs != null) for (File f : thumbs) if (f.getName().endsWith(".new")) f.delete(); // leftovers of a crash
+        thumbs = new File(app.getFilesDir(), "thumbs").listFiles();
+        if (thumbs != null) for (File f : thumbs) {
+            try {
+                File n = new File(f.getPath() + ".new");
+                writeSynced(n, Vault.seal(newK, Vault.open(oldK, readFile(f))));
+                ready.add(f);
+            } catch (Exception e) { f.delete(); } // unreadable preview: the item just shows without one
+        }
+        String oldSalt = prefs.getString("salt", "");
+        for (Item it : ix.items) if (it.salt.isEmpty()) it.salt = oldSalt; // files from before v1.3 use the only key there was
+        File tmp = new File(app.getFilesDir(), "index.bin.new");
+        writeSynced(tmp, Vault.seal(newK, indexJson(ix)));
+        // the switch: one atomic commit; if the app dies right after it, openSealed() still reads the old files
+        boolean saved = prefs.edit().putString("salt", hex(newSalt)).putString("verifier", verifier)
+                .putString("old_salt", oldSalt).putString("old_key", Base64.encodeToString(Vault.seal(newK, oldK), Base64.NO_WRAP))
+                .remove("bio_iv").remove("bio_ct").commit();
+        final byte[] k = newK.clone();
+        try {
+            if (!saved) throw new IOException("settings not saved");
+            if (!tmp.renameTo(indexFile())) throw new IOException("cannot save the index");
+            for (File f : ready) new File(f.getPath() + ".new").renameTo(f);
+        } catch (IOException e) { // half switched: lock, so the next unlock (new password) starts from a consistent state
+            Arrays.fill(k, (byte) 0);
+            post(new Runnable() { public void run() { lock(); changed(); } });
+            throw e;
+        }
+        post(new Runnable() { public void run() { // the vault stays open with the new key (unless it locked meanwhile)
+            if (key != null) { Arrays.fill(key, (byte) 0); key = k; } else Arrays.fill(k, (byte) 0);
+        }});
+    }
+
+    /** The item id now, if a password change replaced the file. */
+    String currentId(String id) { String n = renamed.get(id); return n == null ? id : n; }
+
+    /** True if `k` is the vault's key (checked against the stored password check). */
+    boolean keyIsCurrent(byte[] k) {
+        try { return Arrays.equals(Vault.open(k, Base64.decode(prefs.getString("verifier", ""), Base64.NO_WRAP)), VERIFY.getBytes("UTF-8")); }
+        catch (Exception e) { return false; }
+    }
+
+    /** Previews re-sealed by an interrupted password change (".new" files) are put in place. Background thread. */
+    synchronized void applyPendingPreviews(byte[] k) {
+        File[] fs = new File(app.getFilesDir(), "thumbs").listFiles();
+        if (fs != null) for (File f : fs) if (f.getName().endsWith(".new")) {
+            try { Vault.open(k, readFile(f)); f.renameTo(new File(f.getPath().substring(0, f.getPath().length() - 4))); }
+            catch (Exception e) { f.delete(); }
+        }
+    }
+
+    /** Called when no file with the previous key is left: the old password becomes useless. */
+    synchronized void finishPasswordChange() {
+        prefs.edit().remove("old_key").remove("old_salt").commit();
     }
 
     // ---------------------------------------------------------------- previews
@@ -318,7 +443,7 @@ final class Store {
         try {
             File f = thumbFile(id);
             if (!f.exists()) return null;
-            byte[] j = Vault.open(k, readFile(f));
+            byte[] j = openSealed(k, readFile(f));
             return BitmapFactory.decodeByteArray(j, 0, j.length);
         } catch (Exception e) { Journal.add("preview unreadable: " + e); return null; }
     }
