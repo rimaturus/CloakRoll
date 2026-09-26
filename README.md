@@ -167,7 +167,7 @@ No Gradle and no Android Studio needed. On Ubuntu 24.04:
 
 ```
 sudo apt install aapt apksigner dalvik-exchange zipalign openjdk-21-jdk-headless zip curl
-KS_PASS='a-strong-password' DONATE_URL='https://ko-fi.com/yourname' ./build.sh   # creates photovault.jks on first run
+KS_PASS='a-strong-password' ./build.sh           # creates photovault.jks on first run; DONATE_URL=... to change the donation link
 KS_PASS='a-strong-password' PLAY=1 ./build.sh     # Google Play variant: no donation or source links (Play payments policy)
 ```
 
@@ -196,8 +196,7 @@ Source layout:
 
 PhotoVault has no ads, no tracking and no paid tier, and never will. If it is useful to you, you can support its development with a voluntary donation:
 
-- in the app: *Menu > Support PhotoVault*
-- here on GitHub: the **Sponsor** button at the top of this page
+**[Buy me a coffee](https://buymeacoffee.com/rimaturus)**, also in the app (*Menu > Support PhotoVault*) and behind the **Sponsor** button at the top of this page.
 
 Donations pay for development time and, hopefully one day, an independent security audit. They don't buy features or priority: everything is free for everyone. Starring the repo, reporting bugs and reviewing the code help just as much.
 
