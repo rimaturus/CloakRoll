@@ -15,6 +15,7 @@ import java.io.*;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 /**
@@ -35,8 +36,9 @@ public class SyncService extends Service {
     volatile int cancelUpTo;
     long lastNote;
 
-    static void start(Context c, String action, List<Uri> uris) {
-        Intent i = new Intent(c, SyncService.class).setAction(action);
+    /** Notification and status texts are plain ASCII: some phone fonts show symbols like check marks as empty boxes. */
+    static void start(Context c, String action, List<Uri> uris, String intoFolder) {
+        Intent i = new Intent(c, SyncService.class).setAction(action).putExtra("folder", intoFolder);
         if (uris != null && !uris.isEmpty()) {
             ClipData clip = ClipData.newRawUri("", uris.get(0));
             for (int n = 1; n < uris.size(); n++) clip.addItem(new ClipData.Item(uris.get(n)));
@@ -59,7 +61,7 @@ public class SyncService extends Service {
 
     @Override public int onStartCommand(Intent in, int flags, int startId) {
         try {
-            startForeground(NOTE, note("Preparing…", null, -1, true), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
+            startForeground(NOTE, note("Preparing...", null, -1, true), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
         } catch (Exception e) { // e.g. a stale "Stop" tapped while the app is in the background
             Journal.add("background service not allowed now: " + e);
             if (pending == 0) stopSelf(startId);
@@ -69,7 +71,7 @@ public class SyncService extends Service {
         String action = in == null ? "" : String.valueOf(in.getAction());
         if (STOP.equals(action)) {
             cancelUpTo = seq;
-            if (pending > 0) show("Stopping after the current file…", -1);
+            if (pending > 0) show("Stopping after the current file...", -1);
         } else if (st.key != null && (UPLOAD.equals(action) || SYNC.equals(action))) {
             final byte[] k = st.key.clone();
             final int id = ++seq;
@@ -77,11 +79,12 @@ public class SyncService extends Service {
             ClipData c = in.getClipData();
             if (c != null) for (int n = 0; n < c.getItemCount(); n++) uris.add(c.getItemAt(n).getUri());
             final boolean upload = UPLOAD.equals(action);
+            final String into = in.getStringExtra("folder") == null ? "" : in.getStringExtra("folder");
             pending++;
             worker.execute(new Runnable() { public void run() {
                 try {
                     if (id <= cancelUpTo) return;
-                    if (upload) upload(k, uris, id); else sync(k, id);
+                    if (upload) upload(k, uris, into, id); else sync(k, id);
                 } catch (Throwable e) {
                     Journal.add("background job failed: " + e);
                 } finally {
@@ -152,7 +155,7 @@ public class SyncService extends Service {
 
     // ---------------------------------------------------------------- jobs
 
-    void upload(byte[] k, List<Uri> uris, int id) throws Exception {
+    void upload(byte[] k, List<Uri> uris, String into, int id) throws Exception {
         byte[] salt = st.salt();
         String folder = st.folder();
         int ok = 0, failed = 0;
@@ -176,7 +179,7 @@ public class SyncService extends Service {
                 }
                 if (mime == null) mime = "application/octet-stream";
                 if (size > Store.MAX_FILE) throw new IOException("larger than " + Store.human(Store.MAX_FILE) + " (not supported yet)");
-                show(pre + " · encrypting", -1);
+                show(pre + ": encrypting", -1);
                 String meta = new JSONObject().put("name", name).put("taken", taken).put("mime", mime).toString();
                 byte[] plain;
                 int off;
@@ -198,12 +201,12 @@ public class SyncService extends Service {
                 plain = null;
                 final long total = png.length();
                 JSONObject node = Amazon.upload(png, Store.hex(Vault.random(8)) + ".png", folder, new Amazon.Progress() {
-                    public void on(long d, long t) { int pct = (int) (100 * d / Math.max(1, total)); show(pre + " · uploading " + pct + "%", pct); }
+                    public void on(long d, long t) { int pct = (int) (100 * d / Math.max(1, total)); show(pre + ": uploading " + pct + "%", pct); }
                 });
                 Store.Item it = new Store.Item();
-                it.id = node.getString("id"); it.name = name; it.mime = mime; it.taken = taken; it.size = size;
+                it.id = node.getString("id"); it.name = name; it.mime = mime; it.taken = taken; it.size = size; it.folder = into;
                 if (thumb != null) Store.writeFile(st.thumbFile(it.id), Vault.seal(k, thumb));
-                st.add(k, it);
+                st.add(k, it, false);
                 ok++;
             } catch (Throwable e) {
                 failed++;
@@ -212,59 +215,95 @@ public class SyncService extends Service {
             } finally { png.delete(); }
         }
         int skipped = uris.size() - ok - failed;
-        done("✓ " + ok + " added" + (failed > 0 ? " · " + failed + " failed (see Log)" : "") + (skipped > 0 ? " · " + skipped + " not started" : ""));
+        if (ok > 0 && !into.isEmpty()) st.backupFolders(k);
+        done("Done: " + ok + " added" + (into.isEmpty() ? "" : " to a folder") + (failed > 0 ? ", " + failed + " failed (see Log)" : "")
+                + (skipped > 0 ? ", " + skipped + " not started" : ""));
     }
 
     /** Rebuilds the local list from the PhotoVault folder on Amazon (new phone, reinstall, items deleted on the website). */
     void sync(final byte[] k, int id) throws Exception {
-        int restored = 0, skipped = 0, removed = 0;
+        int restored = 0, skipped = 0, retry = 0, removed = 0;
         try {
-            show("Sync · listing your vault on Amazon…", -1);
+            show("Sync: listing your vault on Amazon...", -1);
             Amazon.Listing listing = Amazon.listFiles(st.folder(), 1_000_000);
             List<JSONObject> nodes = listing.files;
             final Set<String> remote = new HashSet<>(), local = new HashSet<>();
             for (JSONObject n : nodes) remote.add(n.getString("id"));
-            for (Store.Item it : st.readIndex(k)) local.add(it.id);
+            for (Store.Item it : st.readIndex(k).items) local.add(it.id);
             if (listing.complete) { // drop items deleted on the Amazon website (only if Amazon listed everything)
                 final List<String> gone = new ArrayList<>();
                 for (String x : local) if (!remote.contains(x)) gone.add(x);
                 removed = gone.size();
-                if (removed > 0) st.edit(k, new Store.Edit() { public void apply(List<Store.Item> l) {
-                    Iterator<Store.Item> i = l.iterator();
+                if (removed > 0) st.edit(k, new Store.Edit() { public void apply(Store.Index ix) {
+                    Iterator<Store.Item> i = ix.items.iterator();
                     while (i.hasNext()) if (gone.contains(i.next().id)) i.remove();
                 }});
             }
+            // folders saved on Amazon: fill in items that aren't in a folder here (new phone, reinstall).
+            // Skipped if the phone has newer folder changes that aren't on Amazon yet, unless a restore is under way.
+            final boolean restoring = st.prefs.getBoolean("restore_pending", false);
+            JSONObject fb = null;
+            if (restoring || !st.foldersDirty())
+                try { fb = st.readFoldersBackup(k); }
+                catch (Exception e) { if (Store.isAuth(e)) throw e; Journal.add("sync: folders backup not readable: " + e); }
+            final JSONObject map = fb == null || fb.optJSONObject("map") == null ? new JSONObject() : fb.getJSONObject("map");
+            final JSONArray remoteFolders = fb == null || fb.optJSONArray("folders") == null ? new JSONArray() : fb.getJSONArray("folders");
+            if (fb != null) st.edit(k, new Store.Edit() { public void apply(Store.Index ix) {
+                if (!restoring && st.foldersDirty()) return; // changed on the phone while the backup was downloading
+                for (int i = 0; i < remoteFolders.length(); i++) {
+                    String f = remoteFolders.optString(i);
+                    if (!f.isEmpty() && !ix.hasFolder(f)) ix.folders.add(f);
+                }
+                for (Store.Item it : ix.items) if (it.folder.isEmpty()) it.folder = map.optString(it.id, "");
+            }});
             int n = 0;
             for (JSONObject node : nodes) {
                 n++;
                 if (id <= cancelUpTo) break;
                 String nid = node.getString("id");
                 if (local.contains(nid)) continue;
-                show("Sync · restoring " + n + " of " + nodes.size(), 100 * n / nodes.size());
+                show("Sync: restoring " + n + " of " + nodes.size(), 100 * n / nodes.size());
                 File f = new File(getCacheDir(), "sync.png");
                 try {
-                    Amazon.download(nid, st.owner(), f, null);
+                    try { Amazon.download(nid, st.owner(), f, null); }
+                    catch (IOException e) {
+                        if (Store.isAuth(e)) throw e;
+                        Journal.add("sync: download failed, retried on the next Sync: " + e);
+                        retry++;
+                        continue;
+                    }
                     Vault.Opened o;
                     try (InputStream in = new FileInputStream(f)) { o = Vault.decryptPng(in, k); }
+                    catch (Exception e) { // permanent: made with another key, or not a PhotoVault file
+                        Journal.add("sync: skipped a file this vault's key can't open: " + e);
+                        skipped++;
+                        continue;
+                    }
                     JSONObject m = new JSONObject(o.meta);
                     Store.Item it = new Store.Item();
                     it.id = nid; it.name = m.optString("name", "item"); it.mime = m.optString("mime", "");
-                    it.taken = m.optLong("taken", System.currentTimeMillis()); it.size = o.dataLen();
+                    it.taken = m.optLong("taken", System.currentTimeMillis()); it.size = o.dataLen(); it.folder = map.optString(nid, "");
                     byte[] thumb = Store.makeThumb(o.plain, o.dataOff, o.dataLen(), it.video());
                     if (thumb != null) Store.writeFile(st.thumbFile(nid), Vault.seal(k, thumb));
-                    st.add(k, it);
+                    st.add(k, it, true);
                     restored++;
                 } catch (Throwable e) {
                     if (Store.isAuth(e)) throw e;
-                    Journal.add("sync: skipped a file: " + e);
-                    skipped++;
+                    Journal.add("sync: could not restore a file, retried on the next Sync: " + e);
+                    retry++;
                 } finally { f.delete(); }
             }
-            done("✓ Sync done · " + restored + " restored · " + removed + " removed"
-                    + (skipped > 0 ? " · " + skipped + " skipped (not openable with this vault's key, see Log)" : ""));
+            // restore finished: everything that can be restored is here (files other keys made never will be)
+            if (restoring && retry == 0 && id > cancelUpTo) {
+                st.prefs.edit().putBoolean("restore_pending", false).commit();
+                if (st.foldersDirty()) st.backupFolders(k);
+            } else if (!restoring && st.foldersDirty()) st.backupFolders(k); // retry an upload that failed
+            done("Sync done: " + restored + " restored, " + removed + " removed"
+                    + (skipped > 0 ? ", " + skipped + " skipped (not openable with this vault's key, see Log)" : "")
+                    + (retry > 0 ? ", " + retry + " to retry: run Sync again" : ""));
         } catch (Throwable e) {
             Journal.add("sync failed: " + e);
-            done("✗ Sync failed: " + Store.explain(e));
+            done("Sync failed: " + Store.explain(e));
             if (Store.isAuth(e)) st.post(new Runnable() { public void run() { st.needLogin = true; st.changed(); } });
         }
     }

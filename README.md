@@ -8,7 +8,7 @@ Amazon Prime includes unlimited full-resolution photo storage. PhotoVault uses t
 
 ![What you see vs. what Amazon stores](docs/comparison.png)
 
-> **Status: beta (v1.1).** Android 13 or newer. Not affiliated with, endorsed by or connected to Amazon.
+> **Status: beta (v1.2).** Android 13 or newer. Not affiliated with, endorsed by or connected to Amazon.
 
 ---
 
@@ -19,7 +19,7 @@ Amazon Prime includes unlimited full-resolution photo storage. PhotoVault uses t
 | **No ads** | Not now, not later. |
 | **No tracking** | No analytics, no crash reporting, no third-party SDKs. The app has **zero** third-party libraries. |
 | **No data collection, no data selling** | There are no PhotoVault servers and no PhotoVault accounts. The app talks only to Amazon, and only sends it encrypted files. We never receive anything, so there is nothing to sell or to leak. |
-| **Open source** | GPL-3.0. About 2,300 lines of plain Java and Python that anyone can read. The whole cryptography is in one file, [`Vault.java`](src/app/photovault/Vault.java) (280 lines). |
+| **Open source** | GPL-3.0. About 2,800 lines of plain Java and Python that anyone can read. The whole cryptography is in one file, [`Vault.java`](src/app/photovault/Vault.java) (280 lines). |
 | **Donation-funded** | PhotoVault is free. Donations are voluntary and unlock nothing: every feature is free for everyone. [Support the project](#support-the-project). |
 
 ## Why
@@ -105,7 +105,8 @@ No storage, contacts, location, camera or microphone permission. Photos are chos
 ## Features
 
 - Encrypt and upload many photos and videos at once; the queue keeps running in the background with a progress notification and a *Stop* button
-- Gallery with instant previews; opening an item shows its preview immediately, then the full-quality original as soon as it is downloaded and decrypted
+- Gallery with instant previews; opening an item shows its preview immediately, then the full-quality original as soon as it is downloaded and decrypted. Swipe left and right to move between items
+- **Folders**: create folders, long-press photos to select several and *Move* or *Delete* them, rename or delete folders (their photos are kept). Folder names and contents are saved on Amazon in one more encrypted file, so Amazon can't read them and a new phone gets them back
 - *Amazon's view* button: see the exact file Amazon stores
 - Fingerprint unlock, auto-lock, no screenshots
 - *Sync from Amazon*: restores your vault on a new phone and removes items you deleted on the Amazon website
@@ -166,8 +167,8 @@ No Gradle and no Android Studio needed. On Ubuntu 24.04:
 
 ```
 sudo apt install aapt apksigner dalvik-exchange zipalign openjdk-21-jdk-headless zip curl
-KS_PASS='a-strong-password' ./build.sh           # creates photovault.jks on first run
-KS_PASS='a-strong-password' PLAY=1 ./build.sh    # Google Play variant, without the donation link
+KS_PASS='a-strong-password' DONATE_URL='https://ko-fi.com/yourname' ./build.sh   # creates photovault.jks on first run
+KS_PASS='a-strong-password' PLAY=1 ./build.sh     # Google Play variant: no donation or source links (Play payments policy)
 ```
 
 `build.sh` downloads the Android API jars, compiles, and signs. **Keep `photovault.jks` private and out of git** (it is in `.gitignore`): anyone who has it can sign "updates" that install over your users' copies.
@@ -195,7 +196,8 @@ Source layout:
 
 PhotoVault has no ads, no tracking and no paid tier, and never will. If it is useful to you, you can support its development with a voluntary donation:
 
-**[♥ Sponsor on GitHub](https://github.com/sponsors/rimaturus)**
+- in the app: *Menu > Support PhotoVault*
+- here on GitHub: the **Sponsor** button at the top of this page
 
 Donations pay for development time and, hopefully one day, an independent security audit. They don't buy features or priority: everything is free for everyone. Starring the repo, reporting bugs and reviewing the code help just as much.
 

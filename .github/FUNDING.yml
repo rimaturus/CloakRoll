@@ -1,3 +1,4 @@
-# Shows the "Sponsor" button on the GitHub repository page.
-github: rimaturus
-# Other options, if you use them: ko_fi: <name>, buy_me_a_coffee: <name>, liberapay: <name>, custom: ["https://paypal.me/<name>"]
+# Shows the "Sponsor" button on the GitHub repository page. Uncomment the platforms you actually use.
+# ko_fi: yourname          # recommended direct link (see PUBLISHING.md)
+# github: rimaturus        # only after GitHub Sponsors is enabled for the account
+# liberapay: yourname
