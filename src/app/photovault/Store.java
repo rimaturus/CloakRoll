@@ -12,6 +12,8 @@ import android.util.Size;
 import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import javax.crypto.AEADBadTagException;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -32,9 +34,26 @@ final class Store {
     }
 
     static final class Item {
-        String id, name, mime;
+        String id, name, mime, folder = ""; // folder "" = not in a folder
         long taken, size;
         boolean video() { return mime != null && mime.startsWith("video/"); }
+    }
+
+    /** The local list: items and folder names. A folder is a label on items (one level, like albums). */
+    static final class Index {
+        final List<Item> items = new ArrayList<>();
+        final List<String> folders = new ArrayList<>();
+
+        boolean hasFolder(String name) {
+            for (String f : folders) if (f.equalsIgnoreCase(name)) return true;
+            return false;
+        }
+
+        /** The existing folder with this name ignoring case, or the name itself. */
+        String canonical(String name) {
+            for (String f : folders) if (f.equalsIgnoreCase(name)) return f;
+            return name;
+        }
     }
 
     final Context app;
@@ -46,6 +65,7 @@ final class Store {
 
     byte[] key;                           // vault key: in memory only while unlocked
     List<Item> items = new ArrayList<>(); // decrypted index: in memory only while unlocked
+    List<String> folders = new ArrayList<>();
     String status;                        // last background-job line shown in the gallery
     boolean jobRunning, needLogin, allowScreenshots;
     long backgroundSince;
@@ -80,6 +100,7 @@ final class Store {
         if (key != null) Arrays.fill(key, (byte) 0);
         key = null;
         items = new ArrayList<>();
+        folders = new ArrayList<>();
         thumbs.evictAll();
         deletePlayback();
     }
@@ -104,54 +125,142 @@ final class Store {
 
     private File indexFile() { return new File(app.getFilesDir(), "index.bin"); }
 
-    /** Reads the encrypted index (or the plaintext one of v1.0, which the next write replaces). */
-    synchronized List<Item> readIndex(byte[] k) throws Exception {
+    /** Reads the encrypted index (or the plaintext list of v1.0, which the next write replaces). */
+    synchronized Index readIndex(byte[] k) throws Exception {
         File f = indexFile(), old = new File(app.getFilesDir(), "index.json");
         String json = f.exists() ? new String(Vault.open(k, readFile(f)), "UTF-8") : old.exists() ? new String(readFile(old), "UTF-8") : "[]";
-        JSONArray a = new JSONArray(json);
-        List<Item> l = new ArrayList<>();
+        Index ix = new Index();
+        JSONArray a, fs = null;
+        if (json.trim().startsWith("[")) a = new JSONArray(json); // v1.0 / v1.1: just the items
+        else { JSONObject o = new JSONObject(json); a = o.getJSONArray("items"); fs = o.optJSONArray("folders"); }
         for (int i = 0; i < a.length(); i++) {
             JSONObject o = a.getJSONObject(i);
             Item it = new Item();
             it.id = o.getString("id"); it.name = o.optString("name"); it.mime = o.optString("mime");
-            it.taken = o.optLong("taken"); it.size = o.optLong("size");
-            l.add(it);
+            it.taken = o.optLong("taken"); it.size = o.optLong("size"); it.folder = o.optString("folder", "");
+            ix.items.add(it);
         }
-        return l;
+        if (fs != null) for (int i = 0; i < fs.length(); i++) ix.folders.add(fs.getString(i));
+        return ix;
     }
 
-    synchronized void writeIndex(byte[] k, List<Item> l) throws Exception {
-        Collections.sort(l, new Comparator<Item>() { public int compare(Item a, Item b) { return Long.compare(b.taken, a.taken); } });
+    synchronized void writeIndex(byte[] k, Index ix) throws Exception {
+        Collections.sort(ix.items, new Comparator<Item>() { public int compare(Item a, Item b) { return Long.compare(b.taken, a.taken); } });
+        Collections.sort(ix.folders, String.CASE_INSENSITIVE_ORDER);
+        for (Item it : ix.items) if (!it.folder.isEmpty()) it.folder = ix.canonical(it.folder); // one spelling per folder
         JSONArray a = new JSONArray();
-        for (Item it : l)
-            a.put(new JSONObject().put("id", it.id).put("name", it.name).put("mime", it.mime).put("taken", it.taken).put("size", it.size));
+        for (Item it : ix.items)
+            a.put(new JSONObject().put("id", it.id).put("name", it.name).put("mime", it.mime).put("taken", it.taken)
+                    .put("size", it.size).put("folder", it.folder));
+        String json = new JSONObject().put("items", a).put("folders", new JSONArray(ix.folders)).toString();
         File tmp = new File(app.getFilesDir(), "index.bin.tmp");
-        try (FileOutputStream o = new FileOutputStream(tmp)) { o.write(Vault.seal(k, a.toString().getBytes("UTF-8"))); o.getFD().sync(); }
+        try (FileOutputStream o = new FileOutputStream(tmp)) { o.write(Vault.seal(k, json.getBytes("UTF-8"))); o.getFD().sync(); }
         if (!tmp.renameTo(indexFile())) throw new IOException("cannot save the index");
         new File(app.getFilesDir(), "index.json").delete(); // v1.0 plaintext index
     }
 
-    interface Edit { void apply(List<Item> l); }
+    interface Edit { void apply(Index ix); }
 
-    /** Any thread: changes the index on disk and, if the vault is still open with this key, the list on screen. */
+    /** Any thread: changes the index on disk and, if the vault is still open with this key, the lists on screen. */
     void edit(byte[] jobKey, Edit e) throws Exception {
         final byte[] k = jobKey.clone(); // the caller may wipe its key before the UI update below runs
         synchronized (this) {
-            final List<Item> l;
-            try { l = readIndex(k); e.apply(l); writeIndex(k, l); }
+            final Index ix;
+            try { ix = readIndex(k); e.apply(ix); writeIndex(k, ix); }
             catch (Exception x) { Arrays.fill(k, (byte) 0); throw x; }
             post(new Runnable() { public void run() { // posted in write order
-                if (Store.this.key != null && Arrays.equals(Store.this.key, k)) { items = l; changed(); }
+                if (Store.this.key != null && Arrays.equals(Store.this.key, k)) { items = ix.items; folders = ix.folders; changed(); }
                 Arrays.fill(k, (byte) 0);
             }});
         }
     }
 
-    void add(byte[] k, final Item it) throws Exception {
-        edit(k, new Edit() { public void apply(List<Item> l) {
-            for (Item x : l) if (x.id.equals(it.id)) return;
-            l.add(it);
+    /**
+     * Adds an item. If its folder no longer exists (renamed or deleted during an upload), `createFolder` decides:
+     * create it again (restore from Amazon) or put the item in the main view (upload).
+     */
+    void add(byte[] k, final Item it, final boolean createFolder) throws Exception {
+        edit(k, new Edit() { public void apply(Index ix) {
+            for (Item x : ix.items) if (x.id.equals(it.id)) return;
+            if (!it.folder.isEmpty()) {
+                it.folder = ix.canonical(it.folder);
+                if (!ix.folders.contains(it.folder)) { if (createFolder) ix.folders.add(it.folder); else it.folder = ""; }
+            }
+            ix.items.add(it);
         }});
+    }
+
+    // ---------------------------------------------------------------- folders, backed up to Amazon (encrypted)
+
+    private final ExecutorService bg = Executors.newSingleThreadExecutor();
+    private boolean backupQueued; // guarded by this
+
+    /** The folders on the phone are newer than the copy on Amazon: Sync must not apply that copy. Call before the change. */
+    synchronized void markFoldersDirty() { prefs.edit().putBoolean("folders_dirty", true).commit(); }
+
+    synchronized boolean foldersDirty() { return prefs.getBoolean("folders_dirty", false); }
+
+    /** Amazon subfolder PhotoVault/index: holds one encrypted PNG with the folder organisation. */
+    String indexFolder() throws Exception {
+        String pref = "index_folder_" + folder(), id = prefs.getString(pref, "");
+        if (id.isEmpty()) { id = Amazon.folder(folder(), "index"); prefs.edit().putString(pref, id).apply(); }
+        return id;
+    }
+
+    /**
+     * Saves the folders (names and which item is in which) to Amazon as one more encrypted PNG, so a new phone
+     * gets them back with Sync. Any thread; runs in the background; calls made while one is waiting merge into it.
+     */
+    void backupFolders(byte[] jobKey) {
+        final byte[] k = jobKey.clone();
+        synchronized (this) {
+            markFoldersDirty();
+            if (prefs.getBoolean("restore_pending", false)) { // the list may still be partial: upload after the restore
+                Journal.add("folders will be saved to Amazon when the restore from Amazon has finished");
+                Arrays.fill(k, (byte) 0);
+                return;
+            }
+            if (backupQueued) { Arrays.fill(k, (byte) 0); return; }
+            backupQueued = true;
+        }
+        bg.execute(new Runnable() { public void run() {
+            synchronized (Store.this) { backupQueued = false; }
+            File png = new File(app.getCacheDir(), "folders-up.png");
+            try {
+                Index ix = readIndex(k);
+                JSONObject map = new JSONObject();
+                for (Item it : ix.items) if (!it.folder.isEmpty()) map.put(it.id, it.folder);
+                byte[] data = new JSONObject().put("folders", new JSONArray(ix.folders)).put("map", map).toString().getBytes("UTF-8");
+                String meta = new JSONObject().put("name", "folders.json").put("taken", System.currentTimeMillis()).put("mime", "application/json").toString();
+                byte[] plain = Vault.plainBuffer(meta, data.length);
+                System.arraycopy(data, 0, plain, plain.length - data.length, data.length);
+                try (OutputStream o = new BufferedOutputStream(new FileOutputStream(png))) { Vault.encryptToPng(k, salt(), plain, o); }
+                String dir = indexFolder();
+                String id = Amazon.upload(png, hex(Vault.random(8)) + ".png", dir, null).getString("id");
+                List<String> old = new ArrayList<>();
+                for (JSONObject n : Amazon.listFiles(dir, 1000).files) if (!n.getString("id").equals(id)) old.add(n.getString("id"));
+                if (!old.isEmpty()) Amazon.trash(old);
+                synchronized (Store.this) { if (!backupQueued) prefs.edit().putBoolean("folders_dirty", false).commit(); }
+                Journal.add("folders saved to Amazon (encrypted)");
+            } catch (Exception e) {
+                Journal.add("folders not saved to Amazon yet (retried on the next change): " + e);
+            } finally { png.delete(); Arrays.fill(k, (byte) 0); }
+        }});
+    }
+
+    /** The folder organisation saved on Amazon: {"folders":[...], "map":{itemId: folder}}, or null. Background thread. */
+    JSONObject readFoldersBackup(byte[] k) throws Exception {
+        List<JSONObject> l = Amazon.listFiles(indexFolder(), 1000).files;
+        if (l.isEmpty()) return null;
+        JSONObject newest = l.get(0);
+        for (JSONObject n : l) if (n.optString("createdDate").compareTo(newest.optString("createdDate")) > 0) newest = n;
+        File f = new File(app.getCacheDir(), "folders-down.png");
+        try {
+            Amazon.download(newest.getString("id"), owner(), f, null);
+            Vault.Opened o;
+            try (InputStream in = new FileInputStream(f)) { o = Vault.decryptPng(in, k); }
+            return new JSONObject(new String(o.plain, o.dataOff, o.dataLen(), "UTF-8"));
+        } finally { f.delete(); }
     }
 
     // ---------------------------------------------------------------- previews

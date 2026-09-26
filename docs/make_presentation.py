@@ -19,7 +19,6 @@ BG, PANEL, EDGE = HexColor("#0B1220"), HexColor("#131D33"), HexColor("#243150")
 TEXT, MUTED = HexColor("#E8ECF3"), HexColor("#93A1B8")
 TEAL, GREEN, AMBER, RED = HexColor("#2DD4BF"), HexColor("#4ADE80"), HexColor("#FBBF24"), HexColor("#F87171")
 REPO = "github.com/rimaturus/PhotoVault"
-DONATE = "github.com/sponsors/rimaturus"
 TMP = tempfile.mkdtemp()
 
 random.seed(3)
@@ -121,7 +120,7 @@ c.drawImage("res/mipmap-xxxhdpi/ic_launcher.png", 64, H - 200, 104, 104, mask="a
 text(64, 250, "PhotoVault", "B", 64, TEXT)
 para(64, 196, "Your photos on Amazon Photos. Amazon only sees noise.", 860, "L", 27, TEXT)
 text(64, 120, "Free  ·  Open source  ·  No ads  ·  No tracking  ·  Donation-funded", "B", 15, TEAL)
-text(64, 64, REPO + "   ·   v1.1 beta   ·   Android 13+", "R", 12, MUTED)
+text(64, 64, REPO + "   ·   v1.2 beta   ·   Android 13+", "R", 12, MUTED)
 c.linkURL("https://" + REPO, (64, 58, 300, 78), relative=0)
 
 # 2 ---------------------------------------------------------------- problem
@@ -236,8 +235,8 @@ for t, s in promises:
 # 10 --------------------------------------------------------------- features
 slide("Features", "Built for everyday use")
 feats = [("Background uploads", "Add many photos at once and leave: a notification shows progress and has a Stop button."),
-         ("Instant previews", "Tap a photo: its preview appears at once, the full original follows."),
-         ("Amazon's view", "One tap shows the exact noise file Amazon stores."),
+         ("Instant previews", "Tap a photo: its preview appears at once, the original follows. Swipe to the next."),
+         ("Folders", "Organise photos in folders. Their names are encrypted too, and restored on a new phone."),
          ("New phone? Sync", "Sign in, same password: the vault is rebuilt from Amazon."),
          ("Self-test", "8 checks on your own account before you store anything."),
          ("PC recovery", "A 115-line Python script decrypts everything, no app needed.")]
@@ -278,9 +277,9 @@ c.linkURL("https://" + REPO, (70, 290, 450, 342), relative=0)
 box(492, 150, 420, 250, HexColor("#1B1630"), HexColor("#3B2F63"))
 text(514, 366, "♥  Support PhotoVault", "B", 20, TEXT)
 para(514, 330, "No ads, no tracking, no paid tier: ever. If PhotoVault is useful to you, a voluntary donation funds development and, one day, an independent security audit.", 376, "R", 14, MUTED)
-text(514, 196, DONATE, "B", 15, TEAL)
-c.linkURL("https://" + DONATE, (514, 190, 900, 214), relative=0)
-text(514, 174, "Donations unlock nothing: everything stays free for all.", "R", 12, MUTED)
+text(514, 206, "In the app: Menu > Support PhotoVault", "B", 14, TEAL)
+text(514, 184, "On GitHub: the Sponsor button of the repository", "B", 14, TEAL)
+text(514, 162, "Donations unlock nothing: everything stays free for all.", "R", 12, MUTED)
 para(48, 96, "Not affiliated with or endorsed by Amazon. Amazon, Amazon Photos and Prime are trademarks of Amazon.com, Inc. or its affiliates.", 864, "R", 11, MUTED)
 
 c.save()

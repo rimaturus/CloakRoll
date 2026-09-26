@@ -19,6 +19,7 @@ import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.content.res.TypedArray;
 import android.graphics.*;
+import android.graphics.drawable.GradientDrawable;
 import android.hardware.biometrics.BiometricManager;
 import android.hardware.biometrics.BiometricPrompt;
 import android.net.Uri;
@@ -70,9 +71,22 @@ public class MainActivity extends Activity {
     long nextLoginTry;
     volatile int viewToken;
     WebView web;
-    TextView subtitleView, statusLine, loginStatus, loginHost;
+    TextView titleView, subtitleView, statusLine, loginStatus, loginHost;
     BaseAdapter adapter;
-    List<Store.Item> shown = new ArrayList<>();
+    GridView grid;
+    int cellSize;
+    String openFolder = "";                               // "" = top level
+    List<Object> cells = new ArrayList<>();               // what the grid shows: folder names (String), then items
+    List<Store.Item> shownItems;                          // the lists `cells` was built from
+    List<String> shownFolders;
+    final Map<String, Integer> counts = new HashMap<>();  // folder -> number of items
+    final Map<String, Store.Item> covers = new HashMap<>(); // folder -> newest item
+    final Set<String> selected = new LinkedHashSet<>();   // ids selected with a long press
+    final Map<String, int[]> scrollPos = new HashMap<>(); // folder -> grid position, restored when coming back
+    List<Store.Item> viewList = new ArrayList<>();        // what the viewer swipes through
+    int viewIndex;
+    String lastViewedId;
+    GestureDetector swipe;
     File playing;
 
     // ================================================================ lifecycle
@@ -88,6 +102,15 @@ public class MainActivity extends Activity {
         getOnBackInvokedDispatcher().registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT,
                 new OnBackInvokedCallback() { public void onBackInvoked() { back(); } });
         st.onChange = onChange; // also while stopped: an auto-lock must clear decrypted content from the screen
+        swipe = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
+            @Override public boolean onFling(MotionEvent a, MotionEvent b, float vx, float vy) {
+                if (a == null || !"viewer".equals(screen)) return false;
+                float dx = b.getX() - a.getX(), dy = b.getY() - a.getY();
+                if (Math.abs(dx) < dp(60) || Math.abs(dx) < 1.5f * Math.abs(dy) || Math.abs(vx) < dp(250)) return false;
+                step(dx < 0 ? 1 : -1);
+                return true;
+            }
+        });
         start();
     }
 
@@ -133,11 +156,32 @@ public class MainActivity extends Activity {
 
     /** Reacts to shared state: lock, new items, background progress, expired Amazon session. */
     void refresh() {
+        if (st.key == null) { // locked: forget everything decrypted that the screens hold
+            openFolder = "";
+            selected.clear();
+            scrollPos.clear();
+            counts.clear();
+            covers.clear();
+            cells = new ArrayList<>();
+            viewList = new ArrayList<>();
+            lastViewedId = null;
+            shownItems = null;
+            shownFolders = null;
+        }
         if (st.key == null && VAULT_SCREENS.contains(screen)) { closeViewer(); showUnlock(); return; }
         if (st.needLogin && started) { st.needLogin = false; askRelogin(); }
         if ("gallery".equals(screen)) {
-            if (shown != st.items) { shown = st.items; adapter.notifyDataSetChanged(); subtitleView.setText(subtitle()); }
-            statusLine.setText(st.status == null ? "" : st.status + (st.jobRunning ? "   ·  tap to stop" : ""));
+            if (shownItems != st.items || shownFolders != st.folders) {
+                String before = openFolder;
+                boolean wasSelecting = !selected.isEmpty();
+                rebuildCells();
+                if (!before.equals(openFolder)) { showGallery(); return; } // the open folder was renamed or deleted
+                if (wasSelecting && selected.isEmpty()) { saveScroll(); showGallery(); return; } // selected items are gone
+                adapter.notifyDataSetChanged();
+                if (selected.isEmpty()) subtitleView.setText(gallerySubtitle());
+                else titleView.setText(selected.size() + " selected");
+            }
+            statusLine.setText(st.status == null ? "" : st.status + (st.jobRunning ? "  (tap to stop)" : ""));
             statusLine.setVisibility(st.status == null ? View.GONE : View.VISIBLE);
         }
     }
@@ -145,6 +189,12 @@ public class MainActivity extends Activity {
     void back() {
         switch (screen) {
             case "viewer": closeViewer(); showGallery(); break;
+            case "gallery":
+                saveScroll();
+                if (!selected.isEmpty()) { selected.clear(); showGallery(); }
+                else if (!openFolder.isEmpty()) { openFolder = ""; showGallery(); }
+                else finish();
+                break;
             case "info": showGallery(); break;
             case "log": if (st.key != null && prefs.contains("verifier")) showGallery(); else start(); break;
             case "login":
@@ -161,9 +211,10 @@ public class MainActivity extends Activity {
         PopupMenu p = new PopupMenu(this, anchor);
         Menu m = p.getMenu();
         if ("gallery".equals(screen)) {
+            if (openFolder.isEmpty()) m.add(0, 7, 0, "New folder");
             m.add(0, 2, 0, "Sync from Amazon");
             m.add(0, 3, 0, "Info & security");
-            if (!Config.DONATE_URL.isEmpty()) m.add(0, 6, 0, "Support PhotoVault ♥");
+            if (!Config.DONATE_URL.isEmpty()) m.add(0, 6, 0, "Support PhotoVault");
             m.add(0, 5, 0, "Lock now");
         }
         m.add(0, 4, 0, "Log");
@@ -172,8 +223,9 @@ public class MainActivity extends Activity {
                 case 2: startSync(); break;
                 case 3: showInfo(); break;
                 case 4: showLog(); break;
-                case 5: st.lock(); showUnlock(); break;
+                case 5: st.lock(); st.changed(); break;
                 case 6: openUrl(Config.DONATE_URL); break;
+                case 7: newFolder(); break;
             }
             return true;
         }});
@@ -236,6 +288,39 @@ public class MainActivity extends Activity {
         return t;
     }
 
+    /** Menu (three dots) or back (arrow) button, drawn rather than typed: no font can miss it. */
+    View icon(final boolean dots, View.OnClickListener l) {
+        final int color = new TextView(this).getCurrentTextColor();
+        View v = new View(this) {
+            @Override protected void onDraw(Canvas c) {
+                Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+                p.setColor(color);
+                float cx = getWidth() / 2f, cy = getHeight() / 2f, u = dp(1);
+                if (dots) for (int i = -1; i <= 1; i++) c.drawCircle(cx, cy + i * 6 * u, 2.2f * u, p);
+                else {
+                    p.setStyle(Paint.Style.STROKE);
+                    p.setStrokeWidth(2.2f * u);
+                    p.setStrokeCap(Paint.Cap.ROUND);
+                    p.setStrokeJoin(Paint.Join.ROUND);
+                    Path a = new Path();
+                    a.moveTo(cx + 7 * u, cy);
+                    a.lineTo(cx - 7 * u, cy);
+                    a.moveTo(cx - 1 * u, cy - 6 * u);
+                    a.lineTo(cx - 7 * u, cy);
+                    a.lineTo(cx - 1 * u, cy + 6 * u);
+                    c.drawPath(a, p);
+                }
+            }
+        };
+        v.setContentDescription(dots ? "Menu" : "Back");
+        TypedArray ta = obtainStyledAttributes(new int[]{android.R.attr.selectableItemBackgroundBorderless});
+        v.setBackground(ta.getDrawable(0));
+        ta.recycle();
+        v.setOnClickListener(l);
+        v.setLayoutParams(new LinearLayout.LayoutParams(dp(48), dp(48)));
+        return v;
+    }
+
     /** Every screen: top bar + content, padded away from status bar, navigation bar, camera cutout and keyboard. */
     void setScreen(String name, String title, String subtitle, boolean backArrow, View content) {
         if (web != null && !"login".equals(name)) {
@@ -259,7 +344,7 @@ public class MainActivity extends Activity {
         LinearLayout bar = new LinearLayout(this);
         bar.setGravity(Gravity.CENTER_VERTICAL);
         bar.setPadding(backArrow ? dp(2) : dp(16), dp(4), dp(2), dp(4));
-        if (backArrow) bar.addView(barButton("←", new View.OnClickListener() { public void onClick(View v) { back(); } }));
+        if (backArrow) bar.addView(icon(false, new View.OnClickListener() { public void onClick(View v) { back(); } }));
         LinearLayout texts = new LinearLayout(this);
         texts.setOrientation(LinearLayout.VERTICAL);
         TextView t = new TextView(this);
@@ -269,6 +354,7 @@ public class MainActivity extends Activity {
         t.setSingleLine();
         t.setEllipsize(TextUtils.TruncateAt.MIDDLE);
         texts.addView(t);
+        titleView = t;
         subtitleView = new TextView(this);
         subtitleView.setText(subtitle);
         subtitleView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
@@ -277,12 +363,17 @@ public class MainActivity extends Activity {
         subtitleView.setVisibility(subtitle == null ? View.GONE : View.VISIBLE);
         texts.addView(subtitleView);
         bar.addView(texts, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        if ("gallery".equals(name)) {
-            TextView add = barButton("＋ Add", new View.OnClickListener() { public void onClick(View v) { pick(); } });
-            add.setTypeface(Typeface.DEFAULT_BOLD);
-            bar.addView(add);
+        if ("gallery".equals(name) && !selected.isEmpty()) {
+            bar.addView(barButton("Move", new View.OnClickListener() { public void onClick(View v) { moveSelected(); } }));
+            bar.addView(barButton("Delete", new View.OnClickListener() { public void onClick(View v) { confirmDeleteSelected(); } }));
+        } else {
+            if ("gallery".equals(name)) {
+                TextView add = barButton("+ Add", new View.OnClickListener() { public void onClick(View v) { pick(); } });
+                add.setTypeface(Typeface.DEFAULT_BOLD);
+                bar.addView(add);
+            }
+            bar.addView(icon(true, new View.OnClickListener() { public void onClick(View v) { menu(v); } }));
         }
-        bar.addView(barButton("⋮", new View.OnClickListener() { public void onClick(View v) { menu(v); } }));
         root.addView(bar);
         View line = new View(this);
         line.setBackgroundColor(0x33888888);
@@ -318,7 +409,6 @@ public class MainActivity extends Activity {
 
     byte[] keyCopy() { return st.key == null ? null : st.key.clone(); }
 
-    String subtitle() { return st.items.size() + (st.items.size() == 1 ? " item" : " items") + " · encrypted on Amazon"; }
 
     // ================================================================ setup: intro
 
@@ -365,7 +455,7 @@ public class MainActivity extends Activity {
         loginStatus = new TextView(this);
         loginStatus.setPadding(dp(16), 0, dp(16), dp(8));
         loginStatus.setTypeface(Typeface.DEFAULT_BOLD);
-        loginStatus.setText("Waiting for sign-in…");
+        loginStatus.setText("Waiting for sign-in...");
         l.addView(loginStatus);
         setScreen("login", "Sign in to Amazon", prefs.contains("verifier") ? "Refresh session" : "Step 1 of 3", true, l);
 
@@ -405,7 +495,7 @@ public class MainActivity extends Activity {
         if (loginHost == null || url == null) return;
         Uri u = Uri.parse(url);
         boolean safe = "https".equals(u.getScheme()) && Amazon.isAmazonHost(u.getHost());
-        loginHost.setText((safe ? "🔒 " : "⚠ ") + u.getScheme() + "://" + u.getHost());
+        loginHost.setText((safe ? "Amazon site: " : "Not an Amazon site: ") + u.getScheme() + "://" + u.getHost());
         loginHost.setTextColor(safe ? OK : BAD);
     }
 
@@ -417,7 +507,7 @@ public class MainActivity extends Activity {
         if (connecting || SystemClock.elapsedRealtime() < nextLoginTry || !Amazon.hasSession()) return;
         connecting = true;
         CookieManager.getInstance().flush();
-        loginStatus.setText("Signed in. Checking access to Amazon Photos…");
+        loginStatus.setText("Signed in. Checking access to Amazon Photos...");
         io.execute(new Runnable() { public void run() {
             try {
                 JSONObject root = Amazon.root();
@@ -438,7 +528,7 @@ public class MainActivity extends Activity {
                     connecting = false;
                     nextLoginTry = SystemClock.elapsedRealtime() + 15_000;
                     if (loginStatus != null) loginStatus.setText("Signed in, but Amazon Photos didn't accept the session yet ("
-                            + explain(e) + "). Let the Photos page finish loading; I retry every 15 s. Menu ⋮ → Log for details.");
+                            + explain(e) + "). Let the Photos page finish loading; I retry every 15 s. Menu > Log for details.");
                 }});
             }
         }});
@@ -464,15 +554,15 @@ public class MainActivity extends Activity {
             if (!ok.isChecked()) { err.setText("Please confirm you saved the password."); return; }
             btn.setEnabled(false);
             err.setTextColor(p1.getCurrentTextColor());
-            err.setText("Deriving your key… (takes a few seconds on purpose: it makes password guessing slow)");
+            err.setText("Deriving your key... (takes a few seconds on purpose: it makes password guessing slow)");
             io.execute(new Runnable() { public void run() {
                 try {
                     final byte[] salt = Vault.random(16), k = Vault.deriveKey(a, salt);
                     prefs.edit().putString("salt", hex(salt))
                             .putString("verifier", Base64.encodeToString(Vault.seal(k, VERIFY.getBytes("UTF-8")), Base64.NO_WRAP)).apply();
-                    st.writeIndex(k, new ArrayList<Store.Item>());
+                    st.writeIndex(k, new Store.Index());
                     Journal.add("new vault created");
-                    post(new Runnable() { public void run() { st.key = k; st.items = new ArrayList<>(); showSelfTest(); } });
+                    post(new Runnable() { public void run() { st.key = k; st.items = new ArrayList<>(); st.folders = new ArrayList<>(); showSelfTest(); } });
                 } catch (final Exception e) {
                     post(new Runnable() { public void run() { btn.setEnabled(true); err.setTextColor(BAD); err.setText(explain(e)); } });
                 }
@@ -490,7 +580,7 @@ public class MainActivity extends Activity {
         button(l, "Unlock vault", new View.OnClickListener() { public void onClick(final View btn) {
             final String pw = p.getText().toString();
             btn.setEnabled(false);
-            err.setText("Downloading one file and deriving the key…");
+            err.setText("Downloading one file and deriving the key...");
             io.execute(new Runnable() { public void run() {
                 File f = new File(getCacheDir(), "sample.png");
                 try {
@@ -501,9 +591,10 @@ public class MainActivity extends Activity {
                     try (InputStream in = new FileInputStream(f)) { Vault.decryptPng(in, k); }
                     prefs.edit().putString("salt", hex(salt))
                             .putString("verifier", Base64.encodeToString(Vault.seal(k, VERIFY.getBytes("UTF-8")), Base64.NO_WRAP)).apply();
-                    st.writeIndex(k, new ArrayList<Store.Item>());
+                    st.writeIndex(k, new Store.Index());
+                    prefs.edit().putBoolean("restore_pending", true).putBoolean("folders_dirty", false).commit();
                     Journal.add("existing vault unlocked");
-                    post(new Runnable() { public void run() { st.key = k; st.items = new ArrayList<>(); restored = true; showSelfTest(); } });
+                    post(new Runnable() { public void run() { st.key = k; st.items = new ArrayList<>(); st.folders = new ArrayList<>(); restored = true; showSelfTest(); } });
                 } catch (final Throwable e) {
                     post(new Runnable() { public void run() {
                         btn.setEnabled(true);
@@ -550,7 +641,7 @@ public class MainActivity extends Activity {
                 "Photos don't use your storage quota",
                 "Remove the test file from Amazon"};
         TextView[] steps = new TextView[labels.length];
-        for (int i = 0; i < labels.length; i++) steps[i] = text(l, "○  " + labels[i], 15);
+        for (int i = 0; i < labels.length; i++) steps[i] = text(l, "...  " + labels[i], 15);
         LinearLayout actions = new LinearLayout(this);
         actions.setOrientation(LinearLayout.VERTICAL);
         l.addView(actions);
@@ -560,7 +651,7 @@ public class MainActivity extends Activity {
 
     void step(final TextView t, final String label, final int state, final String detail) {
         post(new Runnable() { public void run() {
-            t.setText((state == OK ? "✓  " : state == BAD ? "✗  " : "⚠  ") + label + (detail == null ? "" : "\n     " + detail));
+            t.setText((state == OK ? "OK  " : state == BAD ? "FAILED  " : "CHECK  ") + label + (detail == null ? "" : "\n     " + detail));
             t.setTextColor(state);
         }});
     }
@@ -585,7 +676,7 @@ public class MainActivity extends Activity {
                 System.arraycopy(orig, 0, plain, plain.length - orig.length, orig.length);
                 try (OutputStream o = new BufferedOutputStream(new FileOutputStream(up))) { Vault.encryptToPng(k, salt, plain, o); }
                 post(new Runnable() { public void run() { mine.setImageBitmap(img); } });
-                step(s[i], labels[i++], OK, human(orig.length) + " image → " + human(up.length()) + " PNG, " + (SystemClock.elapsedRealtime() - t) + " ms");
+                step(s[i], labels[i++], OK, human(orig.length) + " image became a " + human(up.length()) + " PNG in " + (SystemClock.elapsedRealtime() - t) + " ms");
 
                 t = SystemClock.elapsedRealtime();
                 JSONObject node = Amazon.upload(up, hex(Vault.random(8)) + ".png", st.folder(), null);
@@ -604,7 +695,7 @@ public class MainActivity extends Activity {
                 byte[] a = readFile(up), b = readFile(down);
                 String h1 = Vault.sha256(a, 0, a.length), h2 = Vault.sha256(b, 0, b.length);
                 if (!h1.equals(h2)) { step(s[i], labels[i], BAD, "Amazon returned a different file: it recompresses, so this can't work"); throw new IOException("file altered by Amazon"); }
-                step(s[i], labels[i++], OK, h1.substring(0, 16) + "…");
+                step(s[i], labels[i++], OK, h1.substring(0, 16) + "...");
 
                 Vault.Opened o;
                 try (InputStream in = new FileInputStream(down)) { o = Vault.decryptPng(in, k); }
@@ -649,7 +740,7 @@ public class MainActivity extends Activity {
                         button(actions, "Enable fingerprint unlock (recommended)", new View.OnClickListener() { public void onClick(View v) { enableBio(); } });
                     button(actions, "Open my vault", new View.OnClickListener() { public void onClick(View v) { openMyVault(); } });
                 } else {
-                    text(actions, "The test stopped at the step marked ✗. Nothing personal was uploaded.", 15).setTextColor(BAD);
+                    text(actions, "The test stopped at the step marked FAILED. Nothing personal was uploaded.", 15).setTextColor(BAD);
                     button(actions, "Retry", new View.OnClickListener() { public void onClick(View v) { showSelfTest(); } });
                     button(actions, "Sign in to Amazon again", new View.OnClickListener() { public void onClick(View v) { showLogin(); } });
                     button(actions, "Show log (to report the problem)", new View.OnClickListener() { public void onClick(View v) { showLog(); } });
@@ -697,7 +788,7 @@ public class MainActivity extends Activity {
         go.setOnClickListener(new View.OnClickListener() { public void onClick(final View btn) {
             final String pw = p.getText().toString();
             btn.setEnabled(false);
-            err.setText("Deriving your key…");
+            err.setText("Deriving your key...");
             io.execute(new Runnable() { public void run() {
                 byte[] k = null;
                 try { k = Vault.deriveKey(pw, st.salt()); } catch (Exception ignored) { }
@@ -716,11 +807,11 @@ public class MainActivity extends Activity {
         catch (Exception e) { good = false; }
         if (!good) { post(wrong); return; }
         synchronized (st) { // a background job can't change the index between this read and the list shown
-            List<Store.Item> l;
-            try { l = st.readIndex(k); st.writeIndex(k, l); } // also upgrades a v1.0 plaintext index to encrypted
-            catch (Exception e) { Journal.add("local list unreadable, use Sync from Amazon: " + e); l = new ArrayList<>(); }
-            final List<Store.Item> items = l;
-            post(new Runnable() { public void run() { st.key = k; st.items = items; showGallery(); } });
+            Store.Index l;
+            try { l = st.readIndex(k); st.writeIndex(k, l); } // also upgrades an older index to the current, encrypted format
+            catch (Exception e) { Journal.add("local list unreadable, use Sync from Amazon: " + e); l = new Store.Index(); }
+            final Store.Index ix = l;
+            post(new Runnable() { public void run() { st.key = k; st.items = ix.items; st.folders = ix.folders; showGallery(); } });
         }
     }
 
@@ -798,10 +889,47 @@ public class MainActivity extends Activity {
         } catch (Exception e) { toast("Fingerprint: " + explain(e)); }
     }
 
-    // ================================================================ gallery
+    // ================================================================ gallery: folders and items
+
+    /** Top level: folder tiles, then items not in a folder. Inside a folder: its items. Main thread. */
+    void rebuildCells() {
+        shownItems = st.items;
+        shownFolders = st.folders;
+        if (!openFolder.isEmpty() && !st.folders.contains(openFolder)) openFolder = "";
+        Set<String> known = new HashSet<>(st.folders), ids = new HashSet<>();
+        counts.clear();
+        covers.clear();
+        List<Object> c = new ArrayList<>();
+        if (openFolder.isEmpty()) c.addAll(st.folders);
+        for (Store.Item it : st.items) {
+            String f = known.contains(it.folder) ? it.folder : ""; // unknown folder name: show it at the top level
+            if (!f.isEmpty()) {
+                Integer n = counts.get(f);
+                counts.put(f, n == null ? 1 : n + 1);
+                if (!covers.containsKey(f)) covers.put(f, it);
+            }
+            if (f.equals(openFolder)) { c.add(it); ids.add(it.id); }
+        }
+        selected.retainAll(ids);
+        cells = c;
+    }
+
+    List<Store.Item> cellItems() {
+        List<Store.Item> l = new ArrayList<>();
+        for (Object o : cells) if (o instanceof Store.Item) l.add((Store.Item) o);
+        return l;
+    }
+
+    static String count(int n, String what) { return n + " " + what + (n == 1 ? "" : "s"); }
+
+    String gallerySubtitle() {
+        if (!openFolder.isEmpty()) return count(cellItems().size(), "item") + " in this folder";
+        return count(st.items.size(), "item") + " encrypted on Amazon" + (st.folders.isEmpty() ? "" : ", " + count(st.folders.size(), "folder"));
+    }
 
     void showGallery() {
         if (st.key == null) { showUnlock(); return; }
+        rebuildCells();
         LinearLayout l = new LinearLayout(this);
         l.setOrientation(LinearLayout.VERTICAL);
         TextView status = new TextView(this);
@@ -818,46 +946,286 @@ public class MainActivity extends Activity {
         empty.setPadding(dp(24), dp(32), dp(24), dp(24));
         empty.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
         empty.setGravity(Gravity.CENTER);
-        empty.setText("Your vault is empty.\n\nTap ＋ Add to encrypt and upload photos or videos. Uploads continue in the background.\n\n"
-                + "Already have a vault on Amazon (new phone, reinstall)? Menu ⋮ → Sync from Amazon.");
+        empty.setText(openFolder.isEmpty()
+                ? "Your vault is empty.\n\nTap + Add to encrypt and upload photos or videos. Uploads continue in the background.\n\n"
+                  + "Already have a vault on Amazon (new phone, reinstall)? Menu > Sync from Amazon."
+                : "This folder is empty.\n\nTap + Add to upload photos straight into it, or go back, long-press photos to select them and tap Move.");
         l.addView(empty, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        final int cols = 3, cell = getResources().getDisplayMetrics().widthPixels / cols;
-        GridView g = new GridView(this);
-        g.setNumColumns(cols);
-        g.setHorizontalSpacing(dp(2));
-        g.setVerticalSpacing(dp(2));
-        g.setStretchMode(GridView.STRETCH_COLUMN_WIDTH);
-        shown = st.items;
+        cellSize = getResources().getDisplayMetrics().widthPixels / 3;
+        grid = new GridView(this);
+        grid.setNumColumns(3);
+        grid.setHorizontalSpacing(dp(2));
+        grid.setVerticalSpacing(dp(2));
+        grid.setStretchMode(GridView.STRETCH_COLUMN_WIDTH);
         adapter = new BaseAdapter() {
-            public int getCount() { return shown.size(); }
-            public Object getItem(int p) { return shown.get(p); }
+            public int getCount() { return cells.size(); }
+            public Object getItem(int p) { return cells.get(p); }
             public long getItemId(int p) { return p; }
-            public View getView(int p, View convert, ViewGroup parent) {
-                ImageView iv = (ImageView) convert;
-                if (iv == null) {
-                    iv = new ImageView(MainActivity.this);
-                    iv.setLayoutParams(new AbsListView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, cell));
-                    iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
-                    iv.setBackgroundColor(0x22888888);
-                }
-                Store.Item it = shown.get(p);
-                iv.setTag(it.id);
-                Bitmap b = st.thumbs.get(it.id);
-                iv.setImageBitmap(b);
-                if (b == null) loadThumb(it.id, iv);
-                return iv;
-            }
+            public View getView(int p, View convert, ViewGroup parent) { return cell(convert, cells.get(p)); }
         };
-        g.setAdapter(adapter);
-        g.setEmptyView(empty);
-        g.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-            public void onItemClick(AdapterView<?> a, View v, int p, long id) { showViewer(shown.get(p)); }
+        grid.setAdapter(adapter);
+        grid.setEmptyView(empty);
+        grid.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            public void onItemClick(AdapterView<?> a, View v, int p, long id) { tap(p); }
         });
-        l.addView(g, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
-        setScreen("gallery", "PhotoVault", subtitle(), false, l);
+        grid.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
+            public boolean onItemLongClick(AdapterView<?> a, View v, int p, long id) { longTap(p); return true; }
+        });
+        l.addView(grid, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        boolean selecting = !selected.isEmpty();
+        setScreen("gallery", selecting ? selected.size() + " selected" : openFolder.isEmpty() ? "PhotoVault" : openFolder,
+                selecting ? "Tap to select more, back to cancel" : gallerySubtitle(), selecting || !openFolder.isEmpty(), l);
         statusLine = status;
+        restoreScroll();
         refresh();
     }
+
+    View cell(View convert, Object o) {
+        FrameLayout f = (FrameLayout) convert;
+        if (f == null) {
+            f = new FrameLayout(this);
+            f.setLayoutParams(new AbsListView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, cellSize));
+            ImageView iv = new ImageView(this);
+            iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            iv.setBackgroundColor(0x22888888);
+            f.addView(iv, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            TextView label = new TextView(this);
+            label.setTextColor(Color.WHITE);
+            label.setGravity(Gravity.BOTTOM);
+            label.setPadding(dp(10), dp(8), dp(10), dp(10));
+            f.addView(label, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        }
+        ImageView iv = (ImageView) f.getChildAt(0);
+        TextView label = (TextView) f.getChildAt(1);
+        Store.Item it;
+        if (o instanceof String) { // folder tile: darkened cover, name and count
+            String name = (String) o;
+            Integer n = counts.get(name);
+            label.setText(name + "\n" + count(n == null ? 0 : n, "item"));
+            label.setTypeface(Typeface.DEFAULT_BOLD);
+            label.setBackgroundColor(0x8C000000);
+            it = covers.get(name);
+            f.setForeground(null);
+        } else {
+            it = (Store.Item) o;
+            label.setText(null);
+            label.setBackground(null);
+            if (selected.contains(it.id)) {
+                GradientDrawable g = new GradientDrawable();
+                g.setColor(0x552DD4BF);
+                g.setStroke(dp(4), 0xFF2DD4BF);
+                f.setForeground(g);
+            } else f.setForeground(null);
+        }
+        String id = it == null ? null : it.id;
+        iv.setTag(id);
+        Bitmap b = id == null ? null : st.thumbs.get(id);
+        iv.setImageBitmap(b);
+        if (b == null && id != null) loadThumb(id, iv);
+        return f;
+    }
+
+    void tap(int p) {
+        Object o = cells.get(p);
+        if (o instanceof String) {
+            if (!selected.isEmpty()) { toast("Tap Move to put the selected items into a folder."); return; }
+            saveScroll();
+            openFolder = (String) o;
+            showGallery();
+            return;
+        }
+        Store.Item it = (Store.Item) o;
+        if (!selected.isEmpty()) { toggle(it); return; }
+        saveScroll();
+        viewList = cellItems();
+        viewIndex = viewList.indexOf(it);
+        showViewer(it);
+    }
+
+    void longTap(int p) {
+        Object o = cells.get(p);
+        if (o instanceof String) { if (selected.isEmpty()) folderOptions((String) o); return; }
+        Store.Item it = (Store.Item) o;
+        if (!selected.isEmpty()) { toggle(it); return; }
+        saveScroll();
+        selected.add(it.id);
+        showGallery();
+    }
+
+    void toggle(Store.Item it) {
+        if (!selected.remove(it.id)) selected.add(it.id);
+        if (selected.isEmpty()) { saveScroll(); showGallery(); return; }
+        titleView.setText(selected.size() + " selected");
+        adapter.notifyDataSetChanged();
+    }
+
+    /** Remembers where the grid was, per folder, so coming back doesn't jump to the top. */
+    void saveScroll() {
+        if (grid == null || !"gallery".equals(screen)) return;
+        View first = grid.getChildAt(0);
+        scrollPos.put(openFolder, new int[]{grid.getFirstVisiblePosition(), first == null ? 0 : first.getTop(), grid.getChildCount()});
+    }
+
+    /** Back where the grid was; if the viewer was swiped to an item that was off screen, that item is shown instead. */
+    void restoreScroll() {
+        int[] p = scrollPos.get(openFolder);
+        int target = -1;
+        if (lastViewedId != null)
+            for (int i = 0; i < cells.size(); i++)
+                if (cells.get(i) instanceof Store.Item && ((Store.Item) cells.get(i)).id.equals(lastViewedId)) target = i;
+        lastViewedId = null;
+        if (target >= 0 && (p == null || target < p[0] || target >= p[0] + p[2])) grid.setSelection(target);
+        else if (p != null) grid.setSelectionFromTop(p[0], p[1]);
+    }
+
+    // ---------------------------------------------------------------- folder actions
+
+    interface NameDone { void run(String name); }
+
+    void askFolderName(String title, final String current, final boolean mustBeNew, final NameDone done) {
+        final EditText e = new EditText(this);
+        e.setSingleLine();
+        e.setHint("Folder name");
+        e.setText(current);
+        e.setSelection(current.length());
+        FrameLayout box = new FrameLayout(this);
+        box.setPadding(dp(20), dp(8), dp(20), 0);
+        box.addView(e);
+        new AlertDialog.Builder(this).setTitle(title).setView(box)
+                .setPositiveButton("OK", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                    String n = e.getText().toString().trim().replaceAll("\\s+", " ");
+                    if (n.isEmpty() || n.equals(current)) return;
+                    if (n.length() > 60) { toast("Use at most 60 characters."); return; }
+                    if (mustBeNew && !n.equalsIgnoreCase(current))
+                        for (String f : st.folders) if (f.equalsIgnoreCase(n)) { toast("A folder called " + f + " already exists."); return; }
+                    done.run(n);
+                }})
+                .setNegativeButton("Cancel", null).show();
+    }
+
+    /** Changes the local list in the background, then saves the folders (encrypted) to Amazon. */
+    void editFolders(final Store.Edit e, final String doneMessage) {
+        final byte[] k = keyCopy();
+        if (k == null) return;
+        io.execute(new Runnable() { public void run() {
+            try {
+                st.markFoldersDirty();
+                st.edit(k, e);
+                st.backupFolders(k);
+                if (doneMessage != null) post(new Runnable() { public void run() { toast(doneMessage); } });
+            } catch (final Exception x) {
+                post(new Runnable() { public void run() { toast("Could not save: " + explain(x)); } });
+            } finally { Arrays.fill(k, (byte) 0); }
+        }});
+    }
+
+    void newFolder() {
+        askFolderName("New folder", "", true, new NameDone() { public void run(final String name) {
+            editFolders(new Store.Edit() { public void apply(Store.Index ix) { if (!ix.hasFolder(name)) ix.folders.add(name); } }, null);
+        }});
+    }
+
+    void folderOptions(final String name) {
+        new AlertDialog.Builder(this).setTitle(name)
+                .setItems(new String[]{"Rename", "Delete folder (keeps its photos)"}, new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface d, int w) { if (w == 0) renameFolder(name); else deleteFolder(name); }
+                }).show();
+    }
+
+    void renameFolder(final String old) {
+        askFolderName("Rename folder", old, true, new NameDone() { public void run(final String name) {
+            editFolders(new Store.Edit() { public void apply(Store.Index ix) {
+                int i = ix.folders.indexOf(old);
+                if (i >= 0) ix.folders.set(i, name);
+                for (Store.Item it : ix.items) if (it.folder.equals(old)) it.folder = name;
+            }}, null);
+        }});
+    }
+
+    void deleteFolder(final String name) {
+        Integer n = counts.get(name);
+        new AlertDialog.Builder(this).setTitle("Delete folder " + name + "?")
+                .setMessage(n == null ? "The folder is empty." : "Its " + count(n, "item") + " are kept: they move back to the main view.")
+                .setPositiveButton("Delete folder", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                    editFolders(new Store.Edit() { public void apply(Store.Index ix) {
+                        ix.folders.remove(name);
+                        for (Store.Item it : ix.items) if (it.folder.equals(name)) it.folder = "";
+                    }}, null);
+                }})
+                .setNegativeButton("Cancel", null).show();
+    }
+
+    void moveSelected() {
+        final List<String> options = new ArrayList<>();
+        options.add("Main view (no folder)");
+        options.addAll(st.folders);
+        options.add("New folder...");
+        new AlertDialog.Builder(this).setTitle("Move " + count(selected.size(), "item") + " to")
+                .setItems(options.toArray(new String[0]), new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                    if (w == options.size() - 1)
+                        askFolderName("New folder", "", false, new NameDone() { public void run(String name) { moveTo(name); } });
+                    else moveTo(w == 0 ? "" : options.get(w));
+                }}).show();
+    }
+
+    void moveTo(final String folder) {
+        final Set<String> ids = new HashSet<>(selected);
+        editFolders(new Store.Edit() { public void apply(Store.Index ix) {
+            String f = folder;
+            for (String x : ix.folders) if (x.equalsIgnoreCase(folder)) f = x; // same name, different case: use the existing one
+            if (!f.isEmpty() && !ix.folders.contains(f)) ix.folders.add(f);
+            for (Store.Item it : ix.items) if (ids.contains(it.id)) it.folder = f;
+        }}, "Moved " + count(ids.size(), "item") + (folder.isEmpty() ? " to the main view" : " to " + folder));
+        saveScroll();
+        selected.clear();
+        showGallery();
+    }
+
+    void confirmDeleteSelected() {
+        final List<String> ids = new ArrayList<>(selected);
+        new AlertDialog.Builder(this).setTitle("Delete " + count(ids.size(), "item") + "?")
+                .setMessage("The encrypted files go to your Amazon Photos trash (Amazon empties it after a while) and disappear from this app.")
+                .setPositiveButton("Delete", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { deleteItems(ids); } })
+                .setNegativeButton("Cancel", null).show();
+    }
+
+    /** Moves items to the Amazon Photos trash, then removes them from the list and their local previews. */
+    void deleteItems(final List<String> ids) {
+        final byte[] k = keyCopy();
+        if (k == null) return;
+        viewIo.execute(new Runnable() { public void run() {
+            final Set<String> gone = new HashSet<>();
+            try {
+                for (int i = 0; i < ids.size(); i += 50) {
+                    List<String> batch = ids.subList(i, Math.min(ids.size(), i + 50));
+                    Amazon.trash(batch);
+                    gone.addAll(batch);
+                }
+            } catch (final Exception e) {
+                post(new Runnable() { public void run() { toast("Delete failed: " + explain(e)); if (isAuth(e)) askRelogin(); } });
+            }
+            try {
+                if (!gone.isEmpty()) st.edit(k, new Store.Edit() { public void apply(Store.Index ix) {
+                    Iterator<Store.Item> i = ix.items.iterator();
+                    while (i.hasNext()) if (gone.contains(i.next().id)) i.remove();
+                }});
+                for (String id : gone) { st.thumbFile(id).delete(); st.blobFile(id).delete(); }
+            } catch (final Exception e) {
+                Journal.add("delete: list not updated, Sync fixes it: " + e);
+            } finally { Arrays.fill(k, (byte) 0); }
+            post(new Runnable() { public void run() {
+                for (String id : gone) st.thumbs.remove(id);
+                Iterator<Store.Item> i = viewList.iterator();
+                while (i.hasNext()) if (gone.contains(i.next().id)) i.remove();
+                if ("viewer".equals(screen) && gone.contains(lastViewedId)) { closeViewer(); showGallery(); }
+                else if ("viewer".equals(screen)) {
+                    for (int n = 0; n < viewList.size(); n++) if (viewList.get(n).id.equals(lastViewedId)) viewIndex = n;
+                }
+            }});
+        }});
+    }
+
+    // ---------------------------------------------------------------- previews, adding, sync
 
     void loadThumb(final String id, final ImageView iv) {
         final byte[] k = keyCopy();
@@ -904,17 +1272,32 @@ public class MainActivity extends Activity {
         else if (data.getData() != null) uris.add(data.getData());
         if (uris.isEmpty()) return;
         try {
-            SyncService.start(this, SyncService.UPLOAD, uris);
-            toast(uris.size() + (uris.size() == 1 ? " item" : " items") + " queued. Encryption and upload run in the background: you can leave the app.");
+            SyncService.start(this, SyncService.UPLOAD, uris, openFolder);
+            toast(count(uris.size(), "item") + " queued" + (openFolder.isEmpty() ? "" : " for " + openFolder)
+                    + ". Encryption and upload run in the background: you can leave the app.");
         } catch (Exception e) { toast("Could not start the upload: " + explain(e)); }
     }
 
     void startSync() {
-        try { SyncService.start(this, SyncService.SYNC, null); }
+        try { SyncService.start(this, SyncService.SYNC, null, ""); }
         catch (Exception e) { toast("Could not start the sync: " + explain(e)); }
     }
 
     // ================================================================ viewer
+
+    /** Horizontal swipe in the viewer: next / previous item of the folder it was opened from. */
+    @Override public boolean dispatchTouchEvent(MotionEvent e) {
+        if ("viewer".equals(screen)) swipe.onTouchEvent(e);
+        return super.dispatchTouchEvent(e);
+    }
+
+    void step(int d) {
+        int i = viewIndex + d;
+        if (i < 0 || i >= viewList.size()) return;
+        viewIndex = i;
+        showViewer(viewList.get(i));
+    }
+
 
     void showViewer(final Store.Item it) {
         LinearLayout l = new LinearLayout(this);
@@ -927,7 +1310,7 @@ public class MainActivity extends Activity {
         l.addView(box, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
         final TextView info = new TextView(this);
         info.setPadding(dp(16), dp(8), dp(16), dp(4));
-        info.setText("Low-resolution preview · downloading the encrypted original…");
+        info.setText("Low-resolution preview, downloading the encrypted original...");
         l.addView(info);
         LinearLayout row = new LinearLayout(this);
         row.setPadding(dp(8), 0, dp(8), dp(8));
@@ -941,7 +1324,9 @@ public class MainActivity extends Activity {
             row.addView(b, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         }
         l.addView(row);
-        setScreen("viewer", it.name, date(it.taken) + " · " + human(it.size), true, l);
+        setScreen("viewer", it.name, (viewList.size() > 1 ? (viewIndex + 1) + " of " + viewList.size() + "  |  " : "")
+                + date(it.taken) + ", " + human(it.size), true, l);
+        lastViewedId = it.id;
         final int token = viewToken;
         del.setEnabled(true);
         del.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { confirmDelete(it); } });
@@ -963,20 +1348,20 @@ public class MainActivity extends Activity {
                         public void on(final long d, final long t) {
                             if (token != viewToken) throw new CancellationException(); // viewer closed: stop downloading
                             post(new Runnable() { public void run() {
-                                if (token == viewToken) info.setText("Low-resolution preview · downloading the encrypted original… " + (t > 0 ? 100 * d / t + "%" : human(d)));
+                                if (token == viewToken) info.setText("Low-resolution preview, downloading the encrypted original... " + (t > 0 ? 100 * d / t + "%" : human(d)));
                             }});
                         }
                     });
                     st.trimBlobCache();
                 } else png.setLastModified(System.currentTimeMillis());
                 if (token != viewToken) return;
-                post(new Runnable() { public void run() { if (token == viewToken) info.setText("Low-resolution preview · decrypting…"); } });
+                post(new Runnable() { public void run() { if (token == viewToken) info.setText("Low-resolution preview, decrypting..."); } });
                 long t = SystemClock.elapsedRealtime();
                 final Vault.Opened o;
                 try (InputStream in = new FileInputStream(png)) { o = Vault.decryptPng(in, k); }
                 final long ms = SystemClock.elapsedRealtime() - t;
-                final String line = "✓ Decrypted and verified in " + ms + " ms (AES-GCM: not a single bit changed)\n"
-                        + human(o.dataLen()) + " original · stored on Amazon as a " + human(png.length()) + " PNG of noise";
+                final String line = "Decrypted and verified in " + ms + " ms (AES-GCM: not a single bit changed)\n"
+                        + human(o.dataLen()) + " original, stored on Amazon as a " + human(png.length()) + " PNG of noise";
                 if (it.video()) {
                     String ext = it.name.contains(".") ? it.name.substring(it.name.lastIndexOf('.')) : ".mp4";
                     final File f = new File(getCacheDir(), "play" + ext);
@@ -1014,7 +1399,7 @@ public class MainActivity extends Activity {
                 if (e instanceof CancellationException) return;
                 Journal.add("view failed: " + e);
                 png.delete();
-                post(new Runnable() { public void run() { if (token == viewToken) info.setText("✗ " + explain(e)); } });
+                post(new Runnable() { public void run() { if (token == viewToken) info.setText("Error: " + explain(e)); } });
                 if (isAuth(e)) post(new Runnable() { public void run() { askRelogin(); } });
             } finally { Arrays.fill(k, (byte) 0); }
         }});
@@ -1064,23 +1449,7 @@ public class MainActivity extends Activity {
         new AlertDialog.Builder(this).setTitle("Delete from vault?")
                 .setMessage("The encrypted file goes to your Amazon Photos trash (Amazon empties it after a while) and disappears from this app.")
                 .setPositiveButton("Delete", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
-                    final byte[] k = keyCopy();
-                    if (k == null) return;
-                    viewIo.execute(new Runnable() { public void run() {
-                        try {
-                            Amazon.trash(Collections.singletonList(it.id));
-                            st.edit(k, new Store.Edit() { public void apply(List<Store.Item> l) {
-                                Iterator<Store.Item> i = l.iterator();
-                                while (i.hasNext()) if (i.next().id.equals(it.id)) i.remove();
-                            }});
-                            st.thumbFile(it.id).delete();
-                            st.blobFile(it.id).delete();
-                            st.thumbs.remove(it.id);
-                            post(new Runnable() { public void run() { if ("viewer".equals(screen)) { closeViewer(); showGallery(); } } });
-                        } catch (final Exception e) {
-                            post(new Runnable() { public void run() { toast("Delete failed: " + explain(e)); if (isAuth(e)) askRelogin(); } });
-                        } finally { Arrays.fill(k, (byte) 0); }
-                    }});
+                    deleteItems(Collections.singletonList(it.id));
                 }})
                 .setNegativeButton("Cancel", null).show();
     }
@@ -1103,12 +1472,14 @@ public class MainActivity extends Activity {
                 + "• Free and open source (GPL-3.0): anyone can check what the app does.\n"
                 + "• Funded only by voluntary donations. Donating unlocks nothing: every feature is free for everyone.", 15);
         if (!Config.DONATE_URL.isEmpty())
-            button(l, "♥ Support PhotoVault with a donation", new View.OnClickListener() { public void onClick(View v) { openUrl(Config.DONATE_URL); } });
+            button(l, "Support PhotoVault with a donation", new View.OnClickListener() { public void onClick(View v) { openUrl(Config.DONATE_URL); } });
         if (!Config.SOURCE_URL.isEmpty())
             button(l, "Source code", new View.OnClickListener() { public void onClick(View v) { openUrl(Config.SOURCE_URL); } });
         text(l, "Where your data is", 17);
-        text(l, "• Amazon: folder “PhotoVault” in your Amazon Photos: " + st.items.size() + " encrypted PNGs. "
+        text(l, "• Amazon: folder \"PhotoVault\" in your Amazon Photos: " + st.items.size() + " encrypted PNGs. "
                 + "They also show up in Amazon's own app as images of static: that's them, don't delete them there.\n"
+                + "• Folders: their names and which item is in which are saved on Amazon as one more encrypted PNG (subfolder \"index\"), "
+                + "so a new phone gets them back with Sync. Amazon can't read the folder names.\n"
                 + "• This phone: the list of items and small previews, both encrypted with your vault key, in app-private storage, excluded from backups and phone-to-phone transfers.\n"
                 + "• Your key: only in memory while unlocked" + (bioEnabled()
                 ? "; also stored wrapped by a fingerprint-protected key in the phone's secure hardware (Android Keystore)" : "")
@@ -1119,10 +1490,10 @@ public class MainActivity extends Activity {
                 + "• Name, date and EXIF are inside the encrypted part.\n"
                 + "• Only standard algorithms from Android's built-in crypto library, and no third-party libraries at all.\n"
                 + "• Vault salt: " + prefs.getString("salt", "") + "\n"
-                + "• Key fingerprint: " + fp + " (same password + salt ⇒ same fingerprint on any device; it reveals nothing about the key)", 15);
+                + "• Key fingerprint: " + fp + " (same password and salt give the same fingerprint on any device; it reveals nothing about the key)", 15);
         text(l, "Recovery without this app", 17);
         text(l, "Download any PNG from the PhotoVault folder on the Amazon Photos website, then on a PC:\n"
-                + "python photovault.py dec file.png -o out\n(the script is in the source code). If you lose the phone: install the app, "
+                + "python photovault.py dec file.png -o out\n(photovault.py is part of PhotoVault's open-source code on GitHub). If you lose the phone: install the app, "
                 + "sign in, enter the same password; the app restores your vault from Amazon.", 15);
         text(l, "Limits of this version", 17);
         text(l, "• Max 100 MB per item. • The password can't be changed (it would need re-encrypting everything). "
@@ -1137,7 +1508,7 @@ public class MainActivity extends Activity {
             showInfo();
         }});
         button(l, "Show log", new View.OnClickListener() { public void onClick(View v) { showLog(); } });
-        button(l, "Lock now", new View.OnClickListener() { public void onClick(View v) { st.lock(); showUnlock(); } });
+        button(l, "Lock now", new View.OnClickListener() { public void onClick(View v) { st.lock(); st.changed(); } });
         button(l, "Sign out of Amazon", new View.OnClickListener() { public void onClick(View v) {
             WebStorage.getInstance().deleteAllData();
             CookieManager.getInstance().removeAllCookies(new ValueCallback<Boolean>() { public void onReceiveValue(Boolean b) {
@@ -1145,7 +1516,7 @@ public class MainActivity extends Activity {
                 showLogin();
             }});
         }});
-        text(l, "PhotoVault " + version() + " · not affiliated with Amazon. Amazon Photos is a trademark of Amazon.", 12).setAlpha(0.6f);
+        text(l, "PhotoVault " + version() + ", not affiliated with Amazon. Amazon Photos is a trademark of Amazon.", 12).setAlpha(0.6f);
         setScreen("info", "Info & security", null, true, scroll(l));
     }
 

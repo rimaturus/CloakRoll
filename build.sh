@@ -5,9 +5,12 @@
 #   KS_PASS=... PLAY=1 ./build.sh    Google Play build (no donation link: Play's payments policy)
 set -e
 cd "$(dirname "$0")"
-DONATE_URL="${DONATE_URL-https://github.com/sponsors/rimaturus}"
+# Donation link shown in the app (Info and Menu > Support PhotoVault). Empty = no donation button.
+# Set it to your own page, e.g. DONATE_URL=https://ko-fi.com/yourname (see PUBLISHING.md).
+DONATE_URL="${DONATE_URL-}"
 SOURCE_URL="${SOURCE_URL-https://github.com/rimaturus/PhotoVault}"
-[ "$PLAY" = 1 ] && DONATE_URL=""
+# Google Play: no donation link and no link to a page with donation links (Play payments policy, see PUBLISHING.md)
+[ "$PLAY" = 1 ] && DONATE_URL="" && SOURCE_URL=""
 # Java compiles against API 36; resources are linked against API 34 because Debian's aapt can't read newer
 # framework resource tables (the framework attribute IDs used here are identical in both).
 JAR=sdk/android-36.jar RES_JAR=sdk/android-34.jar
