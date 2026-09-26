@@ -6,8 +6,7 @@
 set -e
 cd "$(dirname "$0")"
 # Donation link shown in the app (Info and Menu > Support PhotoVault). Empty = no donation button.
-# Set it to your own page, e.g. DONATE_URL=https://ko-fi.com/yourname (see PUBLISHING.md).
-DONATE_URL="${DONATE_URL-}"
+DONATE_URL="${DONATE_URL-https://buymeacoffee.com/rimaturus}"
 SOURCE_URL="${SOURCE_URL-https://github.com/rimaturus/PhotoVault}"
 # Google Play: no donation link and no link to a page with donation links (Play payments policy, see PUBLISHING.md)
 [ "$PLAY" = 1 ] && DONATE_URL="" && SOURCE_URL=""

@@ -1,4 +1,3 @@
 # Shows the "Sponsor" button on the GitHub repository page. Uncomment the platforms you actually use.
-# ko_fi: yourname          # recommended direct link (see PUBLISHING.md)
-# github: rimaturus        # only after GitHub Sponsors is enabled for the account
-# liberapay: yourname
+buy_me_a_coffee: rimaturus
+# github: rimaturus        # only after GitHub Sponsors is enabled for the account (0% fee)

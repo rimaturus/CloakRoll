@@ -4,7 +4,9 @@ Checked on 26 September 2026. Rules change: re-check the linked pages before eac
 
 ## 1. Donation link
 
-**Recommended: Ko-fi, one-off tips only, paid out through Stripe.** One link that anyone can pay with a card, no donor account needed, 0% platform fee.
+**In use: [buymeacoffee.com/rimaturus](https://buymeacoffee.com/rimaturus)**, set in `build.sh` (`DONATE_URL`) and `.github/FUNDING.yml`. Keep it to one-off "coffees": no memberships, shop or extras, because perks turn donations into sales (see taxes below).
+
+Cheaper alternative if fees matter later: Ko-fi with one-off tips only, paid out through Stripe (0% platform fee). Change `DONATE_URL` and `FUNDING.yml` and rebuild.
 
 | Platform | Fees on a €5 donation from an EU card | You receive | Notes |
 |---|---|---|---|
@@ -16,7 +18,7 @@ Checked on 26 September 2026. Rules change: re-check the linked pages before eac
 
 Sources: [Ko-fi fees](https://help.ko-fi.com/hc/en-us/articles/360002506494-Does-Ko-fi-take-a-fee), [Stripe Italy pricing](https://stripe.com/it/pricing), [GitHub Sponsors fees](https://docs.github.com/en/sponsors/sponsoring-open-source-contributors/about-sponsorships-fees-and-taxes), [Liberapay FAQ](https://en.liberapay.com/about/faq), [PayPal consumer fees](https://www.paypal.com/it/digital-wallet/paypal-consumer-fees), [PayPal.Me terms](https://www.paypal.com/paypalme/pages/terms?locale.x=it_IT&country.x=IT).
 
-### Set it up (about 10 minutes)
+### Ko-fi setup, if you switch (about 10 minutes)
 
 1. Sign up at ko-fi.com and pick a page name, e.g. `ko-fi.com/photovault` or your name.
 2. *Settings > Payments*: connect **Stripe** as an individual. If Stripe asks for a partita IVA or a company, connect **PayPal** instead (fees become 3.40% + €0.35).
@@ -40,7 +42,7 @@ Sources: [Ko-fi fees](https://help.ko-fi.com/hc/en-us/articles/360002506494-Does
 
 1. Create your **release signing key** on your own PC. Never commit it, and back it up offline: losing it means users can't update.
    `keytool -genkeypair -keystore release.jks -alias photovault -keyalg RSA -keysize 4096 -validity 10000 -dname "CN=PhotoVault"`
-2. Build: `KEYSTORE=release.jks KS_PASS='...' DONATE_URL=https://ko-fi.com/yourname ./build.sh`
+2. Build: `KEYSTORE=release.jks KS_PASS='...' ./build.sh`
 3. Make the repo public. Then create a release, attach `PhotoVault.apk`, and paste the SHA-256 lines of `apksigner verify --print-certs PhotoVault.apk` and `sha256sum PhotoVault.apk` in the notes.
 4. Settings > Security: enable *Private vulnerability reporting*.
 5. Optional, more reach, donation links allowed: ask **IzzyOnDroid** to list the app. It takes the APK from GitHub releases. [IzzyOnDroid policy](https://izzyondroid.org/docs/general/AppInclusionPolicy/)
