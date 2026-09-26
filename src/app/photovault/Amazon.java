@@ -30,6 +30,11 @@ final class Amazon {
         boolean isAuth() { return code == 401 || code == 403; }
     }
 
+    /** Amazon's store/sign-in domains. The in-app login page only shows these; other links open in the normal browser. */
+    static boolean isAmazonHost(String host) {
+        return host != null && host.toLowerCase(Locale.ROOT).matches("(.+\\.)?amazon\\.(it|com|co\\.uk|de|fr|es|nl|se|pl|com\\.be|ie|ca|com\\.mx|com\\.br|co\\.jp|com\\.au|in|sg|ae|sa|eg|com\\.tr)");
+    }
+
     static String cookies() { String c = CookieManager.getInstance().getCookie(WEB); return c == null ? "" : c; }
 
     static boolean hasSession() {
@@ -106,29 +111,45 @@ final class Amazon {
         return id;
     }
 
-    /** Files in a folder (up to `max`). */
-    static List<JSONObject> listFiles(String folderId, int max) throws IOException, JSONException {
-        List<JSONObject> out = new ArrayList<>();
+    static final class Listing {
+        final List<JSONObject> files = new ArrayList<>();
+        boolean complete; // true only if Amazon said there is nothing more
+    }
+
+    private static volatile String fileFilter = "kind:FILE AND status:AVAILABLE";
+
+    /** Files in a folder (up to `max`), without the ones in the Amazon trash. */
+    static Listing listFiles(String folderId, int max) throws IOException, JSONException {
+        Listing res = new Listing();
+        List<JSONObject> out = res.files;
         Set<String> seen = new HashSet<>();
         String token = "";
         int offset = 0;
         while (out.size() < max) {
             int limit = Math.min(200, max - out.size());
-            String url = DRIVE + "/nodes/" + folderId + "/children?filters=" + enc("kind:FILE") + "&limit=" + limit + "&" + BASE
-                    + (token.isEmpty() ? "&offset=" + offset : "&startToken=" + enc(token));
-            JSONObject r = new JSONObject(call("GET", url, null, false));
+            String q = "&limit=" + limit + "&" + BASE + (token.isEmpty() ? "&offset=" + offset : "&startToken=" + enc(token));
+            JSONObject r;
+            try { r = new JSONObject(call("GET", DRIVE + "/nodes/" + folderId + "/children?filters=" + enc(fileFilter) + q, null, false)); }
+            catch (ApiError e) {
+                if (e.code != 400 || fileFilter.equals("kind:FILE")) throw e;
+                fileFilter = "kind:FILE"; // status filter refused: the status check below still skips trashed files
+                continue;
+            }
             JSONArray d = r.getJSONArray("data");
             int added = 0;
             for (int i = 0; i < d.length(); i++) {
                 JSONObject n = d.getJSONObject(i);
-                if (seen.add(n.getString("id"))) { out.add(n); added++; }
+                if (!seen.add(n.getString("id"))) continue;
+                added++;
+                if ("AVAILABLE".equals(n.optString("status", "AVAILABLE"))) out.add(n); // skip anything in the Amazon trash
             }
             token = r.isNull("nextToken") ? "" : r.optString("nextToken", "");
-            if (added == 0 || (token.isEmpty() && d.length() < limit)) break;
+            if (token.isEmpty() && d.length() < limit) { res.complete = true; break; }
+            if (added == 0) break;
             if (token.isEmpty()) offset += d.length();
             if (offset > 9799) break; // Amazon refuses offset + limit > 9999
         }
-        return out;
+        return res;
     }
 
     /** Uploads an (already encrypted) PNG. Returns the new node. */

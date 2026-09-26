@@ -1,6 +1,12 @@
 package app.photovault;
 
-import android.app.ActionBar;
+import static app.photovault.Store.explain;
+import static app.photovault.Store.hex;
+import static app.photovault.Store.human;
+import static app.photovault.Store.isAuth;
+import static app.photovault.Store.readFile;
+
+import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ClipData;
@@ -9,32 +15,34 @@ import android.content.ContentValues;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.database.Cursor;
+import android.content.pm.PackageManager;
+import android.content.res.Configuration;
+import android.content.res.TypedArray;
 import android.graphics.*;
 import android.hardware.biometrics.BiometricManager;
 import android.hardware.biometrics.BiometricPrompt;
-import android.media.MediaDataSource;
-import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.os.*;
 import android.provider.MediaStore;
-import android.provider.OpenableColumns;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyPermanentlyInvalidatedException;
 import android.security.keystore.KeyProperties;
 import android.text.InputType;
+import android.text.TextUtils;
 import android.util.Base64;
-import android.util.LruCache;
 import android.util.Size;
 import android.util.TypedValue;
 import android.view.*;
 import android.webkit.*;
 import android.widget.*;
+import android.window.OnBackInvokedCallback;
+import android.window.OnBackInvokedDispatcher;
 import java.io.*;
 import java.nio.ByteBuffer;
 import java.security.KeyStore;
 import java.text.DateFormat;
 import java.util.*;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import javax.crypto.AEADBadTagException;
@@ -42,110 +50,134 @@ import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
-import org.json.JSONArray;
 import org.json.JSONObject;
 
 public class MainActivity extends Activity {
-    static byte[] key;                       // vault key: only in RAM, only while unlocked
-    static long backgroundSince;
-    static final long MAX_FILE = 100L << 20; // v1 limit per item (whole file is held in RAM)
-    static final String VERIFY = "PhotoVault password check";
-    static final String BIO_ALIAS = "photovault_fingerprint";
-    static final int REQ_PICK = 1, OK = 0xFF2E7D32, BAD = 0xFFC62828, WARN = 0xFFE65100;
+    static final String VERIFY = "PhotoVault password check", BIO_ALIAS = "photovault_fingerprint";
+    static final int REQ_PICK = 1, REQ_NOTIF = 2, OK = 0xFF2E7D32, BAD = 0xFFC62828, WARN = 0xFFE65100;
+    static final List<String> VAULT_SCREENS = Arrays.asList("gallery", "viewer", "info");
 
+    Store st;
     SharedPreferences prefs;
-    final ExecutorService io = Executors.newSingleThreadExecutor();     // uploads, sync, setup
-    final ExecutorService viewIo = Executors.newSingleThreadExecutor(); // viewer (not stuck behind uploads)
+    final ExecutorService io = Executors.newSingleThreadExecutor();     // setup, unlock, self-test
+    final ExecutorService viewIo = Executors.newSingleThreadExecutor(); // viewer
     final ExecutorService thumbIo = Executors.newFixedThreadPool(2);
     final Handler ui = new Handler(Looper.getMainLooper());
-    final LruCache<String, Bitmap> thumbs = new LruCache<String, Bitmap>(48 << 20) {
-        @Override protected int sizeOf(String k, Bitmap b) { return b.getByteCount(); }
-    };
-    final ArrayList<Item> items = new ArrayList<>();
+    final Runnable onChange = new Runnable() { public void run() { refresh(); } };
+    final Runnable autoBio = new Runnable() { public void run() { if (started && "unlock".equals(screen) && bioEnabled()) bioUnlock(); } };
     String screen = "";
-    boolean busy, picking, connecting;
+    boolean picking, connecting, testing, restored, started;
     long nextLoginTry;
+    volatile int viewToken;
     WebView web;
-    TextView status, loginStatus;
+    TextView subtitleView, statusLine, loginStatus, loginHost;
     BaseAdapter adapter;
-    Vault.Opened shown;
+    List<Store.Item> shown = new ArrayList<>();
     File playing;
-
-    static final class Item {
-        String id, name, mime;
-        long taken, size;
-        boolean video() { return mime != null && mime.startsWith("video/"); }
-    }
 
     // ================================================================ lifecycle
 
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE); // no screenshots, blank in "recent apps"
-        prefs = getSharedPreferences("vault", MODE_PRIVATE);
+        requestWindowFeature(Window.FEATURE_NO_TITLE); // own top bar: predictable under Android 15+ edge-to-edge
+        getWindow().setDecorFitsSystemWindows(false);   // same edge-to-edge layout on Android 13/14; insets handled in setScreen
+        st = Store.get(this);
+        prefs = st.prefs;
+        if (!st.allowScreenshots) getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE); // no screenshots, blank in "recent apps"
         CookieManager.getInstance(); // initialise on the UI thread before background use
-        loadIndex();
+        getOnBackInvokedDispatcher().registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT,
+                new OnBackInvokedCallback() { public void onBackInvoked() { back(); } });
+        st.onChange = onChange; // also while stopped: an auto-lock must clear decrypted content from the screen
         start();
     }
 
     void start() {
         if (!prefs.contains("verifier")) showIntro();
-        else if (key == null) showUnlock();
+        else if (st.key == null) showUnlock();
         else showGallery();
     }
 
-    @Override protected void onStop() { super.onStop(); backgroundSince = SystemClock.elapsedRealtime(); }
+    long lockAfter() { return picking ? Store.PICKER_LOCK_MS : Store.AUTO_LOCK_MS; }
 
     @Override protected void onStart() {
         super.onStart();
-        // auto-lock after 60 s in background (not while picking photos or while an upload runs)
-        if (key != null && backgroundSince > 0 && !picking && !busy && SystemClock.elapsedRealtime() - backgroundSince > 60_000) lock();
-        backgroundSince = 0;
+        started = true;
+        st.ui.removeCallbacks(st.autoLock);
+        // the timer below doesn't run while the phone sleeps: this check is what really enforces the lock
+        if (st.key != null && st.backgroundSince > 0 && SystemClock.elapsedRealtime() - st.backgroundSince > lockAfter()) st.lock();
+        st.backgroundSince = 0;
+        st.onChange = onChange;
+        refresh();
+        if ("unlock".equals(screen) && bioEnabled()) { ui.removeCallbacks(autoBio); ui.postDelayed(autoBio, 400); }
     }
 
-    void lock() {
-        key = null;
-        shown = null;
-        thumbs.evictAll();
+    @Override protected void onStop() {
+        super.onStop();
+        started = false;
+        // armed even if still locked: an unlock that completes in the background is covered too
+        st.backgroundSince = SystemClock.elapsedRealtime();
+        st.ui.postDelayed(st.autoLock, lockAfter());
+    }
+
+    @Override protected void onDestroy() {
+        if (st.onChange == onChange) st.onChange = null;
+        ui.removeCallbacksAndMessages(null);
+        if (web != null) { web.destroy(); web = null; }
+        screen = "";
         deletePlaying();
-        showUnlock();
+        io.shutdown();
+        viewIo.shutdown();
+        thumbIo.shutdown();
+        super.onDestroy();
     }
 
-    @Override public void onBackPressed() {
+    /** Reacts to shared state: lock, new items, background progress, expired Amazon session. */
+    void refresh() {
+        if (st.key == null && VAULT_SCREENS.contains(screen)) { closeViewer(); showUnlock(); return; }
+        if (st.needLogin && started) { st.needLogin = false; askRelogin(); }
+        if ("gallery".equals(screen)) {
+            if (shown != st.items) { shown = st.items; adapter.notifyDataSetChanged(); subtitleView.setText(subtitle()); }
+            statusLine.setText(st.status == null ? "" : st.status + (st.jobRunning ? "   ·  tap to stop" : ""));
+            statusLine.setVisibility(st.status == null ? View.GONE : View.VISIBLE);
+        }
+    }
+
+    void back() {
         switch (screen) {
             case "viewer": closeViewer(); showGallery(); break;
             case "info": showGallery(); break;
-            case "log": if (key != null && prefs.contains("verifier")) showGallery(); else start(); break;
+            case "log": if (st.key != null && prefs.contains("verifier")) showGallery(); else start(); break;
             case "login":
                 if (web != null && web.canGoBack()) web.goBack();
                 else if (prefs.contains("verifier")) start(); else showIntro();
                 break;
-            case "selftest": if (!busy) { if (key != null) showGallery(); else start(); } break;
+            case "selftest": if (!testing) { if (st.key != null) showGallery(); else start(); } break;
             case "create": case "restore": showIntro(); break;
-            default: super.onBackPressed();
+            default: finish();
         }
     }
 
-    @Override public boolean onCreateOptionsMenu(Menu m) {
+    void menu(View anchor) {
+        PopupMenu p = new PopupMenu(this, anchor);
+        Menu m = p.getMenu();
         if ("gallery".equals(screen)) {
-            m.add(0, 1, 0, "＋ Add").setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
             m.add(0, 2, 0, "Sync from Amazon");
             m.add(0, 3, 0, "Info & security");
+            if (!Config.DONATE_URL.isEmpty()) m.add(0, 6, 0, "Support PhotoVault ♥");
             m.add(0, 5, 0, "Lock now");
         }
         m.add(0, 4, 0, "Log");
-        return true;
-    }
-
-    @Override public boolean onOptionsItemSelected(MenuItem i) {
-        switch (i.getItemId()) {
-            case 1: pick(); return true;
-            case 2: sync(); return true;
-            case 3: showInfo(); return true;
-            case 4: showLog(); return true;
-            case 5: lock(); return true;
-        }
-        return super.onOptionsItemSelected(i);
+        p.setOnMenuItemClickListener(new PopupMenu.OnMenuItemClickListener() { public boolean onMenuItemClick(MenuItem i) {
+            switch (i.getItemId()) {
+                case 2: startSync(); break;
+                case 3: showInfo(); break;
+                case 4: showLog(); break;
+                case 5: st.lock(); showUnlock(); break;
+                case 6: openUrl(Config.DONATE_URL); break;
+            }
+            return true;
+        }});
+        p.show();
     }
 
     // ================================================================ UI helpers
@@ -192,139 +224,101 @@ public class MainActivity extends Activity {
 
     ScrollView scroll(View v) { ScrollView s = new ScrollView(this); s.addView(v); return s; }
 
-    void setScreen(String name, String title, String subtitle, View content) {
+    TextView barButton(String s, View.OnClickListener l) {
+        TextView t = new TextView(this);
+        t.setText(s);
+        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
+        t.setPadding(dp(14), dp(10), dp(14), dp(10));
+        TypedArray a = obtainStyledAttributes(new int[]{android.R.attr.selectableItemBackgroundBorderless});
+        t.setBackground(a.getDrawable(0));
+        a.recycle();
+        t.setOnClickListener(l);
+        return t;
+    }
+
+    /** Every screen: top bar + content, padded away from status bar, navigation bar, camera cutout and keyboard. */
+    void setScreen(String name, String title, String subtitle, boolean backArrow, View content) {
         if (web != null && !"login".equals(name)) {
             if (web.getParent() != null) ((ViewGroup) web.getParent()).removeView(web);
             web.destroy();
             web = null;
         }
-        if (!"gallery".equals(name)) status = null;
+        viewToken++; // abandons a viewer download that is still running
+        deletePlaying();
         screen = name;
-        ActionBar ab = getActionBar();
-        if (ab != null) { ab.setTitle(title); ab.setSubtitle(subtitle); }
-        setContentView(content);
-        invalidateOptionsMenu();
+        statusLine = null;
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
+            public WindowInsets onApplyWindowInsets(View v, WindowInsets in) {
+                Insets i = in.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout() | WindowInsets.Type.ime());
+                v.setPadding(i.left, i.top, i.right, i.bottom);
+                return WindowInsets.CONSUMED;
+            }
+        });
+        LinearLayout bar = new LinearLayout(this);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
+        bar.setPadding(backArrow ? dp(2) : dp(16), dp(4), dp(2), dp(4));
+        if (backArrow) bar.addView(barButton("←", new View.OnClickListener() { public void onClick(View v) { back(); } }));
+        LinearLayout texts = new LinearLayout(this);
+        texts.setOrientation(LinearLayout.VERTICAL);
+        TextView t = new TextView(this);
+        t.setText(title);
+        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
+        t.setTypeface(Typeface.DEFAULT_BOLD);
+        t.setSingleLine();
+        t.setEllipsize(TextUtils.TruncateAt.MIDDLE);
+        texts.addView(t);
+        subtitleView = new TextView(this);
+        subtitleView.setText(subtitle);
+        subtitleView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+        subtitleView.setAlpha(0.7f);
+        subtitleView.setSingleLine();
+        subtitleView.setVisibility(subtitle == null ? View.GONE : View.VISIBLE);
+        texts.addView(subtitleView);
+        bar.addView(texts, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        if ("gallery".equals(name)) {
+            TextView add = barButton("＋ Add", new View.OnClickListener() { public void onClick(View v) { pick(); } });
+            add.setTypeface(Typeface.DEFAULT_BOLD);
+            bar.addView(add);
+        }
+        bar.addView(barButton("⋮", new View.OnClickListener() { public void onClick(View v) { menu(v); } }));
+        root.addView(bar);
+        View line = new View(this);
+        line.setBackgroundColor(0x33888888);
+        root.addView(line, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, dp(1) / 2)));
+        root.addView(content, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        setContentView(root);
+        boolean night = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+        int light = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
+        WindowInsetsController c = getWindow().getInsetsController();
+        if (c != null) c.setSystemBarsAppearance(night ? 0 : light, light);
     }
-
-    void onUi(Runnable r) { ui.post(r); }
 
     void toast(String s) { Toast.makeText(this, s, Toast.LENGTH_LONG).show(); }
 
-    void setBusy(final boolean b) {
-        busy = b;
-        onUi(new Runnable() { public void run() {
-            if (b) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-            else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        }});
-    }
-
-    void setStatus(final String s) {
-        onUi(new Runnable() { public void run() {
-            if (status == null) return;
-            status.setText(s);
-            status.setVisibility(s == null ? View.GONE : View.VISIBLE);
-        }});
-    }
-
-    static String human(long b) {
-        if (b < 1024) return b + " B";
-        if (b < 1 << 20) return String.format(Locale.ROOT, "%.0f KB", b / 1024.0);
-        if (b < 1L << 30) return String.format(Locale.ROOT, "%.1f MB", b / 1048576.0);
-        return String.format(Locale.ROOT, "%.2f GB", b / 1073741824.0);
-    }
+    void post(final Runnable r) { ui.post(new Runnable() { public void run() { if (!isDestroyed()) r.run(); } }); }
 
     static String date(long ms) { return DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(new Date(ms)); }
 
-    static String explain(Throwable e) {
-        if (e instanceof Amazon.ApiError && ((Amazon.ApiError) e).isAuth()) return "Amazon session expired or not accepted: sign in again";
-        if (e instanceof AEADBadTagException) return "decryption check failed: wrong key, or the file was altered";
-        if (e instanceof java.net.UnknownHostException) return "no internet connection";
-        if (e instanceof OutOfMemoryError) return "file too big for this phone's app memory";
-        return e.getClass().getSimpleName() + ": " + e.getMessage();
+    String version() {
+        try { return getPackageManager().getPackageInfo(getPackageName(), 0).versionName; } catch (Exception e) { return "?"; }
     }
 
-    static boolean isAuth(Throwable e) { return e instanceof Amazon.ApiError && ((Amazon.ApiError) e).isAuth(); }
+    void openUrl(String url) {
+        try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); } catch (Exception e) { toast("No browser found for " + url); }
+    }
 
     void askRelogin() {
-        onUi(new Runnable() { public void run() {
-            new AlertDialog.Builder(MainActivity.this).setTitle("Amazon sign-in needed")
-                    .setMessage("Amazon ended the session (this happens every few weeks). Sign in again; your vault and password are not affected.")
-                    .setPositiveButton("Sign in", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { showLogin(); } })
-                    .setNegativeButton("Later", null).show();
-        }});
+        new AlertDialog.Builder(this).setTitle("Amazon sign-in needed")
+                .setMessage("Amazon ended the session (this happens every few weeks). Sign in again; your vault and password are not affected.")
+                .setPositiveButton("Sign in", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { showLogin(); } })
+                .setNegativeButton("Later", null).show();
     }
 
-    byte[] salt() { return hex(prefs.getString("salt", "")); }
-    String folder() { return prefs.getString("folder", ""); }
-    String owner() { return prefs.getString("owner", ""); }
+    byte[] keyCopy() { return st.key == null ? null : st.key.clone(); }
 
-    static String hex(byte[] b) { StringBuilder s = new StringBuilder(); for (byte x : b) s.append(String.format("%02x", x)); return s.toString(); }
-
-    static byte[] hex(String s) {
-        byte[] b = new byte[s.length() / 2];
-        for (int i = 0; i < b.length; i++) b[i] = (byte) Integer.parseInt(s.substring(2 * i, 2 * i + 2), 16);
-        return b;
-    }
-
-    static byte[] readFile(File f) throws IOException { try (InputStream in = new FileInputStream(f)) { return Amazon.readAll(in); } }
-
-    static void writeFile(File f, byte[] b) throws IOException { try (OutputStream o = new FileOutputStream(f)) { o.write(b); } }
-
-    File thumbFile(String id) { File d = new File(getFilesDir(), "thumbs"); d.mkdirs(); return new File(d, id); }
-
-    File blobFile(String id) { File d = new File(getCacheDir(), "blobs"); d.mkdirs(); return new File(d, id + ".png"); }
-
-    /** Keeps at most ~500 MB of downloaded encrypted PNGs as a speed-up cache. */
-    void trimBlobCache() {
-        File[] fs = new File(getCacheDir(), "blobs").listFiles();
-        if (fs == null) return;
-        Arrays.sort(fs, new Comparator<File>() { public int compare(File a, File b) { return Long.compare(b.lastModified(), a.lastModified()); } });
-        long sum = 0;
-        for (File f : fs) { sum += f.length(); if (sum > 500L << 20) f.delete(); }
-    }
-
-    // ================================================================ local index (file list, private app storage)
-
-    void loadIndex() {
-        items.clear();
-        try {
-            File f = new File(getFilesDir(), "index.json");
-            if (!f.exists()) return;
-            JSONArray a = new JSONArray(new String(readFile(f), "UTF-8"));
-            for (int i = 0; i < a.length(); i++) {
-                JSONObject o = a.getJSONObject(i);
-                Item it = new Item();
-                it.id = o.getString("id"); it.name = o.optString("name"); it.mime = o.optString("mime");
-                it.taken = o.optLong("taken"); it.size = o.optLong("size");
-                items.add(it);
-            }
-        } catch (Exception e) { Journal.add("index load failed: " + e); }
-    }
-
-    /** Call on UI thread. */
-    void saveIndex() {
-        Collections.sort(items, new Comparator<Item>() { public int compare(Item a, Item b) { return Long.compare(b.taken, a.taken); } });
-        try {
-            JSONArray a = new JSONArray();
-            for (Item it : items)
-                a.put(new JSONObject().put("id", it.id).put("name", it.name).put("mime", it.mime).put("taken", it.taken).put("size", it.size));
-            File tmp = new File(getFilesDir(), "index.json.tmp");
-            writeFile(tmp, a.toString().getBytes("UTF-8"));
-            tmp.renameTo(new File(getFilesDir(), "index.json"));
-        } catch (Exception e) { Journal.add("index save failed: " + e); }
-        if (adapter != null) adapter.notifyDataSetChanged();
-        if ("gallery".equals(screen) && getActionBar() != null) getActionBar().setSubtitle(subtitle());
-    }
-
-    void addItem(final Item it) {
-        onUi(new Runnable() { public void run() {
-            for (Item x : items) if (x.id.equals(it.id)) return;
-            items.add(it);
-            saveIndex();
-        }});
-    }
-
-    String subtitle() { return items.size() + (items.size() == 1 ? " item" : " items") + " · encrypted on Amazon"; }
+    String subtitle() { return st.items.size() + (st.items.size() == 1 ? " item" : " items") + " · encrypted on Amazon"; }
 
     // ================================================================ setup: intro
 
@@ -339,15 +333,19 @@ public class MainActivity extends Activity {
         text(l, "What Amazon can see", 17);
         text(l, "• That you store PNG files of random noise: how many, their size and when they were uploaded.\n"
                 + "• Nothing of the content: no faces, places, dates, EXIF or file names. There is nothing to scan or to train AI on.", 15);
+        text(l, "Free, open source, no ads, no tracking", 17);
+        text(l, "PhotoVault has no servers, no accounts, no analytics and no ads. It talks only to Amazon, and only with your encrypted files. "
+                + "It collects nothing, so there is nothing to sell. Development is funded only by voluntary donations.", 15);
         text(l, "What you need to know", 17);
         text(l, "• Your vault password is the only key. Nobody can reset it, not Amazon and not this app. If you lose it, the photos are gone.\n"
-                + "• The app uses the same private web interface as the amazon.it website (Amazon has no public API). If Amazon changes it, "
+                + "• The app uses the same private web interface as the Amazon Photos website (Amazon has no public API). If Amazon changes it, "
                 + "uploads can stop working until the app is updated. Files already stored stay decryptable, also on a PC with photovault.py.\n"
                 + "• Videos stored as photo files go against the spirit of Amazon's terms (Prime includes only 5 GB for video). "
-                + "Amazon could restrict the account. Keep a second backup of anything irreplaceable.", 15);
+                + "Amazon could restrict the account. Keep a second backup of anything irreplaceable.\n"
+                + "• PhotoVault is not made by or affiliated with Amazon.", 15);
         text(l, "Setup takes 3 steps: sign in to Amazon, create your vault password, and a self-test on your account.", 15);
         button(l, "Continue: sign in to Amazon Photos", new View.OnClickListener() { public void onClick(View v) { showLogin(); } });
-        setScreen("intro", "PhotoVault", "Setup", scroll(l));
+        setScreen("intro", "PhotoVault", "Setup", false, scroll(l));
     }
 
     // ================================================================ setup 1: Amazon login in a WebView
@@ -356,21 +354,27 @@ public class MainActivity extends Activity {
         LinearLayout l = new LinearLayout(this);
         l.setOrientation(LinearLayout.VERTICAL);
         TextView head = new TextView(this);
-        head.setPadding(dp(16), dp(8), dp(16), dp(4));
-        head.setText("Sign in to amazon.it as usual. PhotoVault doesn't read or store your Amazon password: "
-                + "it reuses the login session this page creates, like a browser tab.");
+        head.setPadding(dp(16), dp(8), dp(16), dp(2));
+        head.setText("Sign in to Amazon as usual. PhotoVault doesn't read or store your Amazon password: "
+                + "it reuses the login session this page creates, like a browser tab. Links to non-Amazon sites open in your normal browser instead.");
         l.addView(head);
+        loginHost = new TextView(this);
+        loginHost.setPadding(dp(16), dp(2), dp(16), dp(2));
+        loginHost.setTypeface(Typeface.MONOSPACE);
+        l.addView(loginHost);
         loginStatus = new TextView(this);
         loginStatus.setPadding(dp(16), 0, dp(16), dp(8));
         loginStatus.setTypeface(Typeface.DEFAULT_BOLD);
         loginStatus.setText("Waiting for sign-in…");
         l.addView(loginStatus);
-        setScreen("login", "Sign in to Amazon", prefs.contains("verifier") ? "Refresh session" : "Step 1 of 3", l);
+        setScreen("login", "Sign in to Amazon", prefs.contains("verifier") ? "Refresh session" : "Step 1 of 3", true, l);
 
         web = new WebView(this);
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
+        s.setAllowFileAccess(false);
+        s.setAllowContentAccess(false);
         s.setUserAgentString(Amazon.UA); // desktop site: the one the API calls belong to
         s.setUseWideViewPort(true);
         s.setLoadWithOverviewMode(true);
@@ -379,13 +383,30 @@ public class MainActivity extends Activity {
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(web, true);
         web.setWebViewClient(new WebViewClient() {
-            @Override public void onPageFinished(WebView v, String url) { checkLogin(); }
+            @Override public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
+                Uri u = r.getUrl();
+                if (!r.isForMainFrame() || ("https".equals(u.getScheme()) && Amazon.isAmazonHost(u.getHost()))) return false;
+                Journal.add("login page: blocked navigation to " + u.getScheme() + "://" + u.getHost());
+                if (r.isForMainFrame() && ("https".equals(u.getScheme()) || "http".equals(u.getScheme()))) openUrl(u.toString());
+                return true;
+            }
+            @Override public void onPageStarted(WebView v, String url, Bitmap icon) { showHost(url); }
+            @Override public void onPageFinished(WebView v, String url) { showHost(url); checkLogin(); }
         });
         l.addView(web, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
         web.loadUrl(Amazon.WEB + "/photos");
         connecting = false;
         nextLoginTry = 0;
+        ui.removeCallbacks(pollLogin);
         ui.postDelayed(pollLogin, 2000);
+    }
+
+    void showHost(String url) {
+        if (loginHost == null || url == null) return;
+        Uri u = Uri.parse(url);
+        boolean safe = "https".equals(u.getScheme()) && Amazon.isAmazonHost(u.getHost());
+        loginHost.setText((safe ? "🔒 " : "⚠ ") + u.getScheme() + "://" + u.getHost());
+        loginHost.setTextColor(safe ? OK : BAD);
     }
 
     final Runnable pollLogin = new Runnable() {
@@ -401,23 +422,23 @@ public class MainActivity extends Activity {
             try {
                 JSONObject root = Amazon.root();
                 String folder = Amazon.folder(root.getString("id"), "PhotoVault");
-                final List<JSONObject> first = Amazon.listFiles(folder, 1);
+                final List<JSONObject> first = Amazon.listFiles(folder, 1).files;
                 prefs.edit().putString("owner", root.optString("ownerId")).putString("folder", folder).apply();
                 Journal.add("connected: Amazon Photos folder PhotoVault ready");
-                onUi(new Runnable() { public void run() {
+                post(new Runnable() { public void run() {
                     connecting = false;
                     if (!"login".equals(screen)) return;
-                    if (prefs.contains("verifier")) { toast("Amazon session refreshed"); if (key == null) showUnlock(); else showGallery(); }
+                    if (prefs.contains("verifier")) { toast("Amazon session refreshed"); start(); }
                     else if (first.isEmpty()) showCreatePassword();
                     else showRestorePassword(first.get(0).optString("id"));
                 }});
             } catch (final Exception e) {
                 Journal.add("connect failed: " + e);
-                onUi(new Runnable() { public void run() {
+                post(new Runnable() { public void run() {
                     connecting = false;
                     nextLoginTry = SystemClock.elapsedRealtime() + 15_000;
                     if (loginStatus != null) loginStatus.setText("Signed in, but Amazon Photos didn't accept the session yet ("
-                            + explain(e) + "). Let the Photos page finish loading; I retry every 15 s. Menu → Log for details.");
+                            + explain(e) + "). Let the Photos page finish loading; I retry every 15 s. Menu ⋮ → Log for details.");
                 }});
             }
         }});
@@ -435,9 +456,9 @@ public class MainActivity extends Activity {
         ok.setText("I saved this password somewhere safe. I understand that without it my photos can never be recovered.");
         l.addView(ok);
         final TextView err = text(l, "", 15);
-        err.setTextColor(BAD);
         button(l, "Create vault", new View.OnClickListener() { public void onClick(final View btn) {
             final String a = p1.getText().toString(), b = p2.getText().toString();
+            err.setTextColor(BAD);
             if (a.length() < 10) { err.setText("Use at least 10 characters."); return; }
             if (!a.equals(b)) { err.setText("The two passwords don't match."); return; }
             if (!ok.isChecked()) { err.setText("Please confirm you saved the password."); return; }
@@ -446,18 +467,18 @@ public class MainActivity extends Activity {
             err.setText("Deriving your key… (takes a few seconds on purpose: it makes password guessing slow)");
             io.execute(new Runnable() { public void run() {
                 try {
-                    byte[] salt = Vault.random(16), k = Vault.deriveKey(a, salt);
+                    final byte[] salt = Vault.random(16), k = Vault.deriveKey(a, salt);
                     prefs.edit().putString("salt", hex(salt))
                             .putString("verifier", Base64.encodeToString(Vault.seal(k, VERIFY.getBytes("UTF-8")), Base64.NO_WRAP)).apply();
-                    key = k;
+                    st.writeIndex(k, new ArrayList<Store.Item>());
                     Journal.add("new vault created");
-                    onUi(new Runnable() { public void run() { showSelfTest(); } });
+                    post(new Runnable() { public void run() { st.key = k; st.items = new ArrayList<>(); showSelfTest(); } });
                 } catch (final Exception e) {
-                    onUi(new Runnable() { public void run() { btn.setEnabled(true); err.setTextColor(BAD); err.setText(explain(e)); } });
+                    post(new Runnable() { public void run() { btn.setEnabled(true); err.setTextColor(BAD); err.setText(explain(e)); } });
                 }
             }});
         }});
-        setScreen("create", "New vault", "Step 2 of 3", scroll(l));
+        setScreen("create", "New vault", "Step 2 of 3", true, scroll(l));
     }
 
     void showRestorePassword(final String sampleId) {
@@ -473,25 +494,25 @@ public class MainActivity extends Activity {
             io.execute(new Runnable() { public void run() {
                 File f = new File(getCacheDir(), "sample.png");
                 try {
-                    Amazon.download(sampleId, owner(), f, null);
+                    Amazon.download(sampleId, st.owner(), f, null);
                     byte[] salt;
                     try (InputStream in = new FileInputStream(f)) { salt = Vault.readSalt(in); }
-                    byte[] k = Vault.deriveKey(pw, salt);
+                    final byte[] k = Vault.deriveKey(pw, salt);
                     try (InputStream in = new FileInputStream(f)) { Vault.decryptPng(in, k); }
                     prefs.edit().putString("salt", hex(salt))
                             .putString("verifier", Base64.encodeToString(Vault.seal(k, VERIFY.getBytes("UTF-8")), Base64.NO_WRAP)).apply();
-                    key = k;
+                    st.writeIndex(k, new ArrayList<Store.Item>());
                     Journal.add("existing vault unlocked");
-                    onUi(new Runnable() { public void run() { showSelfTest(); } });
+                    post(new Runnable() { public void run() { st.key = k; st.items = new ArrayList<>(); restored = true; showSelfTest(); } });
                 } catch (final Throwable e) {
-                    onUi(new Runnable() { public void run() {
+                    post(new Runnable() { public void run() {
                         btn.setEnabled(true);
                         err.setText(e instanceof AEADBadTagException ? "Wrong password." : explain(e));
                     }});
                 } finally { f.delete(); }
             }});
         }});
-        setScreen("restore", "Existing vault", "Step 2 of 3", scroll(l));
+        setScreen("restore", "Existing vault", "Step 2 of 3", true, scroll(l));
     }
 
     // ================================================================ setup 3: self-test on the real account
@@ -533,20 +554,21 @@ public class MainActivity extends Activity {
         LinearLayout actions = new LinearLayout(this);
         actions.setOrientation(LinearLayout.VERTICAL);
         l.addView(actions);
-        setScreen("selftest", "Self-test", prefs.contains("done_selftest") ? null : "Step 3 of 3", scroll(l));
+        setScreen("selftest", "Self-test", prefs.contains("done_selftest") ? null : "Step 3 of 3", false, scroll(l));
         runSelfTest(labels, steps, mine, theirs, actions);
     }
 
     void step(final TextView t, final String label, final int state, final String detail) {
-        onUi(new Runnable() { public void run() {
+        post(new Runnable() { public void run() {
             t.setText((state == OK ? "✓  " : state == BAD ? "✗  " : "⚠  ") + label + (detail == null ? "" : "\n     " + detail));
             t.setTextColor(state);
         }});
     }
 
     void runSelfTest(final String[] labels, final TextView[] s, final ImageView mine, final ImageView theirs, final LinearLayout actions) {
-        final byte[] k = key, salt = salt();
-        setBusy(true);
+        final byte[] k = keyCopy(), salt = st.salt();
+        if (k == null) { showUnlock(); return; }
+        testing = true;
         io.execute(new Runnable() { public void run() {
             int i = 0;
             String nodeId = null;
@@ -562,11 +584,11 @@ public class MainActivity extends Activity {
                 byte[] plain = Vault.plainBuffer(meta, orig.length);
                 System.arraycopy(orig, 0, plain, plain.length - orig.length, orig.length);
                 try (OutputStream o = new BufferedOutputStream(new FileOutputStream(up))) { Vault.encryptToPng(k, salt, plain, o); }
-                onUi(new Runnable() { public void run() { mine.setImageBitmap(img); } });
+                post(new Runnable() { public void run() { mine.setImageBitmap(img); } });
                 step(s[i], labels[i++], OK, human(orig.length) + " image → " + human(up.length()) + " PNG, " + (SystemClock.elapsedRealtime() - t) + " ms");
 
                 t = SystemClock.elapsedRealtime();
-                JSONObject node = Amazon.upload(up, hex(Vault.random(8)) + ".png", folder(), null);
+                JSONObject node = Amazon.upload(up, hex(Vault.random(8)) + ".png", st.folder(), null);
                 nodeId = node.getString("id");
                 step(s[i], labels[i++], OK, (SystemClock.elapsedRealtime() - t) + " ms");
 
@@ -576,7 +598,7 @@ public class MainActivity extends Activity {
                 else step(s[i], labels[i++], WARN, "Amazon reports '" + type + "': check under Storage that it counts as a photo");
 
                 t = SystemClock.elapsedRealtime();
-                Amazon.download(nodeId, owner(), down, null);
+                Amazon.download(nodeId, st.owner(), down, null);
                 step(s[i], labels[i++], OK, human(down.length()) + ", " + (SystemClock.elapsedRealtime() - t) + " ms");
 
                 byte[] a = readFile(up), b = readFile(down);
@@ -589,7 +611,7 @@ public class MainActivity extends Activity {
                 boolean same = Vault.sha256(o.plain, o.dataOff, o.dataLen()).equals(Vault.sha256(orig, 0, orig.length));
                 if (!same) { step(s[i], labels[i], BAD, "mismatch"); throw new IOException("decrypted data differs"); }
                 final Bitmap noise = BitmapFactory.decodeFile(down.getPath());
-                onUi(new Runnable() { public void run() { theirs.setImageBitmap(noise); } });
+                post(new Runnable() { public void run() { theirs.setImageBitmap(noise); } });
                 step(s[i], labels[i++], OK, "authenticated by AES-GCM, SHA-256 match");
 
                 try {
@@ -615,15 +637,17 @@ public class MainActivity extends Activity {
             } finally {
                 up.delete();
                 down.delete();
-                setBusy(false);
+                Arrays.fill(k, (byte) 0);
             }
             final boolean fok = ok;
-            onUi(new Runnable() { public void run() {
+            post(new Runnable() { public void run() {
+                testing = false;
+                if (!"selftest".equals(screen)) return;
                 if (fok) {
                     text(actions, "All checks passed. Amazon stores your encrypted files bit-for-bit and only this app can open them.", 15).setTextColor(OK);
                     if (bioAvailable() && !bioEnabled())
                         button(actions, "Enable fingerprint unlock (recommended)", new View.OnClickListener() { public void onClick(View v) { enableBio(); } });
-                    button(actions, "Open my vault", new View.OnClickListener() { public void onClick(View v) { showGallery(); } });
+                    button(actions, "Open my vault", new View.OnClickListener() { public void onClick(View v) { openMyVault(); } });
                 } else {
                     text(actions, "The test stopped at the step marked ✗. Nothing personal was uploaded.", 15).setTextColor(BAD);
                     button(actions, "Retry", new View.OnClickListener() { public void onClick(View v) { showSelfTest(); } });
@@ -632,6 +656,12 @@ public class MainActivity extends Activity {
                 }
             }});
         }});
+    }
+
+    /** After setup: a vault restored on a new phone starts rebuilding its list from Amazon right away. */
+    void openMyVault() {
+        if (restored && st.items.isEmpty()) { restored = false; startSync(); }
+        showGallery();
     }
 
     Bitmap testImage() {
@@ -663,27 +693,35 @@ public class MainActivity extends Activity {
         if (bioEnabled()) button(l, "Unlock with fingerprint", new View.OnClickListener() { public void onClick(View v) { bioUnlock(); } });
         final EditText p = password(l, "Vault password");
         final TextView err = text(l, "", 15);
-        button(l, "Unlock with password", new View.OnClickListener() { public void onClick(final View btn) {
+        final Button go = button(l, "Unlock with password", null);
+        go.setOnClickListener(new View.OnClickListener() { public void onClick(final View btn) {
             final String pw = p.getText().toString();
             btn.setEnabled(false);
             err.setText("Deriving your key…");
             io.execute(new Runnable() { public void run() {
-                boolean good;
                 byte[] k = null;
-                try {
-                    k = Vault.deriveKey(pw, salt());
-                    good = Arrays.equals(Vault.open(k, Base64.decode(prefs.getString("verifier", ""), Base64.NO_WRAP)), VERIFY.getBytes("UTF-8"));
-                } catch (Exception e) { good = false; }
-                final boolean g = good;
-                final byte[] fk = k;
-                onUi(new Runnable() { public void run() {
-                    if (g) { key = fk; showGallery(); }
-                    else { btn.setEnabled(true); err.setText("Wrong password."); }
-                }});
+                try { k = Vault.deriveKey(pw, st.salt()); } catch (Exception ignored) { }
+                openVault(k, new Runnable() { public void run() { btn.setEnabled(true); err.setText("Wrong password."); } });
             }});
         }});
-        setScreen("unlock", "PhotoVault", "Locked", scroll(l));
-        if (bioEnabled()) ui.postDelayed(new Runnable() { public void run() { if ("unlock".equals(screen)) bioUnlock(); } }, 400);
+        if (st.status != null && st.jobRunning) text(l, "Background: " + st.status, 13).setAlpha(0.7f);
+        setScreen("unlock", "PhotoVault", "Locked", false, scroll(l));
+        if (bioEnabled() && started) { ui.removeCallbacks(autoBio); ui.postDelayed(autoBio, 400); }
+    }
+
+    /** Background thread: checks the key against the stored verifier, loads the encrypted index, opens the gallery. */
+    void openVault(final byte[] k, final Runnable wrong) {
+        boolean good;
+        try { good = k != null && Arrays.equals(Vault.open(k, Base64.decode(prefs.getString("verifier", ""), Base64.NO_WRAP)), VERIFY.getBytes("UTF-8")); }
+        catch (Exception e) { good = false; }
+        if (!good) { post(wrong); return; }
+        synchronized (st) { // a background job can't change the index between this read and the list shown
+            List<Store.Item> l;
+            try { l = st.readIndex(k); st.writeIndex(k, l); } // also upgrades a v1.0 plaintext index to encrypted
+            catch (Exception e) { Journal.add("local list unreadable, use Sync from Amazon: " + e); l = new ArrayList<>(); }
+            final List<Store.Item> items = l;
+            post(new Runnable() { public void run() { st.key = k; st.items = items; showGallery(); } });
+        }
     }
 
     boolean bioAvailable() {
@@ -702,6 +740,7 @@ public class MainActivity extends Activity {
                 .build()
                 .authenticate(new BiometricPrompt.CryptoObject(c), new CancellationSignal(), getMainExecutor(), new BiometricPrompt.AuthenticationCallback() {
                     @Override public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult r) {
+                        if (isDestroyed()) return;
                         try { done.run(r.getCryptoObject().getCipher()); } catch (Exception e) { toast("Fingerprint: " + explain(e)); }
                     }
                     @Override public void onAuthenticationError(int code, CharSequence msg) {
@@ -723,11 +762,12 @@ public class MainActivity extends Activity {
             Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
             c.init(Cipher.ENCRYPT_MODE, g.generateKey());
             bioPrompt("Enable fingerprint unlock", c, new CipherDone() { public void run(Cipher c) throws Exception {
-                byte[] ct = c.doFinal(key);
+                if (st.key == null) return;
+                byte[] ct = c.doFinal(st.key);
                 prefs.edit().putString("bio_iv", Base64.encodeToString(c.getIV(), Base64.NO_WRAP))
                         .putString("bio_ct", Base64.encodeToString(ct, Base64.NO_WRAP)).apply();
                 toast("Fingerprint unlock enabled");
-                if ("info".equals(screen)) showInfo(); else showGallery();
+                if ("info".equals(screen)) showInfo(); else openMyVault();
             }});
         } catch (Exception e) { toast("Could not enable fingerprint: " + explain(e)); }
     }
@@ -746,8 +786,10 @@ public class MainActivity extends Activity {
             Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
             c.init(Cipher.DECRYPT_MODE, k, new GCMParameterSpec(128, Base64.decode(prefs.getString("bio_iv", ""), Base64.NO_WRAP)));
             bioPrompt("Unlock PhotoVault", c, new CipherDone() { public void run(Cipher c) throws Exception {
-                key = c.doFinal(Base64.decode(prefs.getString("bio_ct", ""), Base64.NO_WRAP));
-                showGallery();
+                final byte[] key = c.doFinal(Base64.decode(prefs.getString("bio_ct", ""), Base64.NO_WRAP));
+                io.execute(new Runnable() { public void run() {
+                    openVault(key, new Runnable() { public void run() { toast("Fingerprint key doesn't match this vault: use your password"); } });
+                }});
             }});
         } catch (KeyPermanentlyInvalidatedException e) {
             disableBio();
@@ -759,19 +801,25 @@ public class MainActivity extends Activity {
     // ================================================================ gallery
 
     void showGallery() {
-        if (key == null) { showUnlock(); return; }
+        if (st.key == null) { showUnlock(); return; }
         LinearLayout l = new LinearLayout(this);
         l.setOrientation(LinearLayout.VERTICAL);
-        status = new TextView(this);
+        TextView status = new TextView(this);
         status.setPadding(dp(16), dp(8), dp(16), dp(8));
-        status.setVisibility(View.GONE);
+        status.setBackgroundColor(0x14888888);
+        status.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
+            if (st.jobRunning) new AlertDialog.Builder(MainActivity.this).setMessage("Stop the background job after the current file?")
+                    .setPositiveButton("Stop", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { SyncService.stop(MainActivity.this); } })
+                    .setNegativeButton("Continue", null).show();
+            else { st.status = null; refresh(); }
+        }});
         l.addView(status);
         TextView empty = new TextView(this);
         empty.setPadding(dp(24), dp(32), dp(24), dp(24));
         empty.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
         empty.setGravity(Gravity.CENTER);
-        empty.setText("Your vault is empty.\n\nTap ＋ Add to encrypt and upload photos or videos.\n\n"
-                + "Already have a vault on Amazon (new phone, reinstall)? Menu → Sync from Amazon.");
+        empty.setText("Your vault is empty.\n\nTap ＋ Add to encrypt and upload photos or videos. Uploads continue in the background.\n\n"
+                + "Already have a vault on Amazon (new phone, reinstall)? Menu ⋮ → Sync from Amazon.");
         l.addView(empty, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         final int cols = 3, cell = getResources().getDisplayMetrics().widthPixels / cols;
         GridView g = new GridView(this);
@@ -779,9 +827,10 @@ public class MainActivity extends Activity {
         g.setHorizontalSpacing(dp(2));
         g.setVerticalSpacing(dp(2));
         g.setStretchMode(GridView.STRETCH_COLUMN_WIDTH);
+        shown = st.items;
         adapter = new BaseAdapter() {
-            public int getCount() { return items.size(); }
-            public Object getItem(int p) { return items.get(p); }
+            public int getCount() { return shown.size(); }
+            public Object getItem(int p) { return shown.get(p); }
             public long getItemId(int p) { return p; }
             public View getView(int p, View convert, ViewGroup parent) {
                 ImageView iv = (ImageView) convert;
@@ -791,9 +840,9 @@ public class MainActivity extends Activity {
                     iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
                     iv.setBackgroundColor(0x22888888);
                 }
-                Item it = items.get(p);
+                Store.Item it = shown.get(p);
                 iv.setTag(it.id);
-                Bitmap b = thumbs.get(it.id);
+                Bitmap b = st.thumbs.get(it.id);
                 iv.setImageBitmap(b);
                 if (b == null) loadThumb(it.id, iv);
                 return iv;
@@ -802,31 +851,43 @@ public class MainActivity extends Activity {
         g.setAdapter(adapter);
         g.setEmptyView(empty);
         g.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-            public void onItemClick(AdapterView<?> a, View v, int p, long id) { showViewer(items.get(p)); }
+            public void onItemClick(AdapterView<?> a, View v, int p, long id) { showViewer(shown.get(p)); }
         });
         l.addView(g, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
-        setScreen("gallery", "PhotoVault", subtitle(), l);
-        if (busy) setStatus("Working… (keep the app open)");
+        setScreen("gallery", "PhotoVault", subtitle(), false, l);
+        statusLine = status;
+        refresh();
     }
 
     void loadThumb(final String id, final ImageView iv) {
-        final byte[] k = key;
+        final byte[] k = keyCopy();
         if (k == null) return;
         thumbIo.execute(new Runnable() { public void run() {
-            try {
-                File f = thumbFile(id);
-                if (!f.exists()) return;
-                byte[] j = Vault.open(k, readFile(f));
-                final Bitmap b = BitmapFactory.decodeByteArray(j, 0, j.length);
-                if (b == null) return;
-                thumbs.put(id, b);
-                onUi(new Runnable() { public void run() { if (id.equals(iv.getTag())) iv.setImageBitmap(b); } });
-            } catch (Exception e) { Journal.add("thumbnail unreadable: " + e); }
+            final Bitmap b = st.thumb(id, k);
+            Arrays.fill(k, (byte) 0);
+            if (b != null) post(new Runnable() { public void run() {
+                if (st.key == null) return;
+                st.thumbs.put(id, b);
+                if (id.equals(iv.getTag())) iv.setImageBitmap(b);
+            }});
         }});
     }
 
     void pick() {
-        if (busy) { toast("Wait for the current operation to finish."); return; }
+        picking = true;
+        if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED && !prefs.getBoolean("asked_notif", false)) {
+            prefs.edit().putBoolean("asked_notif", true).apply(); // asked once: needed only to show upload progress
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQ_NOTIF);
+            return;
+        }
+        launchPicker();
+    }
+
+    @Override public void onRequestPermissionsResult(int req, String[] perms, int[] res) {
+        if (req == REQ_NOTIF) launchPicker();
+    }
+
+    void launchPicker() {
         Intent i = new Intent(MediaStore.ACTION_PICK_IMAGES); // Android photo picker: no storage permission needed
         i.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, MediaStore.getPickImagesMaxLimit());
         picking = true;
@@ -836,206 +897,37 @@ public class MainActivity extends Activity {
     @Override protected void onActivityResult(int req, int res, Intent data) {
         picking = false;
         if (req != REQ_PICK || res != RESULT_OK || data == null) return;
-        if (key == null) { toast("Vault is locked."); return; }
+        if (st.key == null) { toast("Vault is locked."); return; }
         List<Uri> uris = new ArrayList<>();
         ClipData c = data.getClipData();
         if (c != null) for (int i = 0; i < c.getItemCount(); i++) uris.add(c.getItemAt(i).getUri());
         else if (data.getData() != null) uris.add(data.getData());
-        if (!uris.isEmpty()) upload(uris);
-    }
-
-    void upload(final List<Uri> uris) {
-        final byte[] k = key, salt = salt();
-        final String folder = folder();
-        setBusy(true);
-        io.execute(new Runnable() { public void run() {
-            int ok = 0;
-            final List<String> failed = new ArrayList<>();
-            for (int n = 0; n < uris.size(); n++) {
-                Uri u = uris.get(n);
-                final String pre = (n + 1) + "/" + uris.size() + " · ";
-                String name = "item";
-                File png = new File(getCacheDir(), "upload.png");
-                try {
-                    long size = -1, taken = System.currentTimeMillis();
-                    try (Cursor c = getContentResolver().query(u, null, null, null, null)) {
-                        if (c != null && c.moveToFirst()) {
-                            int i = c.getColumnIndex(OpenableColumns.DISPLAY_NAME);
-                            if (i >= 0 && !c.isNull(i)) name = c.getString(i);
-                            i = c.getColumnIndex(OpenableColumns.SIZE);
-                            if (i >= 0 && !c.isNull(i)) size = c.getLong(i);
-                            i = c.getColumnIndex(MediaStore.MediaColumns.DATE_TAKEN);
-                            if (i >= 0 && !c.isNull(i) && c.getLong(i) > 0) taken = c.getLong(i);
-                        }
-                    }
-                    String mime = getContentResolver().getType(u);
-                    if (mime == null) mime = "application/octet-stream";
-                    if (size > MAX_FILE) throw new IOException("larger than " + human(MAX_FILE) + " (not supported in this version)");
-                    setStatus(pre + "Encrypting " + name + "…");
-                    String meta = new JSONObject().put("name", name).put("taken", taken).put("mime", mime).toString();
-                    byte[] plain;
-                    int off;
-                    try (InputStream in = getContentResolver().openInputStream(u)) {
-                        if (size > 0) {
-                            plain = Vault.plainBuffer(meta, (int) size);
-                            off = plain.length - (int) size;
-                            for (int p = off, r; p < plain.length; p += r)
-                                if ((r = in.read(plain, p, plain.length - p)) < 0) throw new EOFException("file shorter than expected");
-                        } else {
-                            byte[] all = Amazon.readAll(in);
-                            if (all.length > MAX_FILE) throw new IOException("larger than " + human(MAX_FILE));
-                            plain = Vault.plainBuffer(meta, all.length);
-                            off = plain.length - all.length;
-                            System.arraycopy(all, 0, plain, off, all.length);
-                            size = all.length;
-                        }
-                    }
-                    byte[] thumb = makeThumb(plain, off, plain.length - off, mime.startsWith("video/"));
-                    try (OutputStream o = new BufferedOutputStream(new FileOutputStream(png), 1 << 16)) { Vault.encryptToPng(k, salt, plain, o); }
-                    plain = null;
-                    final String fname = name;
-                    final long total = png.length();
-                    setStatus(pre + "Uploading " + name + " (" + human(total) + ")…");
-                    JSONObject node = Amazon.upload(png, hex(Vault.random(8)) + ".png", folder, new Amazon.Progress() {
-                        public void on(long done, long t) { setStatus(pre + "Uploading " + fname + " " + (100 * done / Math.max(1, total)) + "%"); }
-                    });
-                    Item it = new Item();
-                    it.id = node.getString("id"); it.name = name; it.mime = mime; it.taken = taken; it.size = size;
-                    if (thumb != null) writeFile(thumbFile(it.id), Vault.seal(k, thumb));
-                    addItem(it);
-                    ok++;
-                } catch (Throwable e) {
-                    Journal.add("upload failed: " + e);
-                    failed.add(name + ": " + explain(e));
-                    if (isAuth(e)) { askRelogin(); break; }
-                } finally { png.delete(); }
-            }
-            setBusy(false);
-            setStatus("✓ " + ok + " added" + (failed.isEmpty() ? "" : " · " + failed.size() + " failed"));
-            if (!failed.isEmpty()) onUi(new Runnable() { public void run() {
-                new AlertDialog.Builder(MainActivity.this).setTitle("Some items were not added")
-                        .setMessage(android.text.TextUtils.join("\n\n", failed)).setPositiveButton("OK", null).show();
-            }});
-        }});
-    }
-
-    /** Small JPEG preview (kept only on the phone, encrypted). */
-    byte[] makeThumb(final byte[] b, final int off, final int len, boolean video) {
+        if (uris.isEmpty()) return;
         try {
-            Bitmap bm;
-            if (video) {
-                MediaMetadataRetriever r = new MediaMetadataRetriever();
-                r.setDataSource(new MediaDataSource() {
-                    public int readAt(long pos, byte[] buf, int o, int size) {
-                        if (pos >= len) return -1;
-                        int n = (int) Math.min(size, len - pos);
-                        System.arraycopy(b, off + (int) pos, buf, o, n);
-                        return n;
-                    }
-                    public long getSize() { return len; }
-                    public void close() { }
-                });
-                Bitmap f = r.getScaledFrameAtTime(1_000_000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 400, 400);
-                r.release();
-                if (f == null) return null;
-                bm = f.copy(Bitmap.Config.ARGB_8888, true);
-                Canvas c = new Canvas(bm);
-                Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-                float cx = bm.getWidth() / 2f, cy = bm.getHeight() / 2f, rad = Math.min(cx, cy) / 3f;
-                p.setColor(0x88000000);
-                c.drawCircle(cx, cy, rad, p);
-                p.setColor(Color.WHITE);
-                Path tri = new Path();
-                tri.moveTo(cx - rad / 3, cy - rad / 2);
-                tri.lineTo(cx + rad / 2, cy);
-                tri.lineTo(cx - rad / 3, cy + rad / 2);
-                tri.close();
-                c.drawPath(tri, p);
-            } else {
-                bm = ImageDecoder.decodeBitmap(ImageDecoder.createSource(ByteBuffer.wrap(b, off, len).slice()), new ImageDecoder.OnHeaderDecodedListener() {
-                    public void onHeaderDecoded(ImageDecoder d, ImageDecoder.ImageInfo info, ImageDecoder.Source src) {
-                        Size s = info.getSize();
-                        d.setTargetSampleSize(Math.max(1, Math.min(s.getWidth(), s.getHeight()) / 400));
-                        d.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE);
-                    }
-                });
-            }
-            ByteArrayOutputStream o = new ByteArrayOutputStream();
-            bm.compress(Bitmap.CompressFormat.JPEG, 80, o);
-            return o.toByteArray();
-        } catch (Throwable e) { Journal.add("preview not created: " + e); return null; }
+            SyncService.start(this, SyncService.UPLOAD, uris);
+            toast(uris.size() + (uris.size() == 1 ? " item" : " items") + " queued. Encryption and upload run in the background: you can leave the app.");
+        } catch (Exception e) { toast("Could not start the upload: " + explain(e)); }
     }
 
-    /** Rebuilds the local list from the PhotoVault folder on Amazon (new phone, reinstall, or items deleted on the website). */
-    void sync() {
-        if (busy) { toast("Wait for the current operation to finish."); return; }
-        final byte[] k = key;
-        final Set<String> local = new HashSet<>();
-        for (Item it : items) local.add(it.id);
-        setBusy(true);
-        setStatus("Listing your vault on Amazon…");
-        io.execute(new Runnable() { public void run() {
-            int restored = 0, skipped = 0, removed = 0;
-            try {
-                List<JSONObject> nodes = Amazon.listFiles(folder(), 1_000_000);
-                final Set<String> remote = new HashSet<>();
-                for (JSONObject n : nodes) remote.add(n.getString("id"));
-                if (nodes.size() < 9000) { // listing is complete: drop items deleted on the Amazon website
-                    final List<String> gone = new ArrayList<>();
-                    for (String id : local) if (!remote.contains(id)) gone.add(id);
-                    removed = gone.size();
-                    if (!gone.isEmpty()) onUi(new Runnable() { public void run() {
-                        Iterator<Item> it = items.iterator();
-                        while (it.hasNext()) if (gone.contains(it.next().id)) it.remove();
-                        saveIndex();
-                    }});
-                }
-                int n = 0;
-                for (JSONObject node : nodes) {
-                    n++;
-                    String id = node.getString("id");
-                    if (local.contains(id)) continue;
-                    setStatus("Restoring " + n + "/" + nodes.size() + "…");
-                    File f = new File(getCacheDir(), "sync.png");
-                    try {
-                        Amazon.download(id, owner(), f, null);
-                        Vault.Opened o;
-                        try (InputStream in = new FileInputStream(f)) { o = Vault.decryptPng(in, k); }
-                        JSONObject m = new JSONObject(o.meta);
-                        Item it = new Item();
-                        it.id = id; it.name = m.optString("name", "item"); it.mime = m.optString("mime", "");
-                        it.taken = m.optLong("taken", System.currentTimeMillis()); it.size = o.dataLen();
-                        byte[] thumb = makeThumb(o.plain, o.dataOff, o.dataLen(), it.video());
-                        if (thumb != null) writeFile(thumbFile(id), Vault.seal(k, thumb));
-                        addItem(it);
-                        restored++;
-                    } catch (Throwable e) {
-                        if (isAuth(e)) throw e;
-                        Journal.add("sync: skipped a file: " + e);
-                        skipped++;
-                    } finally { f.delete(); }
-                }
-                setStatus("✓ Sync done · " + restored + " restored · " + removed + " removed"
-                        + (skipped > 0 ? " · " + skipped + " skipped (not openable with this vault's key, see Log)" : ""));
-            } catch (Throwable e) {
-                Journal.add("sync failed: " + e);
-                setStatus("✗ Sync failed: " + explain(e));
-                if (isAuth(e)) askRelogin();
-            } finally { setBusy(false); }
-        }});
+    void startSync() {
+        try { SyncService.start(this, SyncService.SYNC, null); }
+        catch (Exception e) { toast("Could not start the sync: " + explain(e)); }
     }
 
     // ================================================================ viewer
 
-    void showViewer(final Item it) {
-        final LinearLayout l = new LinearLayout(this);
+    void showViewer(final Store.Item it) {
+        LinearLayout l = new LinearLayout(this);
         l.setOrientation(LinearLayout.VERTICAL);
         final FrameLayout box = new FrameLayout(this);
         box.setBackgroundColor(Color.BLACK);
+        final ImageView iv = new ImageView(this);
+        iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        box.addView(iv, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         l.addView(box, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
         final TextView info = new TextView(this);
         info.setPadding(dp(16), dp(8), dp(16), dp(4));
-        info.setText("Downloading encrypted file…");
+        info.setText("Low-resolution preview · downloading the encrypted original…");
         l.addView(info);
         LinearLayout row = new LinearLayout(this);
         row.setPadding(dp(8), 0, dp(8), dp(8));
@@ -1049,23 +941,36 @@ public class MainActivity extends Activity {
             row.addView(b, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         }
         l.addView(row);
-        setScreen("viewer", it.name, date(it.taken), l);
-        final byte[] k = key;
-        final File png = blobFile(it.id);
+        setScreen("viewer", it.name, date(it.taken) + " · " + human(it.size), true, l);
+        final int token = viewToken;
         del.setEnabled(true);
         del.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { confirmDelete(it); } });
 
+        // 1) instant: the small preview kept (encrypted) on the phone
+        Bitmap pre = st.thumbs.get(it.id);
+        if (pre != null) iv.setImageBitmap(pre);
+        else loadThumb(it.id, iv);
+        iv.setTag(it.id);
+
+        // 2) full quality: download (or reuse the cached encrypted PNG), decrypt, swap in
+        final byte[] k = keyCopy();
+        final File png = st.blobFile(it.id);
         viewIo.execute(new Runnable() { public void run() {
             try {
+                if (token != viewToken) return;
                 if (!png.exists()) {
-                    Amazon.download(it.id, owner(), png, new Amazon.Progress() {
+                    Amazon.download(it.id, st.owner(), png, new Amazon.Progress() {
                         public void on(final long d, final long t) {
-                            onUi(new Runnable() { public void run() { info.setText("Downloading encrypted file… " + (t > 0 ? 100 * d / t + "%" : human(d))); } });
+                            if (token != viewToken) throw new CancellationException(); // viewer closed: stop downloading
+                            post(new Runnable() { public void run() {
+                                if (token == viewToken) info.setText("Low-resolution preview · downloading the encrypted original… " + (t > 0 ? 100 * d / t + "%" : human(d)));
+                            }});
                         }
                     });
-                    trimBlobCache();
+                    st.trimBlobCache();
                 } else png.setLastModified(System.currentTimeMillis());
-                onUi(new Runnable() { public void run() { info.setText("Decrypting…"); } });
+                if (token != viewToken) return;
+                post(new Runnable() { public void run() { if (token == viewToken) info.setText("Low-resolution preview · decrypting…"); } });
                 long t = SystemClock.elapsedRealtime();
                 final Vault.Opened o;
                 try (InputStream in = new FileInputStream(png)) { o = Vault.decryptPng(in, k); }
@@ -1074,49 +979,48 @@ public class MainActivity extends Activity {
                         + human(o.dataLen()) + " original · stored on Amazon as a " + human(png.length()) + " PNG of noise";
                 if (it.video()) {
                     String ext = it.name.contains(".") ? it.name.substring(it.name.lastIndexOf('.')) : ".mp4";
-                    deletePlaying();
-                    playing = new File(getCacheDir(), "play" + ext);
-                    try (OutputStream out = new FileOutputStream(playing)) { out.write(o.plain, o.dataOff, o.dataLen()); }
-                    onUi(new Runnable() { public void run() {
-                        if (!"viewer".equals(screen)) return;
-                        shown = o;
+                    final File f = new File(getCacheDir(), "play" + ext);
+                    try (OutputStream out = new FileOutputStream(f)) { out.write(o.plain, o.dataOff, o.dataLen()); }
+                    post(new Runnable() { public void run() {
+                        if (token != viewToken) { f.delete(); return; }
+                        deletePlaying();
+                        playing = f;
                         VideoView vv = new VideoView(MainActivity.this);
                         MediaController mc = new MediaController(MainActivity.this);
                         mc.setAnchorView(vv);
                         vv.setMediaController(mc);
-                        vv.setVideoPath(playing.getPath());
+                        vv.setVideoPath(f.getPath());
                         box.addView(vv, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER));
+                        box.removeView(iv);
                         vv.start();
                         ready(it, o, line, info, box, png, amazon, save);
                     }});
                 } else {
                     final Bitmap bm = ImageDecoder.decodeBitmap(ImageDecoder.createSource(ByteBuffer.wrap(o.plain, o.dataOff, o.dataLen()).slice()),
                             new ImageDecoder.OnHeaderDecodedListener() {
-                                public void onHeaderDecoded(ImageDecoder d, ImageDecoder.ImageInfo info, ImageDecoder.Source s) {
-                                    Size z = info.getSize();
+                                public void onHeaderDecoded(ImageDecoder d, ImageDecoder.ImageInfo inf, ImageDecoder.Source s) {
+                                    Size z = inf.getSize();
                                     d.setTargetSampleSize(Math.max(1, Math.max(z.getWidth(), z.getHeight()) / 4096 + 1));
                                 }
                             });
-                    onUi(new Runnable() { public void run() {
-                        if (!"viewer".equals(screen)) return;
-                        shown = o;
-                        ImageView iv = new ImageView(MainActivity.this);
-                        iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
+                    post(new Runnable() { public void run() {
+                        if (token != viewToken) return;
+                        iv.setTag(null); // a late preview must not replace the full image
                         iv.setImageBitmap(bm);
-                        box.addView(iv, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
                         ready(it, o, line, info, box, png, amazon, save);
                     }});
                 }
             } catch (final Throwable e) {
+                if (e instanceof CancellationException) return;
                 Journal.add("view failed: " + e);
                 png.delete();
-                onUi(new Runnable() { public void run() { info.setText("✗ " + explain(e)); } });
-                if (isAuth(e)) askRelogin();
-            }
+                post(new Runnable() { public void run() { if (token == viewToken) info.setText("✗ " + explain(e)); } });
+                if (isAuth(e)) post(new Runnable() { public void run() { askRelogin(); } });
+            } finally { Arrays.fill(k, (byte) 0); }
         }});
     }
 
-    void ready(final Item it, final Vault.Opened o, String line, TextView info, final FrameLayout box, final File png, final Button amazon, Button save) {
+    void ready(final Store.Item it, final Vault.Opened o, String line, TextView info, final FrameLayout box, final File png, final Button amazon, Button save) {
         info.setText(line);
         amazon.setEnabled(true);
         save.setEnabled(true);
@@ -1124,20 +1028,23 @@ public class MainActivity extends Activity {
             ImageView noise;
             public void onClick(View v) {
                 if (noise != null) { box.removeView(noise); noise = null; amazon.setText("Amazon's view"); return; }
-                BitmapFactory.Options op = new BitmapFactory.Options();
-                op.inSampleSize = png.length() > (8 << 20) ? 4 : 1;
-                noise = new ImageView(MainActivity.this);
-                noise.setBackgroundColor(Color.BLACK);
-                noise.setScaleType(ImageView.ScaleType.FIT_CENTER);
-                noise.setImageBitmap(BitmapFactory.decodeFile(png.getPath(), op));
-                box.addView(noise, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+                final ImageView n = noise = new ImageView(MainActivity.this);
+                n.setBackgroundColor(Color.BLACK);
+                n.setScaleType(ImageView.ScaleType.FIT_CENTER);
+                box.addView(n, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
                 amazon.setText("My photo");
+                viewIo.execute(new Runnable() { public void run() {
+                    BitmapFactory.Options op = new BitmapFactory.Options();
+                    op.inSampleSize = png.length() > (8 << 20) ? 4 : 1;
+                    final Bitmap b = BitmapFactory.decodeFile(png.getPath(), op);
+                    post(new Runnable() { public void run() { n.setImageBitmap(b); } });
+                }});
             }
         });
         save.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { saveToPhone(it, o); } });
     }
 
-    void saveToPhone(final Item it, final Vault.Opened o) {
+    void saveToPhone(final Store.Item it, final Vault.Opened o) {
         viewIo.execute(new Runnable() { public void run() {
             try {
                 ContentValues v = new ContentValues();
@@ -1148,37 +1055,37 @@ public class MainActivity extends Activity {
                 Uri u = getContentResolver().insert(it.video() ? MediaStore.Video.Media.EXTERNAL_CONTENT_URI : MediaStore.Images.Media.EXTERNAL_CONTENT_URI, v);
                 if (u == null) throw new IOException("gallery refused the file");
                 try (OutputStream out = getContentResolver().openOutputStream(u)) { out.write(o.plain, o.dataOff, o.dataLen()); }
-                onUi(new Runnable() { public void run() { toast("Saved (unencrypted) to " + (it.video() ? "Movies" : "Pictures") + "/PhotoVault"); } });
-            } catch (final Exception e) { onUi(new Runnable() { public void run() { toast("Save failed: " + explain(e)); } }); }
+                post(new Runnable() { public void run() { toast("Saved (unencrypted) to " + (it.video() ? "Movies" : "Pictures") + "/PhotoVault"); } });
+            } catch (final Exception e) { post(new Runnable() { public void run() { toast("Save failed: " + explain(e)); } }); }
         }});
     }
 
-    void confirmDelete(final Item it) {
+    void confirmDelete(final Store.Item it) {
         new AlertDialog.Builder(this).setTitle("Delete from vault?")
                 .setMessage("The encrypted file goes to your Amazon Photos trash (Amazon empties it after a while) and disappears from this app.")
                 .setPositiveButton("Delete", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                    final byte[] k = keyCopy();
+                    if (k == null) return;
                     viewIo.execute(new Runnable() { public void run() {
                         try {
                             Amazon.trash(Collections.singletonList(it.id));
-                            thumbFile(it.id).delete();
-                            blobFile(it.id).delete();
-                            onUi(new Runnable() { public void run() {
-                                items.remove(it);
-                                thumbs.remove(it.id);
-                                saveIndex();
-                                closeViewer();
-                                showGallery();
+                            st.edit(k, new Store.Edit() { public void apply(List<Store.Item> l) {
+                                Iterator<Store.Item> i = l.iterator();
+                                while (i.hasNext()) if (i.next().id.equals(it.id)) i.remove();
                             }});
+                            st.thumbFile(it.id).delete();
+                            st.blobFile(it.id).delete();
+                            st.thumbs.remove(it.id);
+                            post(new Runnable() { public void run() { if ("viewer".equals(screen)) { closeViewer(); showGallery(); } } });
                         } catch (final Exception e) {
-                            onUi(new Runnable() { public void run() { toast("Delete failed: " + explain(e)); } });
-                            if (isAuth(e)) askRelogin();
-                        }
+                            post(new Runnable() { public void run() { toast("Delete failed: " + explain(e)); if (isAuth(e)) askRelogin(); } });
+                        } finally { Arrays.fill(k, (byte) 0); }
                     }});
                 }})
                 .setNegativeButton("Cancel", null).show();
     }
 
-    void closeViewer() { shown = null; deletePlaying(); }
+    void closeViewer() { viewToken++; deletePlaying(); }
 
     /** Decrypted videos exist on disk only while you watch them (app-private cache). */
     void deletePlaying() { if (playing != null) { playing.delete(); playing = null; } }
@@ -1188,33 +1095,49 @@ public class MainActivity extends Activity {
     void showInfo() {
         LinearLayout l = vbox();
         String fp = "";
-        try { fp = Vault.sha256(key, 0, key.length).substring(0, 16); } catch (Exception ignored) { }
+        try { fp = Vault.sha256(st.key, 0, st.key.length).substring(0, 16); } catch (Exception ignored) { }
+        text(l, "Our promise", 17);
+        text(l, "• No ads. No trackers, no analytics, no crash reporting.\n"
+                + "• No servers and no accounts of ours: the app talks only to Amazon, only with encrypted files.\n"
+                + "• Nothing is collected, so nothing can be sold or leaked by us.\n"
+                + "• Free and open source (GPL-3.0): anyone can check what the app does.\n"
+                + "• Funded only by voluntary donations. Donating unlocks nothing: every feature is free for everyone.", 15);
+        if (!Config.DONATE_URL.isEmpty())
+            button(l, "♥ Support PhotoVault with a donation", new View.OnClickListener() { public void onClick(View v) { openUrl(Config.DONATE_URL); } });
+        if (!Config.SOURCE_URL.isEmpty())
+            button(l, "Source code", new View.OnClickListener() { public void onClick(View v) { openUrl(Config.SOURCE_URL); } });
         text(l, "Where your data is", 17);
-        text(l, "• Amazon: folder “PhotoVault” in your Amazon Photos (amazon.it): " + items.size() + " encrypted PNGs. "
-                + "They also show up in Amazon's own app as images of static: that's them.\n"
-                + "• This phone: the list of items and small encrypted previews, in app-private storage, excluded from backups.\n"
+        text(l, "• Amazon: folder “PhotoVault” in your Amazon Photos: " + st.items.size() + " encrypted PNGs. "
+                + "They also show up in Amazon's own app as images of static: that's them, don't delete them there.\n"
+                + "• This phone: the list of items and small previews, both encrypted with your vault key, in app-private storage, excluded from backups and phone-to-phone transfers.\n"
                 + "• Your key: only in memory while unlocked" + (bioEnabled()
-                ? "; also stored wrapped by a fingerprint-protected key in the phone's secure hardware (Android Keystore)." : ".")
-                + " The app locks itself after 60 s in the background.", 15);
+                ? "; also stored wrapped by a fingerprint-protected key in the phone's secure hardware (Android Keystore)" : "")
+                + ". The app locks itself 60 s after you leave it. A running background upload keeps its own copy of the key until it finishes.", 15);
         text(l, "Cryptography", 17);
         text(l, "• Key = PBKDF2-HMAC-SHA256(password, random 16-byte salt, 600 000 iterations).\n"
                 + "• Each file: AES-256-GCM with a fresh random nonce. The GCM tag rejects any modified bit.\n"
                 + "• Name, date and EXIF are inside the encrypted part.\n"
-                + "• Only standard algorithms from Android's built-in crypto library. No home-made cipher.\n"
+                + "• Only standard algorithms from Android's built-in crypto library, and no third-party libraries at all.\n"
                 + "• Vault salt: " + prefs.getString("salt", "") + "\n"
                 + "• Key fingerprint: " + fp + " (same password + salt ⇒ same fingerprint on any device; it reveals nothing about the key)", 15);
         text(l, "Recovery without this app", 17);
         text(l, "Download any PNG from the PhotoVault folder on the Amazon Photos website, then on a PC:\n"
-                + "py photovault.py dec file.png -o out\n(the script ships with the app's source). If you lose the phone: install the app, "
-                + "sign in, enter the same password, then Menu → Sync from Amazon.", 15);
+                + "python photovault.py dec file.png -o out\n(the script is in the source code). If you lose the phone: install the app, "
+                + "sign in, enter the same password; the app restores your vault from Amazon.", 15);
         text(l, "Limits of this version", 17);
         text(l, "• Max 100 MB per item. • The password can't be changed (it would need re-encrypting everything). "
-                + "• Keep the app open during big uploads.", 15);
+                + "• Background jobs are limited by Android to 6 hours per day.", 15);
         button(l, "Run the self-test again", new View.OnClickListener() { public void onClick(View v) { showSelfTest(); } });
         if (bioEnabled()) button(l, "Turn off fingerprint unlock", new View.OnClickListener() { public void onClick(View v) { disableBio(); showInfo(); } });
         else if (bioAvailable()) button(l, "Turn on fingerprint unlock", new View.OnClickListener() { public void onClick(View v) { enableBio(); } });
+        button(l, st.allowScreenshots ? "Block screenshots again" : "Allow screenshots until the app is closed", new View.OnClickListener() { public void onClick(View v) {
+            st.allowScreenshots = !st.allowScreenshots;
+            if (st.allowScreenshots) getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
+            else getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
+            showInfo();
+        }});
         button(l, "Show log", new View.OnClickListener() { public void onClick(View v) { showLog(); } });
-        button(l, "Lock now", new View.OnClickListener() { public void onClick(View v) { lock(); } });
+        button(l, "Lock now", new View.OnClickListener() { public void onClick(View v) { st.lock(); showUnlock(); } });
         button(l, "Sign out of Amazon", new View.OnClickListener() { public void onClick(View v) {
             WebStorage.getInstance().deleteAllData();
             CookieManager.getInstance().removeAllCookies(new ValueCallback<Boolean>() { public void onReceiveValue(Boolean b) {
@@ -1222,7 +1145,8 @@ public class MainActivity extends Activity {
                 showLogin();
             }});
         }});
-        setScreen("info", "Info & security", null, scroll(l));
+        text(l, "PhotoVault " + version() + " · not affiliated with Amazon. Amazon Photos is a trademark of Amazon.", 12).setAlpha(0.6f);
+        setScreen("info", "Info & security", null, true, scroll(l));
     }
 
     void showLog() {
@@ -1235,6 +1159,6 @@ public class MainActivity extends Activity {
             ((ClipboardManager) getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("PhotoVault log", Journal.text()));
             toast("Log copied");
         }});
-        setScreen("log", "Log", null, scroll(l));
+        setScreen("log", "Log", null, true, scroll(l));
     }
 }
