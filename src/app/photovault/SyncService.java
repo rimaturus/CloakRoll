@@ -11,7 +11,9 @@ import android.os.IBinder;
 import android.os.SystemClock;
 import android.provider.MediaStore;
 import android.provider.OpenableColumns;
+import android.util.Base64;
 import java.io.*;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -161,55 +163,44 @@ public class SyncService extends Service {
     // ---------------------------------------------------------------- jobs
 
     void upload(byte[] k, byte[] salt, List<Uri> uris, String into, int id) throws Exception {
-        String folder = st.folder();
         int ok = 0, failed = 0;
         for (int n = 0; n < uris.size(); n++) {
             if (id <= cancelUpTo) break;
             Uri u = uris.get(n);
-            final String pre = "Adding " + (n + 1) + " of " + uris.size();
-            File png = new File(getCacheDir(), "upload-" + id + ".png");
+            String pre = "Adding " + (n + 1) + " of " + uris.size();
             try {
                 String name = "item", mime = getContentResolver().getType(u);
-                long size = -1, taken = System.currentTimeMillis();
+                long taken = System.currentTimeMillis();
                 try (Cursor c = getContentResolver().query(u, null, null, null, null)) {
                     if (c != null && c.moveToFirst()) {
                         int i = c.getColumnIndex(OpenableColumns.DISPLAY_NAME);
                         if (i >= 0 && !c.isNull(i)) name = c.getString(i);
-                        i = c.getColumnIndex(OpenableColumns.SIZE);
-                        if (i >= 0 && !c.isNull(i)) size = c.getLong(i);
                         i = c.getColumnIndex(MediaStore.MediaColumns.DATE_TAKEN);
                         if (i >= 0 && !c.isNull(i) && c.getLong(i) > 0) taken = c.getLong(i);
                     }
                 }
                 if (mime == null) mime = "application/octet-stream";
-                if (size > Store.MAX_FILE) throw new IOException("larger than " + Store.human(Store.MAX_FILE) + " (not supported yet)");
-                show(pre + ": encrypting", -1);
-                String meta = new JSONObject().put("name", name).put("taken", taken).put("mime", mime).toString();
-                byte[] plain;
-                int off;
-                try (InputStream in = getContentResolver().openInputStream(u)) {
-                    byte[] all = null;
-                    if (size <= 0) {
-                        all = Amazon.readAll(in);
-                        if (all.length > Store.MAX_FILE) throw new IOException("larger than " + Store.human(Store.MAX_FILE));
-                        size = all.length;
-                    }
-                    plain = Vault.plainBuffer(meta, (int) size);
-                    off = plain.length - (int) size;
-                    if (all != null) System.arraycopy(all, 0, plain, off, all.length);
-                    else for (int p = off, r; p < plain.length; p += r)
-                        if ((r = in.read(plain, p, plain.length - p)) < 0) throw new EOFException("file shorter than expected");
-                }
-                byte[] thumb = Store.makeThumb(plain, off, plain.length - off, mime.startsWith("video/"));
-                try (OutputStream o = new BufferedOutputStream(new FileOutputStream(png), 1 << 16)) { Vault.encryptToPng(k, salt, plain, o); }
-                plain = null;
-                final long total = png.length();
-                JSONObject node = Amazon.upload(png, Store.hex(Vault.random(8)) + ".png", folder, new Amazon.Progress() {
-                    public void on(long d, long t) { int pct = (int) (100 * d / Math.max(1, total)); show(pre + ": uploading " + pct + "%", pct); }
-                });
                 Store.Item it = new Store.Item();
-                it.id = node.getString("id"); it.name = name; it.mime = mime; it.taken = taken; it.size = size; it.folder = into;
-                it.salt = Store.hex(salt);
+                it.name = name; it.mime = mime; it.taken = taken; it.folder = into; it.salt = Store.hex(salt);
+                byte[] thumb;
+                try (InputStream in = getContentResolver().openInputStream(u)) {
+                    byte[] first = new byte[Store.CHUNK];
+                    int len = readUpTo(in, first);
+                    byte[] second = len < Store.CHUNK ? null : new byte[Store.CHUNK];
+                    int len2 = second == null ? 0 : readUpTo(in, second);
+                    if (len2 == 0) { // fits in one PNG
+                        String meta = new JSONObject().put("name", name).put("taken", taken).put("mime", mime).toString();
+                        byte[] plain = Vault.plainBuffer(meta, len);
+                        System.arraycopy(first, 0, plain, plain.length - len, len);
+                        first = null;
+                        thumb = Store.makeThumb(plain, plain.length - len, len, it.video());
+                        it.id = put(k, salt, plain, Store.hex(Vault.random(8)) + ".png", pre + ": uploading");
+                        it.size = len;
+                    } else {
+                        thumb = Store.makeThumb(this, u, null, it.video());
+                        uploadParts(k, salt, it, first, second, len2, in, thumb, pre, id);
+                    }
+                }
                 if (thumb != null) Store.writeFile(st.thumbFile(it.id), Vault.seal(k, thumb));
                 st.add(k, it, false);
                 ok++;
@@ -217,7 +208,7 @@ public class SyncService extends Service {
                 failed++;
                 Journal.add("upload " + (n + 1) + "/" + uris.size() + " failed: " + e);
                 if (Store.isAuth(e)) { st.post(new Runnable() { public void run() { st.needLogin = true; st.changed(); } }); break; }
-            } finally { png.delete(); }
+            }
         }
         int skipped = uris.size() - ok - failed;
         if (ok > 0 && !into.isEmpty()) st.backupFolders(k);
@@ -225,7 +216,66 @@ public class SyncService extends Service {
                 + (skipped > 0 ? ", " + skipped + " not started" : ""));
     }
 
-    /** Rebuilds the local list from the PhotoVault folder on Amazon (new phone, reinstall, items deleted on the website). */
+    /** Reads until `buf` is full or the stream ends. */
+    static int readUpTo(InputStream in, byte[] buf) throws IOException {
+        int n = 0;
+        for (int r; n < buf.length && (r = in.read(buf, n, buf.length - n)) > 0; ) n += r;
+        return n;
+    }
+
+    /** Encrypts one plaintext (meta + data) as a noise PNG, uploads it, returns the Amazon id. */
+    String put(byte[] k, byte[] salt, byte[] plain, String name, final String label) throws Exception {
+        File png = new File(getCacheDir(), "upload.png");
+        try {
+            try (OutputStream o = new BufferedOutputStream(new FileOutputStream(png), 1 << 16)) { Vault.encryptToPng(k, salt, plain, o); }
+            final long total = png.length();
+            return Amazon.upload(png, name, st.folder(), new Amazon.Progress() {
+                public void on(long d, long t) { int pct = (int) (100 * d / Math.max(1, total)); show(label + " " + pct + "%", pct); }
+            }).getString("id");
+        } finally { png.delete(); }
+    }
+
+    /**
+     * A big file as several PNGs: parts 1..n-1 first, part 0 last, because part 0 carries the list of the others
+     * (and name, date, size, a small preview). Every part holds a random group id and its index, inside the
+     * encryption, so parts can't be swapped or mixed up unnoticed. If anything fails, the parts already
+     * uploaded are trashed.
+     */
+    void uploadParts(byte[] k, byte[] salt, Store.Item it, byte[] first, byte[] next, int nextLen, InputStream in,
+                     byte[] thumb, String pre, int job) throws Exception {
+        String group = Store.hex(Vault.random(8));
+        List<String> ids = new ArrayList<>();
+        long total = first.length;
+        try {
+            for (int part = 1; nextLen > 0; part++) {
+                if (job <= cancelUpTo) throw new IOException("stopped");
+                String meta = new JSONObject().put("group", group).put("part", part).toString();
+                byte[] plain = Vault.plainBuffer(meta, nextLen);
+                System.arraycopy(next, 0, plain, plain.length - nextLen, nextLen);
+                ids.add(put(k, salt, plain, Store.hex(Vault.random(8)) + ".png", pre + ": " + Store.human(total) + " sent, uploading"));
+                total += nextLen;
+                nextLen = readUpTo(in, next);
+            }
+            JSONObject m = new JSONObject().put("name", it.name).put("taken", it.taken).put("mime", it.mime)
+                    .put("group", group).put("part", 0).put("parts", ids.size() + 1).put("size", total).put("ids", new JSONArray(ids));
+            String small = Store.embeddedThumb(thumb);
+            if (small != null && m.toString().length() + small.length() < 60_000) m.put("thumb", small);
+            if (m.toString().getBytes("UTF-8").length > 65_000) throw new IOException("file too big (over about 80 GB)");
+            byte[] plain = Vault.plainBuffer(m.toString(), first.length);
+            System.arraycopy(first, 0, plain, plain.length - first.length, first.length);
+            it.id = put(k, salt, plain, Store.hex(Vault.random(8)) + ".png", pre + ": " + Store.human(total) + " sent, finishing");
+            it.parts.add(it.id);
+            it.parts.addAll(ids);
+            it.size = total;
+        } catch (Throwable e) {
+            if (!ids.isEmpty()) try { retireNow(ids); } catch (Exception x) { Journal.add("parts left on Amazon, Sync removes them: " + x); }
+            throw e;
+        }
+    }
+
+    /** Trashes Amazon files in batches (no index involved). */
+    static void retireNow(List<String> ids) throws Exception { Amazon.trashAll(ids); }
+
     static final class SyncResult {
         final Set<String> unopenable = new HashSet<>(); // files neither the current nor the previous key opens
         int retry;                                        // temporary failures: another Sync may restore them
@@ -243,7 +293,8 @@ public class SyncService extends Service {
             for (JSONObject n : nodes) remote.add(n.getString("id"));
             Store.Index before = st.readIndex(k);
             for (Store.Item it : before.items) local.add(it.id);
-            final Set<String> skip = new HashSet<>(local);
+            final Set<String> skip = new HashSet<>();
+            for (Store.Item it : before.items) skip.addAll(it.nodes());
             skip.addAll(before.retire); // old copies replaced during a password change: to be trashed, never restored
             if (listing.complete) { // drop items deleted on the Amazon website (only if Amazon listed everything)
                 final List<String> gone = new ArrayList<>();
@@ -271,8 +322,19 @@ public class SyncService extends Service {
                 }
                 for (Store.Item it : ix.items) if (it.folder.isEmpty()) it.folder = map.optString(it.id, "");
             }});
+            // newest first: part 0 of a big file is uploaded last, and it lists the other parts, which are then skipped
+            List<JSONObject> ordered = new ArrayList<>(nodes);
+            Collections.sort(ordered, new Comparator<JSONObject>() { public int compare(JSONObject a, JSONObject b) {
+                return b.optString("createdDate").compareTo(a.optString("createdDate"));
+            }});
+            List<String> strayParts = new ArrayList<>();
+            Map<String, String> strayGroup = new HashMap<>();
+            Set<String> heads = new HashSet<>(); // groups that have a part 0 on Amazon
+            SimpleDateFormat iso = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.ROOT);
+            iso.setTimeZone(TimeZone.getTimeZone("UTC"));
+            String twoDaysAgo = iso.format(new Date(System.currentTimeMillis() - 48L * 3600_000));
             int n = 0;
-            for (JSONObject node : nodes) {
+            for (JSONObject node : ordered) {
                 n++;
                 if (id <= cancelUpTo) break;
                 String nid = node.getString("id");
@@ -307,7 +369,31 @@ public class SyncService extends Service {
                     it.id = nid; it.name = m.optString("name", "item"); it.mime = m.optString("mime", "");
                     it.taken = m.optLong("taken", System.currentTimeMillis()); it.size = o.dataLen(); it.folder = map.optString(nid, "");
                     it.salt = Store.hex(o.salt);
-                    byte[] thumb = Store.makeThumb(o.plain, o.dataOff, o.dataLen(), it.video());
+                    byte[] thumb;
+                    if (m.has("group")) { // part of a big file
+                        if (m.optInt("part", -1) != 0) { // listed by its part 0 (seen later), or left over by an interrupted upload
+                            if (node.optString("createdDate").compareTo(twoDaysAgo) < 0) { strayParts.add(nid); strayGroup.put(nid, m.optString("group")); }
+                            continue;
+                        }
+                        heads.add(m.optString("group"));
+                        JSONArray ids = m.optJSONArray("ids");
+                        List<String> missing = new ArrayList<>();
+                        it.parts.add(nid);
+                        for (int i = 0; ids != null && i < ids.length(); i++) {
+                            it.parts.add(ids.getString(i));
+                            if (!remote.contains(ids.getString(i))) missing.add(ids.getString(i));
+                        }
+                        skip.addAll(it.parts);
+                        if (ids == null || it.parts.size() != m.optInt("parts") || !missing.isEmpty()) {
+                            Journal.add("sync: a big file has " + missing.size() + " missing parts on Amazon: not restored");
+                            if (Arrays.equals(o.salt, st.salt())) res.unopenable.addAll(it.parts); // with the old key: keep it
+                            skipped++;
+                            continue;
+                        }
+                        it.size = m.optLong("size");
+                        String small = m.optString("thumb", "");
+                        thumb = small.isEmpty() ? null : Base64.decode(small, Base64.NO_WRAP);
+                    } else thumb = Store.makeThumb(o.plain, o.dataOff, o.dataLen(), it.video());
                     if (thumb != null) Store.writeFile(st.thumbFile(nid), Vault.seal(k, thumb));
                     st.add(k, it, true);
                     restored++;
@@ -316,6 +402,15 @@ public class SyncService extends Service {
                     Journal.add("sync: could not restore a file, retried on the next Sync: " + e);
                     retry++;
                 } finally { f.delete(); }
+            }
+            // parts no part 0 refers to: an upload that was interrupted. Removed once Amazon has listed everything
+            strayParts.removeAll(skip);
+            for (Iterator<String> i = strayParts.iterator(); i.hasNext(); ) if (heads.contains(strayGroup.get(i.next()))) i.remove();
+            if (!strayParts.isEmpty() && listing.complete && retry == 0 && id > cancelUpTo) {
+                try {
+                    Amazon.trashAll(strayParts);
+                    Journal.add("sync: removed " + strayParts.size() + " parts of an interrupted upload");
+                } catch (Exception e) { if (Store.isAuth(e)) throw e; Journal.add("sync: leftover parts not removed yet: " + e); }
             }
             // restore finished: everything that can be restored is here (files other keys made never will be)
             if (restoring && retry == 0 && id > cancelUpTo) {
@@ -350,7 +445,7 @@ public class SyncService extends Service {
             // 1. replacements uploaded but never recorded (app killed in between): named "r" + old id + "-" + random
             Store.Index ix = st.readIndex(k);
             Set<String> oldIds = new HashSet<>();
-            for (Store.Item it : ix.items) if (!cur.equals(it.salt)) oldIds.add(it.id);
+            for (Store.Item it : ix.items) if (!cur.equals(it.salt)) oldIds.addAll(it.nodes());
             final List<String> orphans = new ArrayList<>();
             for (JSONObject n : Amazon.listFiles(st.folder(), 1_000_000).files) {
                 String name = n.optString("name");
@@ -374,28 +469,29 @@ public class SyncService extends Service {
                 if (id <= cancelUpTo) break;
                 final Store.Item it = todo.get(n);
                 show("Password change: re-encrypting " + (n + 1) + " of " + todo.size() + ". New uploads wait until it's done.", 100 * n / todo.size());
-                File cached = st.blobFile(it.id), down = new File(getCacheDir(), "reenc-down.png"), up = new File(getCacheDir(), "reenc-up.png");
+                File cached = st.blobFile(it.id);
                 try {
-                    File src = cached.exists() ? cached : down;
-                    if (src == down) Amazon.download(it.id, st.owner(), down, null);
-                    Vault.Opened o = st.decrypt(src, k);
-                    if (Arrays.equals(o.salt, salt)) { // already made with the current key: just note it
+                    final List<String> fresh = reencryptItem(k, salt, it, id);
+                    if (fresh == null) { // already made with the current key: just note it
                         st.edit(k, new Store.Edit() { public void apply(Store.Index x) {
                             for (Store.Item i : x.items) if (i.id.equals(it.id)) i.salt = cur;
                         }});
                         ok++;
                         continue;
                     }
-                    try (OutputStream out = new BufferedOutputStream(new FileOutputStream(up), 1 << 16)) { Vault.encryptToPng(k, salt, o.plain, out); }
-                    final String newId = Amazon.upload(up, "r" + it.id + "-" + Store.hex(Vault.random(4)) + ".png", st.folder(), null).getString("id");
                     final boolean[] found = {false};
                     st.edit(k, new Store.Edit() { public void apply(Store.Index x) {
-                        for (Store.Item i : x.items) if (i.id.equals(it.id)) { i.id = newId; i.salt = cur; found[0] = true; }
-                        x.retire.add(found[0] ? it.id : newId); // item deleted meanwhile: the new copy goes too
+                        for (Store.Item i : x.items) if (i.id.equals(it.id)) {
+                            i.id = fresh.get(0);
+                            i.parts = fresh.size() > 1 ? new ArrayList<>(fresh) : new ArrayList<String>();
+                            i.salt = cur;
+                            found[0] = true;
+                        }
+                        x.retire.addAll(found[0] ? it.nodes() : fresh); // item deleted meanwhile: the new copy goes too
                     }});
-                    if (found[0]) { st.renamed.put(it.id, newId); st.thumbFile(it.id).renameTo(st.thumbFile(newId)); }
+                    if (found[0]) { st.renamed.put(it.id, fresh.get(0)); st.thumbFile(it.id).renameTo(st.thumbFile(fresh.get(0))); }
                     cached.delete();
-                    retire(k, Collections.singletonList(found[0] ? it.id : newId));
+                    retire(k, found[0] ? new ArrayList<>(it.nodes()) : fresh);
                     ok++;
                     if (ok % 25 == 0) st.backupFolders(k); // the folders file refers to item ids, which change
                 } catch (Throwable e) {
@@ -403,7 +499,7 @@ public class SyncService extends Service {
                     Journal.add("re-encryption of one file failed, retried later: " + e);
                     cached.delete(); // a damaged cached copy must not be reused
                     failed++;
-                } finally { down.delete(); up.delete(); }
+                }
             }
             st.backupFolders(k);
             // 5. finished only if Amazon lists every file and none needs the old key any more
@@ -411,7 +507,7 @@ public class SyncService extends Service {
             Store.Index after = st.readIndex(k);
             Set<String> fine = new HashSet<>(after.retire);
             fine.addAll(sr.unopenable); // opened by neither key: they don't depend on the old one
-            for (Store.Item i : after.items) if (cur.equals(i.salt)) fine.add(i.id);
+            for (Store.Item i : after.items) if (cur.equals(i.salt)) fine.addAll(i.nodes());
             int unknown = 0;
             for (JSONObject n : all.files) if (!fine.contains(n.getString("id"))) unknown++;
             int left = st.toReencrypt(after);
@@ -429,6 +525,47 @@ public class SyncService extends Service {
             done("Password change paused: " + Store.explain(e) + ". It continues the next time you unlock PhotoVault.");
             if (Store.isAuth(e)) st.post(new Runnable() { public void run() { st.needLogin = true; st.changed(); } });
         }
+    }
+
+    /**
+     * Re-encrypts one item with the current key and uploads the new copy (named "r" + old id, so an interrupted run
+     * can find it). Returns the new Amazon ids (part 0 first), or null if the file already uses the current key.
+     * The old copy is left alone: the caller records the swap, then trashes it.
+     */
+    List<String> reencryptItem(byte[] k, byte[] salt, Store.Item it, int job) throws Exception {
+        File cached = st.blobFile(it.id), down = new File(getCacheDir(), "reenc-down.png");
+        List<String> fresh = new ArrayList<>();
+        try {
+            List<String> olds = it.nodes();
+            String group = null;
+            for (int p = 1; p < olds.size(); p++) { // parts 1..n-1 of a big file: same content, new key
+                if (job <= cancelUpTo) throw new IOException("stopped");
+                Amazon.download(olds.get(p), st.owner(), down, null);
+                Vault.Opened o = st.decrypt(down, k);
+                JSONObject m = new JSONObject(o.meta);
+                if (group == null) group = m.optString("group");
+                if (m.optInt("part", -1) != p || !group.equals(m.optString("group"))) throw new IOException("part " + (p + 1) + " doesn't belong to this file");
+                fresh.add(put(k, salt, o.plain, "r" + olds.get(p) + "-" + Store.hex(Vault.random(4)) + ".png", "Password change: uploading"));
+            }
+            File src = cached.exists() ? cached : down;
+            if (src == down) Amazon.download(it.id, st.owner(), down, null);
+            Vault.Opened o = st.decrypt(src, k);
+            if (olds.size() == 1 && Arrays.equals(o.salt, salt)) return null;
+            if (olds.size() > 1 && (new JSONObject(o.meta).optInt("part", -1) != 0 || !new JSONObject(o.meta).optString("group").equals(group)))
+                throw new IOException("part 1 doesn't belong to this file");
+            byte[] plain = o.plain;
+            if (olds.size() > 1) { // part 0 lists the other parts: point it to the new ones
+                String meta = new JSONObject(o.meta).put("ids", new JSONArray(fresh)).toString();
+                plain = Vault.plainBuffer(meta, o.dataLen());
+                System.arraycopy(o.plain, o.dataOff, plain, plain.length - o.dataLen(), o.dataLen());
+            }
+            fresh.add(0, put(k, salt, plain, "r" + it.id + "-" + Store.hex(Vault.random(4)) + ".png", "Password change: uploading"));
+            return fresh;
+        } catch (Throwable e) {
+            cached.delete(); // a damaged cached copy must not be reused
+            if (!fresh.isEmpty()) try { retireNow(fresh); } catch (Exception x) { Journal.add("new copies left, removed on the next run: " + x); }
+            throw e;
+        } finally { down.delete(); }
     }
 
     /** Moves replaced files to the Amazon trash and forgets them. Kept for another try if Amazon refuses. */

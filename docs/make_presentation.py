@@ -120,7 +120,7 @@ c.drawImage("res/mipmap-xxxhdpi/ic_launcher.png", 64, H - 200, 104, 104, mask="a
 text(64, 250, "PhotoVault", "B", 64, TEXT)
 para(64, 196, "Your photos on Amazon Photos. Amazon only sees noise.", 860, "L", 27, TEXT)
 text(64, 120, "Free  ·  Open source  ·  No ads  ·  No tracking  ·  Donation-funded", "B", 15, TEAL)
-text(64, 64, REPO + "   ·   v1.3 beta   ·   Android 13+", "R", 12, MUTED)
+text(64, 64, REPO + "   ·   v1.4 beta   ·   Android 13+", "R", 12, MUTED)
 c.linkURL("https://" + REPO, (64, 58, 300, 78), relative=0)
 
 # 2 ---------------------------------------------------------------- problem
@@ -263,7 +263,7 @@ bullets(48, 392, [
     "Unofficial API|Amazon has no public Photos API. PhotoVault uses the website's own requests; if Amazon changes them, uploads pause until an update. Stored files stay decryptable.",
     "Videos and Amazon's terms|Prime is unlimited for photos, 5 GB for videos. Encrypted videos stored as images go against the spirit of the offer.",
     "Password = only key|It can't be recovered. Changing it re-encrypts the whole vault in the background.",
-    "Beta|Up to 100 MB per item. Not independently audited yet."], 864, 18, 22, "!", AMBER)
+    "Beta|Not independently audited yet. Big videos are downloaded completely before they play."], 864, 18, 22, "!", AMBER)
 
 # 13 --------------------------------------------------------------- get it / support
 slide("Get involved", "Free, open, and supported by people like you")

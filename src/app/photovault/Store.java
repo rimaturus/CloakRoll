@@ -5,6 +5,7 @@ import android.content.SharedPreferences;
 import android.graphics.*;
 import android.media.MediaDataSource;
 import android.media.MediaMetadataRetriever;
+import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Base64;
@@ -24,7 +25,11 @@ import org.json.JSONObject;
  * Fields are read and written on the main thread; the index file is guarded by `synchronized`.
  */
 final class Store {
-    static final long MAX_FILE = 100L << 20; // per item: the whole file is held in memory while encrypting
+    /**
+     * Files bigger than this are stored as several PNGs ("parts") of at most this size, each encrypted and
+     * authenticated on its own, so there is no size limit and memory use stays small.
+     */
+    static final int CHUNK = 32 << 20;
     static final long AUTO_LOCK_MS = 60_000, PICKER_LOCK_MS = 10 * 60_000;
 
     private static Store instance;
@@ -37,8 +42,11 @@ final class Store {
     static final class Item {
         String id, name, mime, folder = ""; // folder "" = not in a folder
         String salt = "";                   // hex salt of the key the file on Amazon was made with ("" = before v1.3)
+        List<String> parts = new ArrayList<>(); // big files: Amazon ids of all parts, [0] == id. Empty: one PNG
         long taken, size;
         boolean video() { return mime != null && mime.startsWith("video/"); }
+        /** Every Amazon file this item is made of. */
+        List<String> nodes() { return parts.isEmpty() ? Collections.singletonList(id) : parts; }
     }
 
     /** The local list: items and folder names. A folder is a label on items (one level, like albums). */
@@ -146,6 +154,8 @@ final class Store {
             it.id = o.getString("id"); it.name = o.optString("name"); it.mime = o.optString("mime");
             it.taken = o.optLong("taken"); it.size = o.optLong("size"); it.folder = o.optString("folder", "");
             it.salt = o.optString("salt", "");
+            JSONArray ps = o.optJSONArray("parts");
+            if (ps != null) for (int j = 0; j < ps.length(); j++) it.parts.add(ps.getString(j));
             ix.items.add(it);
         }
         if (fs != null) for (int i = 0; i < fs.length(); i++) ix.folders.add(fs.getString(i));
@@ -165,9 +175,12 @@ final class Store {
         Collections.sort(ix.folders, String.CASE_INSENSITIVE_ORDER);
         for (Item it : ix.items) if (!it.folder.isEmpty()) it.folder = ix.canonical(it.folder); // one spelling per folder
         JSONArray a = new JSONArray();
-        for (Item it : ix.items)
-            a.put(new JSONObject().put("id", it.id).put("name", it.name).put("mime", it.mime).put("taken", it.taken)
-                    .put("size", it.size).put("folder", it.folder).put("salt", it.salt));
+        for (Item it : ix.items) {
+            JSONObject o = new JSONObject().put("id", it.id).put("name", it.name).put("mime", it.mime).put("taken", it.taken)
+                    .put("size", it.size).put("folder", it.folder).put("salt", it.salt);
+            if (!it.parts.isEmpty()) o.put("parts", new JSONArray(it.parts));
+            a.put(o);
+        }
         return new JSONObject().put("items", a).put("folders", new JSONArray(ix.folders)).put("retire", new JSONArray(ix.retire))
                 .toString().getBytes("UTF-8");
     }
@@ -390,10 +403,9 @@ final class Store {
 
     // ---------------------------------------------------------------- previews
 
-    /** Small JPEG preview, stored only on the phone and encrypted with the vault key. */
+    /** Small JPEG preview (kept only on the phone, encrypted) of a file held in memory. */
     static byte[] makeThumb(final byte[] b, final int off, final int len, boolean video) {
         try {
-            Bitmap bm;
             if (video) {
                 MediaMetadataRetriever r = new MediaMetadataRetriever();
                 r.setDataSource(new MediaDataSource() {
@@ -406,36 +418,101 @@ final class Store {
                     public long getSize() { return len; }
                     public void close() { }
                 });
-                Bitmap f;
-                try { f = r.getScaledFrameAtTime(1_000_000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 480, 480); }
-                finally { r.release(); }
-                if (f == null) return null;
-                bm = f.copy(Bitmap.Config.ARGB_8888, true);
-                Canvas c = new Canvas(bm);
-                Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-                float cx = bm.getWidth() / 2f, cy = bm.getHeight() / 2f, rad = Math.min(cx, cy) / 3f;
-                p.setColor(0x88000000);
-                c.drawCircle(cx, cy, rad, p);
-                p.setColor(Color.WHITE);
-                Path tri = new Path();
-                tri.moveTo(cx - rad / 3, cy - rad / 2);
-                tri.lineTo(cx + rad / 2, cy);
-                tri.lineTo(cx - rad / 3, cy + rad / 2);
-                tri.close();
-                c.drawPath(tri, p);
-            } else {
-                bm = ImageDecoder.decodeBitmap(ImageDecoder.createSource(ByteBuffer.wrap(b, off, len).slice()), new ImageDecoder.OnHeaderDecodedListener() {
-                    public void onHeaderDecoded(ImageDecoder d, ImageDecoder.ImageInfo info, ImageDecoder.Source src) {
-                        Size s = info.getSize();
-                        d.setTargetSampleSize(Math.max(1, Math.min(s.getWidth(), s.getHeight()) / 480));
-                        d.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE);
-                    }
-                });
+                return videoThumb(r);
             }
-            ByteArrayOutputStream o = new ByteArrayOutputStream();
-            bm.compress(Bitmap.CompressFormat.JPEG, 82, o);
-            return o.toByteArray();
+            return jpeg(ImageDecoder.decodeBitmap(ImageDecoder.createSource(ByteBuffer.wrap(b, off, len).slice()), SAMPLE), 480, 82);
         } catch (Throwable e) { Journal.add("preview not created: " + e); return null; }
+    }
+
+    /** Same, for a big file read straight from the phone's gallery (upload) or from an assembled file (restore). */
+    static byte[] makeThumb(Context c, Uri u, File f, boolean video) {
+        try {
+            if (video) {
+                MediaMetadataRetriever r = new MediaMetadataRetriever();
+                if (f != null) r.setDataSource(f.getPath()); else r.setDataSource(c, u);
+                return videoThumb(r);
+            }
+            ImageDecoder.Source s = f != null ? ImageDecoder.createSource(f) : ImageDecoder.createSource(c.getContentResolver(), u);
+            return jpeg(ImageDecoder.decodeBitmap(s, SAMPLE), 480, 82);
+        } catch (Throwable e) { Journal.add("preview not created: " + e); return null; }
+    }
+
+    private static final ImageDecoder.OnHeaderDecodedListener SAMPLE = new ImageDecoder.OnHeaderDecodedListener() {
+        public void onHeaderDecoded(ImageDecoder d, ImageDecoder.ImageInfo info, ImageDecoder.Source src) {
+            Size s = info.getSize();
+            d.setTargetSampleSize(Math.max(1, Math.min(s.getWidth(), s.getHeight()) / 480));
+            d.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE);
+        }
+    };
+
+    private static byte[] videoThumb(MediaMetadataRetriever r) {
+        Bitmap f;
+        try { f = r.getScaledFrameAtTime(1_000_000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 480, 480); }
+        finally { try { r.release(); } catch (Exception ignored) { } }
+        if (f == null) return null;
+        Bitmap bm = f.copy(Bitmap.Config.ARGB_8888, true);
+        Canvas c = new Canvas(bm);
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        float cx = bm.getWidth() / 2f, cy = bm.getHeight() / 2f, rad = Math.min(cx, cy) / 3f;
+        p.setColor(0x88000000);
+        c.drawCircle(cx, cy, rad, p);
+        p.setColor(Color.WHITE);
+        Path tri = new Path();
+        tri.moveTo(cx - rad / 3, cy - rad / 2);
+        tri.lineTo(cx + rad / 2, cy);
+        tri.lineTo(cx - rad / 3, cy + rad / 2);
+        tri.close();
+        c.drawPath(tri, p);
+        return jpeg(bm, 480, 82);
+    }
+
+    static byte[] jpeg(Bitmap bm, int maxSide, int quality) {
+        int w = bm.getWidth(), h = bm.getHeight(), m = Math.max(w, h);
+        if (m > maxSide) bm = Bitmap.createScaledBitmap(bm, Math.max(1, w * maxSide / m), Math.max(1, h * maxSide / m), true);
+        ByteArrayOutputStream o = new ByteArrayOutputStream();
+        bm.compress(Bitmap.CompressFormat.JPEG, quality, o);
+        return o.toByteArray();
+    }
+
+    /** A smaller copy of a preview, stored inside part 0 of a big file so a new phone gets it without the whole file. */
+    static String embeddedThumb(byte[] thumb) {
+        if (thumb == null) return null;
+        Bitmap b = BitmapFactory.decodeByteArray(thumb, 0, thumb.length);
+        return b == null ? null : Base64.encodeToString(jpeg(b, 256, 70), Base64.NO_WRAP);
+    }
+
+    // ---------------------------------------------------------------- big files made of parts
+
+    /**
+     * Downloads and decrypts every part of a big item into `out`, checking that each part belongs to this item
+     * and sits at its place (the checks are inside the authenticated, encrypted part). Keeps part 0 in the
+     * download cache for "Amazon's view". Background thread.
+     */
+    void assemble(final Item it, byte[] k, File out, final Amazon.Progress progress) throws Exception {
+        File tmp = new File(app.getCacheDir(), "part-" + it.id + ".png");
+        String group = null;
+        try (OutputStream o = new BufferedOutputStream(new FileOutputStream(out), 1 << 16)) {
+            for (int i = 0; i < it.parts.size(); i++) {
+                if (progress != null) progress.on(i, it.parts.size());
+                File src = i == 0 ? blobFile(it.id) : tmp;
+                final int at = i;
+                final Amazon.Progress p2 = progress == null ? null : new Amazon.Progress() { // lets the viewer stop mid-part
+                    public void on(long d, long t) { progress.on(at, it.parts.size()); }
+                };
+                if (i > 0 || !src.exists()) Amazon.download(it.parts.get(i), owner(), src, p2);
+                Vault.Opened p = decrypt(src, k);
+                JSONObject m = new JSONObject(p.meta);
+                if (i == 0) {
+                    group = m.optString("group");
+                    if (m.optInt("parts") != it.parts.size()) throw new IOException("big file: wrong number of parts");
+                }
+                if (m.optInt("part", -1) != i || group == null || group.isEmpty() || !group.equals(m.optString("group")))
+                    throw new IOException("part " + (i + 1) + " doesn't belong here: the file on Amazon was changed");
+                o.write(p.plain, p.dataOff, p.dataLen());
+            }
+        } catch (Exception e) { out.delete(); throw e; }
+        finally { tmp.delete(); }
+        if (out.length() != it.size) { out.delete(); throw new IOException("big file incomplete"); }
     }
 
     /** Decrypts a stored preview, or null. Any thread; the caller caches it on the main thread while unlocked. */

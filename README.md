@@ -8,7 +8,7 @@ Amazon Prime includes unlimited full-resolution photo storage. PhotoVault uses t
 
 ![What you see vs. what Amazon stores](docs/comparison.png)
 
-> **Status: beta (v1.3).** Android 13 or newer. Not affiliated with, endorsed by or connected to Amazon.
+> **Status: beta (v1.4).** Android 13 or newer. Not affiliated with, endorsed by or connected to Amazon.
 
 ---
 
@@ -107,7 +107,7 @@ No storage, contacts, location, camera or microphone permission. Photos are chos
 
 ## Features
 
-- Encrypt and upload many photos and videos at once; the queue keeps running in the background with a progress notification and a *Stop* button
+- Encrypt and upload many photos and videos at once, of any size; big files go up as 32 MB encrypted parts. The queue keeps running in the background with a progress notification and a *Stop* button
 - Gallery with instant previews; opening an item shows its preview immediately, then the full-quality original as soon as it is downloaded and decrypted. Swipe left and right to move between items
 - **Folders**: create folders, long-press photos to select several and *Move* or *Delete* them, rename or delete folders (their photos are kept). Folder names and contents are saved on Amazon in one more encrypted file, so Amazon can't read them and a new phone gets them back
 - *Amazon's view* button: see the exact file Amazon stores
@@ -163,6 +163,15 @@ plaintext = metadata length (u16, big-endian) | metadata JSON {name, taken, mime
 key = PBKDF2-HMAC-SHA256(UTF-8 password, salt, 600000 iterations, 32 bytes)
 ```
 
+**Big files** (over 32 MB) are split into parts of 32 MB, each one a complete PNG like the above, encrypted and authenticated on its own:
+
+```
+part 0 metadata = {name, taken, mime, group, part: 0, parts: n, size, ids: [Amazon ids of parts 1..n-1], thumb}
+part k metadata = {group, part: k}          group = random id shared by the parts of one file
+```
+
+Part 0 is uploaded last because it lists the others. Before joining, the app checks that every part carries the same group and its own index. These checks sit inside the encryption, so parts can't be swapped or reordered unnoticed. `thumb` is a small preview, so a new phone can show big files without downloading them.
+
 The 36-byte header is authenticated as GCM associated data. The format is implemented twice, independently: [`Vault.java`](src/app/photovault/Vault.java) and [`photovault.py`](photovault.py), and the two are cross-tested ([`test/VaultTest.java`](test/VaultTest.java)).
 
 ## Build from source
@@ -191,8 +200,8 @@ Source layout:
 ## Limits and honest risks
 
 - **Unofficial API.** Amazon has no public Photos API. PhotoVault uses the same private web requests as the Amazon Photos website (the endpoints documented by the open-source [amazon_photos](https://github.com/trevorhobenshield/amazon_photos) project). If Amazon changes them, uploads stop until the app is updated. Your stored files stay decryptable with `photovault.py`.
-- **Amazon's terms.** Prime includes unlimited *photos* and 5 GB for *videos*. Storing encrypted videos as PNG images goes against the spirit of that offer, and Amazon could restrict the account. Photos are the intended use.
-- **Size.** Up to 100 MB per item in this version.
+- **Amazon's terms.** Prime includes unlimited *photos* and 5 GB for *videos*. Storing encrypted videos as PNG images goes against the spirit of that offer, and the more video you store, the more it stands out. Amazon could restrict or close the account. Photos are the intended use; keep another backup of any video you care about.
+- **Size.** No limit per item: files over 32 MB are stored as several encrypted parts. A big video is downloaded completely before it plays, so opening a 2 GB video takes a few minutes on Wi-Fi.
 - **Password.** It can't be recovered. Changing it re-encrypts the whole vault: every file is downloaded and uploaded again, and until that finishes the old password still opens the files not done yet.
 - Android limits background data sync to 6 hours a day.
 

@@ -183,8 +183,12 @@ final class Amazon {
             int code = c.getResponseCode();
             if (code >= 400) { finish(c, "GET", url, t0, false); return; }
             File tmp = new File(dst.getPath() + ".part");
-            try (InputStream in = c.getInputStream(); OutputStream o = new FileOutputStream(tmp)) { copy(in, o, c.getContentLengthLong(), p); }
-            if (!tmp.renameTo(dst)) throw new IOException("cannot write " + dst);
+            boolean done = false;
+            try {
+                try (InputStream in = c.getInputStream(); OutputStream o = new FileOutputStream(tmp)) { copy(in, o, c.getContentLengthLong(), p); }
+                if (!tmp.renameTo(dst)) throw new IOException("cannot write " + dst);
+                done = true;
+            } finally { if (!done) tmp.delete(); } // stopped or failed: no half file left behind
             Journal.add("GET " + url.split("\\?")[0].replaceFirst("https://[^/]+", "") + " -> HTTP " + code + ", "
                     + dst.length() / 1024 + " KB (" + (System.currentTimeMillis() - t0) + " ms)");
         } finally { c.disconnect(); }
@@ -196,6 +200,20 @@ final class Amazon {
         for (String id : ids) v.put(id);
         call("PATCH", DRIVE + "/trash", new JSONObject().put("recurse", "true").put("op", "add").put("filters", "")
                 .put("conflictResolution", "RENAME").put("value", v).put("resourceVersion", "V2").put("ContentType", "JSON"), false);
+    }
+
+    /** Trash in batches of 50; if Amazon refuses a batch, one by one, counting "not found" (already gone) as done. */
+    static void trashAll(List<String> ids) throws IOException, JSONException {
+        for (int i = 0; i < ids.size(); i += 50) {
+            List<String> batch = ids.subList(i, Math.min(ids.size(), i + 50));
+            try { trash(batch); }
+            catch (ApiError e) {
+                if (e.isAuth()) throw e;
+                for (String one : batch)
+                    try { trash(Collections.singletonList(one)); }
+                    catch (ApiError x) { if (x.code != 404) throw x; }
+            }
+        }
     }
 
     /** Storage usage per category: {photo:{billable:{bytes,count}, total:{...}}, video:..., ...}. */
