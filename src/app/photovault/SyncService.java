@@ -21,7 +21,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 /**
- * Runs uploads and "Sync from Amazon" in the background as a foreground service (type dataSync),
+ * Runs uploads and Sync in the background as a foreground service (type dataSync),
  * so they continue when you leave the app or the vault auto-locks. Jobs run one at a time.
  * Each job works with its own copy of the key, wiped when the job ends.
  * The notification never shows file names.
@@ -223,13 +223,13 @@ public class SyncService extends Service {
         return n;
     }
 
-    /** Encrypts one plaintext (meta + data) as a noise PNG, uploads it, returns the Amazon id. */
+    /** Encrypts one plaintext (meta + data) as a noise PNG, uploads it, returns the cloud's id for it. */
     String put(byte[] k, byte[] salt, byte[] plain, String name, final String label) throws Exception {
         File png = new File(getCacheDir(), "upload.png");
         try {
             try (OutputStream o = new BufferedOutputStream(new FileOutputStream(png), 1 << 16)) { Vault.encryptToPng(k, salt, plain, o); }
             final long total = png.length();
-            return Amazon.upload(png, name, st.folder(), new Amazon.Progress() {
+            return st.cloud().upload(png, name, st.folder(), new Cloud.Progress() {
                 public void on(long d, long t) { int pct = (int) (100 * d / Math.max(1, total)); show(label + " " + pct + "%", pct); }
             }).getString("id");
         } finally { png.delete(); }
@@ -268,13 +268,13 @@ public class SyncService extends Service {
             it.parts.addAll(ids);
             it.size = total;
         } catch (Throwable e) {
-            if (!ids.isEmpty()) try { retireNow(ids); } catch (Exception x) { Journal.add("parts left on Amazon, Sync removes them: " + x); }
+            if (!ids.isEmpty()) try { retireNow(ids); } catch (Exception x) { Journal.add("parts left in the cloud, Sync removes them: " + x); }
             throw e;
         }
     }
 
-    /** Trashes Amazon files in batches (no index involved). */
-    static void retireNow(List<String> ids) throws Exception { Amazon.trashAll(ids); }
+    /** Trashes cloud files in batches (no index involved). */
+    void retireNow(List<String> ids) throws Exception { st.cloud().trashAll(ids); }
 
     static final class SyncResult {
         final Set<String> unopenable = new HashSet<>(); // files neither the current nor the previous key opens
@@ -286,8 +286,9 @@ public class SyncService extends Service {
         SyncResult res = new SyncResult();
         int restored = 0, skipped = 0, retry = 0, removed = 0;
         try {
-            show("Sync: listing your vault on Amazon...", -1);
-            Amazon.Listing listing = Amazon.listFiles(st.folder(), 1_000_000);
+            final Cloud cloud = st.cloud();
+            show("Sync: listing your vault on " + cloud.name() + "...", -1);
+            Cloud.Listing listing = cloud.listFiles(st.folder(), 1_000_000);
             List<JSONObject> nodes = listing.files;
             final Set<String> remote = new HashSet<>(), local = new HashSet<>();
             for (JSONObject n : nodes) remote.add(n.getString("id"));
@@ -296,7 +297,7 @@ public class SyncService extends Service {
             final Set<String> skip = new HashSet<>();
             for (Store.Item it : before.items) skip.addAll(it.nodes());
             skip.addAll(before.retire); // old copies replaced during a password change: to be trashed, never restored
-            if (listing.complete) { // drop items deleted on the Amazon website (only if Amazon listed everything)
+            if (listing.complete) { // drop items deleted on the cloud's website or app (only if it listed everything)
                 final List<String> gone = new ArrayList<>();
                 for (String x : local) if (!remote.contains(x)) gone.add(x);
                 removed = gone.size();
@@ -305,8 +306,8 @@ public class SyncService extends Service {
                     while (i.hasNext()) if (gone.contains(i.next().id)) i.remove();
                 }});
             }
-            // folders saved on Amazon: fill in items that aren't in a folder here (new phone, reinstall).
-            // Skipped if the phone has newer folder changes that aren't on Amazon yet, unless a restore is under way.
+            // folders saved in the cloud: fill in items that aren't in a folder here (new phone, reinstall).
+            // Skipped if the phone has newer folder changes that aren't in the cloud yet, unless a restore is under way.
             final boolean restoring = st.prefs.getBoolean("restore_pending", false);
             JSONObject fb = null;
             if (restoring || !st.foldersDirty())
@@ -329,7 +330,7 @@ public class SyncService extends Service {
             }});
             List<String> strayParts = new ArrayList<>();
             Map<String, String> strayGroup = new HashMap<>();
-            Set<String> heads = new HashSet<>(); // groups that have a part 0 on Amazon
+            Set<String> heads = new HashSet<>(); // groups that have a part 0 in the cloud
             SimpleDateFormat iso = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.ROOT);
             iso.setTimeZone(TimeZone.getTimeZone("UTC"));
             String twoDaysAgo = iso.format(new Date(System.currentTimeMillis() - 48L * 3600_000));
@@ -342,7 +343,7 @@ public class SyncService extends Service {
                 show("Sync: restoring " + n + " of " + nodes.size(), 100 * n / nodes.size());
                 File f = new File(getCacheDir(), "sync.png");
                 try {
-                    try { Amazon.download(nid, st.owner(), f, null); }
+                    try { cloud.download(nid, f, null); }
                     catch (IOException e) {
                         if (Store.isAuth(e)) throw e;
                         Journal.add("sync: download failed, retried on the next Sync: " + e);
@@ -385,7 +386,7 @@ public class SyncService extends Service {
                         }
                         skip.addAll(it.parts);
                         if (ids == null || it.parts.size() != m.optInt("parts") || !missing.isEmpty()) {
-                            Journal.add("sync: a big file has " + missing.size() + " missing parts on Amazon: not restored");
+                            Journal.add("sync: a big file has " + missing.size() + " missing parts in the cloud: not restored");
                             if (Arrays.equals(o.salt, st.salt())) res.unopenable.addAll(it.parts); // with the old key: keep it
                             skipped++;
                             continue;
@@ -403,12 +404,12 @@ public class SyncService extends Service {
                     retry++;
                 } finally { f.delete(); }
             }
-            // parts no part 0 refers to: an upload that was interrupted. Removed once Amazon has listed everything
+            // parts no part 0 refers to: an upload that was interrupted. Removed once the cloud has listed everything
             strayParts.removeAll(skip);
             for (Iterator<String> i = strayParts.iterator(); i.hasNext(); ) if (heads.contains(strayGroup.get(i.next()))) i.remove();
             if (!strayParts.isEmpty() && listing.complete && retry == 0 && id > cancelUpTo) {
                 try {
-                    Amazon.trashAll(strayParts);
+                    cloud.trashAll(strayParts);
                     Journal.add("sync: removed " + strayParts.size() + " parts of an interrupted upload");
                 } catch (Exception e) { if (Store.isAuth(e)) throw e; Journal.add("sync: leftover parts not removed yet: " + e); }
             }
@@ -432,8 +433,8 @@ public class SyncService extends Service {
 
     /**
      * After a password change: every file still made with the previous key is downloaded, re-encrypted with the
-     * current key, uploaded again, and the old copy moved to the Amazon trash. Resumes where it stopped. The previous
-     * key is deleted only when Amazon's complete listing shows no file that still needs it.
+     * current key, uploaded again, and the old copy moved to the cloud's trash. Resumes where it stopped. The previous
+     * key is deleted only when the cloud's complete listing shows no file that still needs it.
      */
     void reencrypt(final byte[] k, int id) throws Exception {
         if (!st.reencrypting()) return;
@@ -447,7 +448,7 @@ public class SyncService extends Service {
             Set<String> oldIds = new HashSet<>();
             for (Store.Item it : ix.items) if (!cur.equals(it.salt)) oldIds.addAll(it.nodes());
             final List<String> orphans = new ArrayList<>();
-            for (JSONObject n : Amazon.listFiles(st.folder(), 1_000_000).files) {
+            for (JSONObject n : st.cloud().listFiles(st.folder(), 1_000_000).files) {
                 String name = n.optString("name");
                 int dash = name.lastIndexOf('-'); // ids can contain '-' too; the random suffix comes last
                 if (name.startsWith("r") && dash > 1 && oldIds.contains(name.substring(1, dash))) orphans.add(n.getString("id"));
@@ -502,8 +503,8 @@ public class SyncService extends Service {
                 }
             }
             st.backupFolders(k);
-            // 5. finished only if Amazon lists every file and none needs the old key any more
-            Amazon.Listing all = Amazon.listFiles(st.folder(), 1_000_000);
+            // 5. finished only if the cloud lists every file and none needs the old key any more
+            Cloud.Listing all = st.cloud().listFiles(st.folder(), 1_000_000);
             Store.Index after = st.readIndex(k);
             Set<String> fine = new HashSet<>(after.retire);
             fine.addAll(sr.unopenable); // opened by neither key: they don't depend on the old one
@@ -516,7 +517,7 @@ public class SyncService extends Service {
                 Journal.add("password change complete: every file uses the new key");
                 done("Password change complete: every file in your vault now uses the new password.");
             } else if (!all.complete) {
-                done("Password change: " + ok + " files re-encrypted. Amazon doesn't list vaults this big completely, "
+                done("Password change: " + ok + " files re-encrypted. " + st.cloud().name() + " doesn't list vaults this big completely, "
                         + "so the old key is kept to make sure no file becomes unreadable.");
             } else done("Password change paused: " + Math.max(left, unknown) + " files left" + (failed > 0 ? " (" + failed + " failed, see Log)" : "")
                     + ". It continues the next time you unlock PhotoVault.");
@@ -529,7 +530,7 @@ public class SyncService extends Service {
 
     /**
      * Re-encrypts one item with the current key and uploads the new copy (named "r" + old id, so an interrupted run
-     * can find it). Returns the new Amazon ids (part 0 first), or null if the file already uses the current key.
+     * can find it). Returns the new cloud ids (part 0 first), or null if the file already uses the current key.
      * The old copy is left alone: the caller records the swap, then trashes it.
      */
     List<String> reencryptItem(byte[] k, byte[] salt, Store.Item it, int job) throws Exception {
@@ -540,7 +541,7 @@ public class SyncService extends Service {
             String group = null;
             for (int p = 1; p < olds.size(); p++) { // parts 1..n-1 of a big file: same content, new key
                 if (job <= cancelUpTo) throw new IOException("stopped");
-                Amazon.download(olds.get(p), st.owner(), down, null);
+                st.cloud().download(olds.get(p), down, null);
                 Vault.Opened o = st.decrypt(down, k);
                 JSONObject m = new JSONObject(o.meta);
                 if (group == null) group = m.optString("group");
@@ -548,7 +549,7 @@ public class SyncService extends Service {
                 fresh.add(put(k, salt, o.plain, "r" + olds.get(p) + "-" + Store.hex(Vault.random(4)) + ".png", "Password change: uploading"));
             }
             File src = cached.exists() ? cached : down;
-            if (src == down) Amazon.download(it.id, st.owner(), down, null);
+            if (src == down) st.cloud().download(it.id, down, null);
             Vault.Opened o = st.decrypt(src, k);
             if (olds.size() == 1 && Arrays.equals(o.salt, salt)) return null;
             if (olds.size() > 1 && (new JSONObject(o.meta).optInt("part", -1) != 0 || !new JSONObject(o.meta).optString("group").equals(group)))
@@ -568,17 +569,18 @@ public class SyncService extends Service {
         } finally { down.delete(); }
     }
 
-    /** Moves replaced files to the Amazon trash and forgets them. Kept for another try if Amazon refuses. */
+    /** Moves replaced files to the cloud's trash and forgets them. Kept for another try if the cloud refuses. */
     void retire(byte[] k, List<String> ids) throws Exception {
         final List<String> done = new ArrayList<>();
+        Cloud cloud = st.cloud();
         for (int i = 0; i < ids.size(); i += 50) {
             List<String> batch = ids.subList(i, Math.min(ids.size(), i + 50));
-            try { Amazon.trash(batch); done.addAll(batch); }
-            catch (Amazon.ApiError e) {
+            try { cloud.trash(batch); done.addAll(batch); }
+            catch (Cloud.ApiError e) {
                 if (e.isAuth()) throw e;
                 for (String one : batch) // one at a time: only "not found" counts as already gone
-                    try { Amazon.trash(Collections.singletonList(one)); done.add(one); }
-                    catch (Amazon.ApiError x) {
+                    try { cloud.trash(Collections.singletonList(one)); done.add(one); }
+                    catch (Cloud.ApiError x) {
                         if (x.isAuth()) throw x;
                         if (x.code == 404) done.add(one);
                         else Journal.add("old copy not trashed yet, retried later: " + x.getMessage());

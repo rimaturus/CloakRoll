@@ -41,11 +41,11 @@ final class Store {
 
     static final class Item {
         String id, name, mime, folder = ""; // folder "" = not in a folder
-        String salt = "";                   // hex salt of the key the file on Amazon was made with ("" = before v1.3)
-        List<String> parts = new ArrayList<>(); // big files: Amazon ids of all parts, [0] == id. Empty: one PNG
+        String salt = "";                   // hex salt of the key the file in the cloud was made with ("" = before v1.3)
+        List<String> parts = new ArrayList<>(); // big files: cloud ids of all parts, [0] == id. Empty: one PNG
         long taken, size;
         boolean video() { return mime != null && mime.startsWith("video/"); }
-        /** Every Amazon file this item is made of. */
+        /** Every cloud file this item is made of. */
         List<String> nodes() { return parts.isEmpty() ? Collections.singletonList(id) : parts; }
     }
 
@@ -89,11 +89,19 @@ final class Store {
     /** Posted 60 s after the app goes to the background. */
     final Runnable autoLock = new Runnable() { public void run() { lock(); changed(); } };
 
+    private final Amazon amazon;
+    private final OneDrive oneDrive;
+
     private Store(Context app) {
         this.app = app;
         prefs = app.getSharedPreferences("vault", Context.MODE_PRIVATE);
+        amazon = new Amazon(this);
+        oneDrive = new OneDrive(this);
         deletePlayback(); // leftovers if the app was killed while a video was open
     }
+
+    /** Where this vault's files are, chosen at setup ("amazon" before v1.5). Any thread. */
+    Cloud cloud() { return "onedrive".equals(prefs.getString("backend", "")) ? oneDrive : amazon; }
 
     /** Decrypted videos are written to disk only for playback; removed on lock, on close and at start. */
     void deletePlayback() {
@@ -207,7 +215,7 @@ final class Store {
 
     /**
      * Adds an item. If its folder no longer exists (renamed or deleted during an upload), `createFolder` decides:
-     * create it again (restore from Amazon) or put the item in the main view (upload).
+     * create it again (restore from the cloud) or put the item in the main view (upload).
      */
     void add(byte[] k, final Item it, final boolean createFolder) throws Exception {
         edit(k, new Edit() { public void apply(Index ix) {
@@ -220,33 +228,33 @@ final class Store {
         }});
     }
 
-    // ---------------------------------------------------------------- folders, backed up to Amazon (encrypted)
+    // ---------------------------------------------------------------- folders, backed up to the cloud (encrypted)
 
     private final ExecutorService bg = Executors.newSingleThreadExecutor();
     private boolean backupQueued; // guarded by this
     private byte[] backupKey;     // guarded by this
 
-    /** The folders on the phone are newer than the copy on Amazon: Sync must not apply that copy. Call before the change. */
+    /** The folders on the phone are newer than the copy in the cloud: Sync must not apply that copy. Call before the change. */
     synchronized void markFoldersDirty() { prefs.edit().putBoolean("folders_dirty", true).commit(); }
 
     synchronized boolean foldersDirty() { return prefs.getBoolean("folders_dirty", false); }
 
-    /** Amazon subfolder PhotoVault/index: holds one encrypted PNG with the folder organisation. */
+    /** Subfolder "index" of the vault folder: holds one encrypted PNG with the folder organisation. */
     String indexFolder() throws Exception {
         String pref = "index_folder_" + folder(), id = prefs.getString(pref, "");
-        if (id.isEmpty()) { id = Amazon.folder(folder(), "index"); prefs.edit().putString(pref, id).apply(); }
+        if (id.isEmpty()) { id = cloud().folder(folder(), "index"); prefs.edit().putString(pref, id).apply(); }
         return id;
     }
 
     /**
-     * Saves the folders (names and which item is in which) to Amazon as one more encrypted PNG, so a new phone
+     * Saves the folders (names and which item is in which) to the cloud as one more encrypted PNG, so a new phone
      * gets them back with Sync. Any thread; runs in the background; calls made while one is waiting merge into it.
      */
     void backupFolders(byte[] jobKey) {
         synchronized (this) {
             markFoldersDirty();
             if (prefs.getBoolean("restore_pending", false)) { // the list may still be partial: upload after the restore
-                Journal.add("folders will be saved to Amazon when the restore from Amazon has finished");
+                Journal.add("folders will be saved to the cloud when the restore has finished");
                 return;
             }
             if (backupKey != null) Arrays.fill(backupKey, (byte) 0);
@@ -268,27 +276,28 @@ final class Store {
                 System.arraycopy(data, 0, plain, plain.length - data.length, data.length);
                 try (OutputStream o = new BufferedOutputStream(new FileOutputStream(png))) { Vault.encryptToPng(k, salt(), plain, o); }
                 String dir = indexFolder();
-                String id = Amazon.upload(png, hex(Vault.random(8)) + ".png", dir, null).getString("id");
+                Cloud c = cloud();
+                String id = c.upload(png, hex(Vault.random(8)) + ".png", dir, null).getString("id");
                 List<String> old = new ArrayList<>();
-                for (JSONObject n : Amazon.listFiles(dir, 1000).files) if (!n.getString("id").equals(id)) old.add(n.getString("id"));
-                if (!old.isEmpty()) Amazon.trash(old);
+                for (JSONObject n : c.listFiles(dir, 1000).files) if (!n.getString("id").equals(id)) old.add(n.getString("id"));
+                if (!old.isEmpty()) c.trashAll(old);
                 synchronized (Store.this) { if (!backupQueued) prefs.edit().putBoolean("folders_dirty", false).commit(); }
-                Journal.add("folders saved to Amazon (encrypted)");
+                Journal.add("folders saved to the cloud (encrypted)");
             } catch (Exception e) {
-                Journal.add("folders not saved to Amazon yet (retried on the next change): " + e);
+                Journal.add("folders not saved to the cloud yet (retried on the next change): " + e);
             } finally { png.delete(); Arrays.fill(k, (byte) 0); }
         }});
     }
 
-    /** The folder organisation saved on Amazon: {"folders":[...], "map":{itemId: folder}}, or null. Background thread. */
+    /** The folder organisation saved in the cloud: {"folders":[...], "map":{itemId: folder}}, or null. Background thread. */
     JSONObject readFoldersBackup(byte[] k) throws Exception {
-        List<JSONObject> l = Amazon.listFiles(indexFolder(), 1000).files;
+        List<JSONObject> l = cloud().listFiles(indexFolder(), 1000).files;
         if (l.isEmpty()) return null;
         JSONObject newest = l.get(0);
         for (JSONObject n : l) if (n.optString("createdDate").compareTo(newest.optString("createdDate")) > 0) newest = n;
         File f = new File(app.getCacheDir(), "folders-down.png");
         try {
-            Amazon.download(newest.getString("id"), owner(), f, null);
+            cloud().download(newest.getString("id"), f, null);
             Vault.Opened o = decrypt(f, k);
             return new JSONObject(new String(o.plain, o.dataOff, o.dataLen(), "UTF-8"));
         } finally { f.delete(); }
@@ -296,7 +305,7 @@ final class Store {
 
     // ---------------------------------------------------------------- password change
     //
-    // The key comes from the password, so a new password means a new key, and every file on Amazon must be
+    // The key comes from the password, so a new password means a new key, and every file in the cloud must be
     // re-encrypted with it (SyncService.reencrypt). Until that's done the previous key is kept, sealed with
     // the new one ("old_key"), so both kinds of file keep opening. It is deleted when the last file is done.
 
@@ -329,7 +338,7 @@ final class Store {
         finally { if (old != null) Arrays.fill(old, (byte) 0); }
     }
 
-    /** Items whose file on Amazon still uses an older key. */
+    /** Items whose file in the cloud still uses an older key. */
     int toReencrypt(Index ix) {
         String cur = prefs.getString("salt", "");
         int n = 0;
@@ -486,9 +495,9 @@ final class Store {
     /**
      * Downloads and decrypts every part of a big item into `out`, checking that each part belongs to this item
      * and sits at its place (the checks are inside the authenticated, encrypted part). Keeps part 0 in the
-     * download cache for "Amazon's view". Background thread.
+     * download cache for the "cloud view". Background thread.
      */
-    void assemble(final Item it, byte[] k, File out, final Amazon.Progress progress) throws Exception {
+    void assemble(final Item it, byte[] k, File out, final Cloud.Progress progress) throws Exception {
         File tmp = new File(app.getCacheDir(), "part-" + it.id + ".png");
         String group = null;
         try (OutputStream o = new BufferedOutputStream(new FileOutputStream(out), 1 << 16)) {
@@ -496,10 +505,10 @@ final class Store {
                 if (progress != null) progress.on(i, it.parts.size());
                 File src = i == 0 ? blobFile(it.id) : tmp;
                 final int at = i;
-                final Amazon.Progress p2 = progress == null ? null : new Amazon.Progress() { // lets the viewer stop mid-part
+                final Cloud.Progress p2 = progress == null ? null : new Cloud.Progress() { // lets the viewer stop mid-part
                     public void on(long d, long t) { progress.on(at, it.parts.size()); }
                 };
-                if (i > 0 || !src.exists()) Amazon.download(it.parts.get(i), owner(), src, p2);
+                if (i > 0 || !src.exists()) cloud().download(it.parts.get(i), src, p2);
                 Vault.Opened p = decrypt(src, k);
                 JSONObject m = new JSONObject(p.meta);
                 if (i == 0) {
@@ -507,7 +516,7 @@ final class Store {
                     if (m.optInt("parts") != it.parts.size()) throw new IOException("big file: wrong number of parts");
                 }
                 if (m.optInt("part", -1) != i || group == null || group.isEmpty() || !group.equals(m.optString("group")))
-                    throw new IOException("part " + (i + 1) + " doesn't belong here: the file on Amazon was changed");
+                    throw new IOException("part " + (i + 1) + " doesn't belong here: the file in the cloud was changed");
                 o.write(p.plain, p.dataOff, p.dataLen());
             }
         } catch (Exception e) { out.delete(); throw e; }
@@ -535,14 +544,14 @@ final class Store {
     }
 
     static String explain(Throwable e) {
-        if (isAuth(e)) return "Amazon session expired or not accepted: sign in again";
+        if (isAuth(e)) return "sign-in expired or not accepted: sign in again";
         if (e instanceof AEADBadTagException) return "decryption check failed: wrong key, or the file was altered";
         if (e instanceof java.net.UnknownHostException) return "no internet connection";
         if (e instanceof OutOfMemoryError) return "file too big for this phone's app memory";
         return e.getClass().getSimpleName() + ": " + e.getMessage();
     }
 
-    static boolean isAuth(Throwable e) { return e instanceof Amazon.ApiError && ((Amazon.ApiError) e).isAuth(); }
+    static boolean isAuth(Throwable e) { return e instanceof Cloud.ApiError && ((Cloud.ApiError) e).isAuth(); }
 
     static String hex(byte[] b) { StringBuilder s = new StringBuilder(); for (byte x : b) s.append(String.format("%02x", x)); return s.toString(); }
 
@@ -552,7 +561,7 @@ final class Store {
         return b;
     }
 
-    static byte[] readFile(File f) throws IOException { try (InputStream in = new FileInputStream(f)) { return Amazon.readAll(in); } }
+    static byte[] readFile(File f) throws IOException { try (InputStream in = new FileInputStream(f)) { return Cloud.readAll(in); } }
 
     static void writeFile(File f, byte[] b) throws IOException { try (OutputStream o = new FileOutputStream(f)) { o.write(b); } }
 }
