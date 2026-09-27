@@ -6,7 +6,9 @@ PhotoVault PoC: any file -> AES-256-GCM -> valid PNG made of noise pixels, and b
   py photovault.py test <file>            # in-memory roundtrip, timings, size overhead
 
 Same file format as the PhotoVault Android app (PVT2), so this script is also your
-independent way to decrypt anything the app uploaded: download the PNG, run `dec`.
+independent way to decrypt anything the app uploaded: download the PNGs, run `dec`.
+Files over 32 MB are stored as several PNGs ("parts"); `dec` puts them back together
+when you give it all of them (e.g. the whole downloaded folder).
 
 Password: prompted, or env var PV_PASSWORD.
 Deps: pip install pillow cryptography
@@ -18,6 +20,7 @@ from PIL import Image
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 MAGIC = b"PVT2"
+CHUNK = 32 << 20  # same as the app: bigger files become several PNGs
 HDR = struct.Struct(">4s16s12sQ")  # magic, salt, nonce, ciphertext length
 SALT_FILE = Path(__file__).with_name("vault.salt")
 Image.MAX_IMAGE_PIXELS = None  # our own files, not decompression bombs
@@ -74,6 +77,59 @@ def meta_of(f):
             "mime": mimetypes.guess_type(f.name)[0] or "application/octet-stream"}
 
 
+def enc_file(f, out, pw):
+    """One PNG, or for big files one PNG per 32 MB part: part 0 has name/date/size, every part has group + index."""
+    meta, size = meta_of(f), f.stat().st_size
+    if size <= CHUNK:
+        dst = out / (os.urandom(8).hex() + ".png")
+        dst.write_bytes(to_png(encode(f.read_bytes(), meta, pw)))
+        return [dst]
+    group, parts, done = os.urandom(8).hex(), math.ceil(size / CHUNK), []
+    with open(f, "rb") as src:
+        for i in range(parts):
+            m = dict(meta, group=group, part=0, parts=parts, size=size) if i == 0 else {"group": group, "part": i}
+            dst = out / (os.urandom(8).hex() + ".png")
+            dst.write_bytes(to_png(encode(src.read(CHUNK), m, pw)))
+            done.append(dst)
+    return done
+
+
+def dec_files(files, out, pw):
+    """Decrypts every file it can; parts of big files are joined once all of them are there."""
+    tmp, heads = out / ".parts", {}
+    for f in files:
+        t = time.perf_counter()
+        try:
+            meta, data = decode(Image.open(f), pw)
+        except Exception as e:  # other password (e.g. before a password change), or not a PhotoVault file
+            print(f"{f.name}: skipped ({type(e).__name__}: wrong password or not a PhotoVault file)")
+            continue
+        if "group" in meta:
+            tmp.mkdir(exist_ok=True)
+            (tmp / f"{meta['group']}.{meta['part']}").write_bytes(data)
+            if meta["part"] == 0:
+                heads[meta["group"]] = meta
+            print(f"{f.name} -> part {meta['part'] + 1} of a big file  {time.perf_counter() - t:.3f}s")
+        else:
+            (out / Path(meta["name"]).name).write_bytes(data)
+            print(f"{f.name} -> {meta['name']}  {time.perf_counter() - t:.3f}s")
+    for group, meta in heads.items():
+        parts = [tmp / f"{group}.{i}" for i in range(meta["parts"])]
+        missing = [i + 1 for i, p in enumerate(parts) if not p.exists()]
+        if missing:
+            print(f"{meta['name']}: parts {missing} not found, give me all the PNGs of the folder")
+            continue
+        dst = out / Path(meta["name"]).name
+        with open(dst, "wb") as o:
+            for p in parts:
+                o.write(p.read_bytes())
+                p.unlink()
+        ok = dst.stat().st_size == meta["size"]
+        print(f"{meta['name']}: joined {len(parts)} parts, {'OK' if ok else 'SIZE MISMATCH'}")
+    if tmp.exists() and not any(tmp.iterdir()):
+        tmp.rmdir()
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=["enc", "dec", "test"])
@@ -87,17 +143,14 @@ def main():
     print(f"key derivation: {time.perf_counter() - t:.2f}s (once per session)")
     a.out.mkdir(exist_ok=True)
 
-    files = [p for f in a.files for p in (sorted(f.iterdir()) if f.is_dir() else [f])]  # Windows: no shell globbing
+    files = [p for f in a.files for p in (sorted(f.iterdir()) if f.is_dir() else [f]) if p.is_file()]  # Windows: no globbing
+    if a.cmd == "dec":
+        return dec_files(files, a.out, pw)
     for f in files:
         t = time.perf_counter()
         if a.cmd == "enc":
-            dst = a.out / (os.urandom(8).hex() + ".png")
-            dst.write_bytes(to_png(encode(f.read_bytes(), meta_of(f), pw)))
-            print(f"{f.name} -> {dst.name}  {time.perf_counter() - t:.3f}s")
-        elif a.cmd == "dec":
-            meta, data = decode(Image.open(f), pw)
-            (a.out / Path(meta["name"]).name).write_bytes(data)
-            print(f"{f.name} -> {meta['name']}  {time.perf_counter() - t:.3f}s")
+            names = [d.name for d in enc_file(f, a.out, pw)]
+            print(f"{f.name} -> {names[0]}" + (f" (+{len(names) - 1} parts)" if len(names) > 1 else "") + f"  {time.perf_counter() - t:.3f}s")
         else:
             data = f.read_bytes()
             png = to_png(encode(data, meta_of(f), pw))

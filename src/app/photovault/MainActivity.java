@@ -143,6 +143,7 @@ public class MainActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
+        viewToken++; // a viewer download still running stops and deletes what it decrypted
         if (st.onChange == onChange) st.onChange = null;
         ui.removeCallbacksAndMessages(null);
         if (web != null) { web.destroy(); web = null; }
@@ -431,7 +432,8 @@ public class MainActivity extends Activity {
         text(l, "• Your vault password is the only key. Nobody can reset it, not Amazon and not this app. If you lose it, the photos are gone.\n"
                 + "• The app uses the same private web interface as the Amazon Photos website (Amazon has no public API). If Amazon changes it, "
                 + "uploads can stop working until the app is updated. Files already stored stay decryptable, also on a PC with photovault.py.\n"
-                + "• Videos stored as photo files go against the spirit of Amazon's terms (Prime includes only 5 GB for video). "
+                + "• Videos stored as photo files go against the spirit of Amazon's terms (Prime includes only 5 GB for video), and "
+                + "large amounts of video stand out. "
                 + "Amazon could restrict the account. Keep a second backup of anything irreplaceable.\n"
                 + "• PhotoVault is not made by or affiliated with Amazon.", 15);
         text(l, "Setup takes 3 steps: sign in to Amazon, create your vault password, and a self-test on your account.", 15);
@@ -1213,18 +1215,30 @@ public class MainActivity extends Activity {
 
     /** Moves items to the Amazon Photos trash, then removes them from the list and their local previews. */
     void deleteItems(List<String> requested) {
-        final List<String> ids = new ArrayList<>();
-        for (String id : requested) ids.add(st.currentId(id)); // replaced meanwhile by a password change
+        final Map<String, List<String>> files = new LinkedHashMap<>(); // item id -> its files on Amazon (big files: parts)
+        for (String r : requested) {
+            String id = st.currentId(r); // replaced meanwhile by a password change
+            List<String> nodes = Collections.singletonList(id);
+            for (Store.Item it : st.items) if (it.id.equals(id)) nodes = new ArrayList<>(it.nodes());
+            Collections.reverse(nodes = new ArrayList<>(nodes)); // part 0 last: a half-finished delete stays visible
+            files.put(id, nodes);
+        }
+        final List<String> ids = new ArrayList<>(files.keySet());
         final byte[] k = keyCopy();
         if (k == null) return;
         viewIo.execute(new Runnable() { public void run() {
             final Set<String> gone = new HashSet<>();
             try {
-                for (int i = 0; i < ids.size(); i += 50) {
-                    List<String> batch = ids.subList(i, Math.min(ids.size(), i + 50));
-                    Amazon.trash(batch);
-                    gone.addAll(batch);
+                List<String> batch = new ArrayList<>(), waiting = new ArrayList<>();
+                for (Map.Entry<String, List<String>> e : files.entrySet()) {
+                    for (String n : e.getValue()) {
+                        batch.add(n);
+                        if (batch.size() == 50) { Amazon.trashAll(batch); batch.clear(); gone.addAll(waiting); waiting.clear(); }
+                    }
+                    if (batch.isEmpty()) gone.add(e.getKey()); else waiting.add(e.getKey());
                 }
+                if (!batch.isEmpty()) Amazon.trashAll(batch);
+                gone.addAll(waiting);
             } catch (final Exception e) {
                 post(new Runnable() { public void run() { toast("Delete failed: " + explain(e)); if (isAuth(e)) askRelogin(); } });
             }
@@ -1365,63 +1379,90 @@ public class MainActivity extends Activity {
 
         // 2) full quality: download (or reuse the cached encrypted PNG), decrypt, swap in
         final byte[] k = keyCopy();
-        final File png = st.blobFile(it.id);
+        final File png = st.blobFile(it.id); // for a big file: its part 0
         viewIo.execute(new Runnable() { public void run() {
+            File f = null;
             try {
                 if (token != viewToken) return;
-                if (!png.exists()) {
-                    Amazon.download(it.id, st.owner(), png, new Amazon.Progress() {
-                        public void on(final long d, final long t) {
+                String ext = it.name.contains(".") ? it.name.substring(it.name.lastIndexOf('.')) : it.video() ? ".mp4" : "";
+                final Vault.Opened o;  // small file: decrypted in memory
+                final File whole;      // big file, or video: decrypted file in app-private storage, deleted on close
+                final String line;
+                long t = SystemClock.elapsedRealtime();
+                if (!it.parts.isEmpty()) {
+                    f = new File(getCacheDir(), "play-" + it.id + ext);
+                    st.assemble(it, k, f, new Amazon.Progress() {
+                        public void on(final long d, final long total) {
                             if (token != viewToken) throw new CancellationException(); // viewer closed: stop downloading
                             post(new Runnable() { public void run() {
-                                if (token == viewToken) info.setText("Low-resolution preview, downloading the encrypted original... " + (t > 0 ? 100 * d / t + "%" : human(d)));
+                                if (token == viewToken) info.setText("Low-resolution preview, downloading and decrypting part " + (d + 1) + " of " + total + "...");
                             }});
                         }
                     });
                     st.trimBlobCache();
-                } else png.setLastModified(System.currentTimeMillis());
-                if (token != viewToken) return;
-                post(new Runnable() { public void run() { if (token == viewToken) info.setText("Low-resolution preview, decrypting..."); } });
-                long t = SystemClock.elapsedRealtime();
-                final Vault.Opened o;
-                o = st.decrypt(png, k);
-                final long ms = SystemClock.elapsedRealtime() - t;
-                final String line = "Decrypted and verified in " + ms + " ms (AES-GCM: not a single bit changed)\n"
-                        + human(o.dataLen()) + " original, stored on Amazon as a " + human(png.length()) + " PNG of noise";
+                    o = null;
+                    whole = f;
+                    line = "Decrypted and verified: " + it.parts.size() + " parts, each checked by AES-GCM\n"
+                            + human(it.size) + " original, stored on Amazon as " + it.parts.size() + " PNGs of noise";
+                } else {
+                    if (!png.exists()) {
+                        Amazon.download(it.id, st.owner(), png, new Amazon.Progress() {
+                            public void on(final long d, final long total) {
+                                if (token != viewToken) throw new CancellationException();
+                                post(new Runnable() { public void run() {
+                                    if (token == viewToken) info.setText("Low-resolution preview, downloading the encrypted original... " + (total > 0 ? 100 * d / total + "%" : human(d)));
+                                }});
+                            }
+                        });
+                        st.trimBlobCache();
+                    } else png.setLastModified(System.currentTimeMillis());
+                    if (token != viewToken) return;
+                    post(new Runnable() { public void run() { if (token == viewToken) info.setText("Low-resolution preview, decrypting..."); } });
+                    o = st.decrypt(png, k);
+                    line = "Decrypted and verified in " + (SystemClock.elapsedRealtime() - t) + " ms (AES-GCM: not a single bit changed)\n"
+                            + human(o.dataLen()) + " original, stored on Amazon as a " + human(png.length()) + " PNG of noise";
+                    if (it.video()) {
+                        f = new File(getCacheDir(), "play-" + it.id + ext);
+                        try (OutputStream out = new FileOutputStream(f)) { out.write(o.plain, o.dataOff, o.dataLen()); }
+                    }
+                    whole = f;
+                }
+                if (token != viewToken) { if (whole != null) whole.delete(); return; } // closed meanwhile
                 if (it.video()) {
-                    String ext = it.name.contains(".") ? it.name.substring(it.name.lastIndexOf('.')) : ".mp4";
-                    final File f = new File(getCacheDir(), "play" + ext);
-                    try (OutputStream out = new FileOutputStream(f)) { out.write(o.plain, o.dataOff, o.dataLen()); }
                     post(new Runnable() { public void run() {
-                        if (token != viewToken) { f.delete(); return; }
+                        if (token != viewToken) { whole.delete(); return; }
                         deletePlaying();
-                        playing = f;
+                        playing = whole;
                         VideoView vv = new VideoView(MainActivity.this);
                         MediaController mc = new MediaController(MainActivity.this);
                         mc.setAnchorView(vv);
                         vv.setMediaController(mc);
-                        vv.setVideoPath(f.getPath());
+                        vv.setVideoPath(whole.getPath());
                         box.addView(vv, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER));
                         box.removeView(iv);
                         vv.start();
-                        ready(it, o, line, info, box, png, amazon, save);
+                        ready(it, o, whole, line, info, box, png, amazon, save);
                     }});
                 } else {
-                    final Bitmap bm = ImageDecoder.decodeBitmap(ImageDecoder.createSource(ByteBuffer.wrap(o.plain, o.dataOff, o.dataLen()).slice()),
-                            new ImageDecoder.OnHeaderDecodedListener() {
-                                public void onHeaderDecoded(ImageDecoder d, ImageDecoder.ImageInfo inf, ImageDecoder.Source s) {
-                                    Size z = inf.getSize();
-                                    d.setTargetSampleSize(Math.max(1, Math.max(z.getWidth(), z.getHeight()) / 4096 + 1));
-                                }
-                            });
+                    ImageDecoder.Source src = whole != null ? ImageDecoder.createSource(whole)
+                            : ImageDecoder.createSource(ByteBuffer.wrap(o.plain, o.dataOff, o.dataLen()).slice());
+                    final Bitmap bm = ImageDecoder.decodeBitmap(src, new ImageDecoder.OnHeaderDecodedListener() {
+                        public void onHeaderDecoded(ImageDecoder d, ImageDecoder.ImageInfo inf, ImageDecoder.Source s) {
+                            Size z = inf.getSize();
+                            d.setTargetSampleSize(Math.max(1, Math.max(z.getWidth(), z.getHeight()) / 4096 + 1));
+                        }
+                    });
+                    if (token != viewToken) { if (whole != null) whole.delete(); return; }
                     post(new Runnable() { public void run() {
-                        if (token != viewToken) return;
+                        if (token != viewToken) { if (whole != null) whole.delete(); return; }
+                        if (whole != null) { deletePlaying(); playing = whole; }
                         iv.setTag(null); // a late preview must not replace the full image
                         iv.setImageBitmap(bm);
-                        ready(it, o, line, info, box, png, amazon, save);
+                        ready(it, o, whole, line, info, box, png, amazon, save);
                     }});
                 }
             } catch (final Throwable e) {
+                if (f != null) f.delete();
                 if (e instanceof CancellationException) return;
                 Journal.add("view failed: " + e);
                 png.delete();
@@ -1431,9 +1472,10 @@ public class MainActivity extends Activity {
         }});
     }
 
-    void ready(final Store.Item it, final Vault.Opened o, String line, TextView info, final FrameLayout box, final File png, final Button amazon, Button save) {
+    void ready(final Store.Item it, final Vault.Opened o, final File whole, String line, TextView info, final FrameLayout box,
+               final File png, final Button amazon, Button save) {
         info.setText(line);
-        amazon.setEnabled(true);
+        amazon.setEnabled(png.exists());
         save.setEnabled(true);
         amazon.setOnClickListener(new View.OnClickListener() {
             ImageView noise;
@@ -1452,10 +1494,11 @@ public class MainActivity extends Activity {
                 }});
             }
         });
-        save.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { saveToPhone(it, o); } });
+        save.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { saveToPhone(it, o, whole); } });
     }
 
-    void saveToPhone(final Store.Item it, final Vault.Opened o) {
+    /** Writes a decrypted copy to the phone's gallery: from memory (small files) or from the decrypted file. */
+    void saveToPhone(final Store.Item it, final Vault.Opened o, final File whole) {
         viewIo.execute(new Runnable() { public void run() {
             try {
                 ContentValues v = new ContentValues();
@@ -1465,7 +1508,10 @@ public class MainActivity extends Activity {
                 v.put(MediaStore.MediaColumns.DATE_TAKEN, it.taken);
                 Uri u = getContentResolver().insert(it.video() ? MediaStore.Video.Media.EXTERNAL_CONTENT_URI : MediaStore.Images.Media.EXTERNAL_CONTENT_URI, v);
                 if (u == null) throw new IOException("gallery refused the file");
-                try (OutputStream out = getContentResolver().openOutputStream(u)) { out.write(o.plain, o.dataOff, o.dataLen()); }
+                try (OutputStream out = getContentResolver().openOutputStream(u)) {
+                    if (whole != null) try (InputStream in = new FileInputStream(whole)) { Amazon.copy(in, out, -1, null); }
+                    else out.write(o.plain, o.dataOff, o.dataLen());
+                } catch (Exception e) { getContentResolver().delete(u, null, null); throw e; } // no empty file in the gallery
                 post(new Runnable() { public void run() { toast("Saved (unencrypted) to " + (it.video() ? "Movies" : "Pictures") + "/PhotoVault"); } });
             } catch (final Exception e) { post(new Runnable() { public void run() { toast("Save failed: " + explain(e)); } }); }
         }});
@@ -1610,7 +1656,8 @@ public class MainActivity extends Activity {
                 + "python photovault.py dec file.png -o out\n(photovault.py is part of PhotoVault's open-source code on GitHub). If you lose the phone: install the app, "
                 + "sign in, enter the same password; the app restores your vault from Amazon.", 15);
         text(l, "Limits of this version", 17);
-        text(l, "• Max 100 MB per item. • Background jobs are limited by Android to 6 hours per day.", 15);
+        text(l, "• Files over 32 MB are stored as several encrypted parts; a big video is downloaded completely before it plays. "
+                + "• Background jobs are limited by Android to 6 hours per day.", 15);
         text(l, "Password", 17);
         if (st.reencrypting()) {
             int left = 0;
