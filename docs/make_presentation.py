@@ -32,9 +32,9 @@ STRIP = noise_img(240, 3, "strip")
 BAND = noise_img(96, 54, "band", 0.55)
 
 c = canvas.Canvas("docs/PhotoVault-presentation.pdf", pagesize=(W, H))
-c.setTitle("PhotoVault: private photo backup on Amazon Photos")
+c.setTitle("PhotoVault: private photo backup on Amazon Photos or OneDrive")
 c.setAuthor("PhotoVault contributors")
-c.setSubject("Encrypted photos on Amazon Photos, stored as noise. Open source, no ads, no tracking, donation-funded.")
+c.setSubject("Encrypted photos on Amazon Photos or OneDrive, stored as noise. Open source, no ads, no tracking, donation-funded.")
 page = [0]
 
 
@@ -118,9 +118,9 @@ c.rect(0, 0, W, H, fill=1, stroke=0)
 c.setFillAlpha(1)
 c.drawImage("res/mipmap-xxxhdpi/ic_launcher.png", 64, H - 200, 104, 104, mask="auto")
 text(64, 250, "PhotoVault", "B", 64, TEXT)
-para(64, 196, "Your photos on Amazon Photos. Amazon only sees noise.", 860, "L", 27, TEXT)
+para(64, 196, "Your photos on Amazon Photos or OneDrive. The cloud only sees noise.", 860, "L", 27, TEXT)
 text(64, 120, "Free  ·  Open source  ·  No ads  ·  No tracking  ·  Donation-funded", "B", 15, TEAL)
-text(64, 64, REPO + "   ·   v1.4 beta   ·   Android 13+", "R", 12, MUTED)
+text(64, 64, REPO + "   ·   v1.5 beta   ·   Android 13+", "R", 12, MUTED)
 c.linkURL("https://" + REPO, (64, 58, 300, 78), relative=0)
 
 # 2 ---------------------------------------------------------------- problem
@@ -129,7 +129,7 @@ cw, ch, gy = 272, 200, 196
 card(48, gy, cw, ch, "Scanned", "Faces, places, objects and text in your pictures are analysed and indexed as soon as they are uploaded.", RED, 15)
 card(48 + cw + 20, gy, cw, ch, "Reused", "That analysis can feed search, advertising profiles and the training of AI models under terms you accepted once.", AMBER, 15)
 card(48 + 2 * (cw + 20), gy, cw, ch, "Exposed", "A breach, a leaked password or a hijacked account gives someone else your whole photo history, with GPS and dates.", RED, 15)
-para(48, 150, "And yet Amazon Prime already includes unlimited full-resolution photo storage. The space is great; handing over the content is the problem.", 860, "R", 16, MUTED)
+para(48, 150, "And yet the space is often already paid for: unlimited photos with Amazon Prime, OneDrive with Microsoft 365. The space is great; handing over the content is the problem.", 860, "R", 16, MUTED)
 
 # 3 ---------------------------------------------------------------- idea
 slide("The idea", "Keep the storage. Remove the content.")
@@ -141,7 +141,7 @@ slide("How it works", "Encrypted on the phone, before it leaves")
 steps = [("1", "Pick", "Android photo picker: the app sees only what you choose"),
          ("2", "Encrypt", "AES-256-GCM with a key derived from your password"),
          ("3", "Pack", "Ciphertext becomes the pixels of a PNG with a random name"),
-         ("4", "Upload", "Only that PNG goes to your Amazon Photos")]
+         ("4", "Upload", "Only that PNG goes to your Amazon Photos or OneDrive")]
 bw, bh, y0 = 196, 170, 200
 for i, (n, t, s) in enumerate(steps):
     x = 48 + i * (bw + 26)
@@ -169,18 +169,18 @@ for k, v in rows:
     text(68, y + 3, k, "B", 14, TEAL)
     text(260, y + 3, v, "R", 14, TEXT)
     y -= 54
-para(48, 52, "The key exists only on your phone. Nobody can reset your password: not Amazon, not the developer.", 864, "B", 14, AMBER)
+para(48, 52, "The key exists only on your phone. Nobody can reset your password: not Amazon, not Microsoft, not the developer.", 864, "B", 14, AMBER)
 
-# 6 ---------------------------------------------------------------- what Amazon sees
-slide("Transparency", "What Amazon can and cannot see")
+# 6 ---------------------------------------------------------------- what the cloud sees
+slide("Transparency", "What the cloud can and cannot see")
 box(48, 150, 420, 250)
-text(70, 364, "Amazon can see", "B", 19, AMBER)
+text(70, 364, "Amazon / Microsoft can see", "B", 19, AMBER)
 bullets(70, 326, ["That you upload PNG files of random noise",
                   "How many, how big, and when",
                   "That they are probably encrypted",
-                  "Your Amazon account, as with any upload"], 380, 16, 14, "•", AMBER)
+                  "Your account, as with any upload"], 380, 16, 14, "•", AMBER)
 box(492, 150, 420, 250)
-text(514, 364, "Amazon cannot see", "B", 19, GREEN)
+text(514, 364, "Amazon / Microsoft cannot see", "B", 19, GREEN)
 bullets(514, 326, ["Any content of your photos and videos",
                    "Faces, places, objects, text",
                    "File names, dates, GPS, camera, any EXIF",
@@ -195,7 +195,7 @@ left = ["Key in memory only|Wiped on lock. Auto-lock 60 s after you leave the ap
         "Decrypted video|Exists on disk only while you watch it."]
 right = ["No backups, no transfers|Android backup and device-to-device copy disabled.",
          "No screenshots|Blank in recent apps (can be allowed temporarily).",
-         "Locked-down login page|Only Amazon's sign-in sites; other links open outside.",
+         "Safe sign-in|Amazon: only its sign-in sites. OneDrive: Microsoft's page, OAuth + PKCE, app folder only.",
          "5 permissions only|No storage, contacts, location, camera or microphone."]
 bullets(48, 392, left, 420, 18, 22)
 bullets(500, 392, right, 420, 18, 22)
@@ -204,9 +204,9 @@ bullets(500, 392, right, 420, 18, 22)
 slide("Threat model", "Honest about what it protects")
 box(48, 120, 420, 290)
 text(70, 374, "Protects your photos against", "B", 19, GREEN)
-bullets(70, 336, ["Amazon scanning or AI training",
-                  "A breach of Amazon's storage",
-                  "Someone getting into your Amazon account",
+bullets(70, 336, ["The provider scanning or AI training",
+                  "A breach of the cloud storage",
+                  "Someone getting into your cloud account",
                   "Silent modification of stored files"], 380, 16, 14, "✓", GREEN)
 box(492, 120, 420, 290)
 text(514, 374, "Does not protect against", "B", 19, RED)
@@ -214,7 +214,7 @@ bullets(514, 336, ["A weak password (offline guessing)",
                    "Malware on an unlocked phone",
                    "Metadata: count, size, timing",
                    "Losing your password: no recovery, by design",
-                   "Amazon deleting files: keep a second backup"], 380, 16, 14, "✗", RED)
+                   "The provider deleting files: keep a backup"], 380, 16, 14, "✗", RED)
 text(48, 80, "No independent audit yet. Code review and reports are welcome.", "R", 15, MUTED)
 
 # 9 ---------------------------------------------------------------- promise
@@ -237,9 +237,9 @@ slide("Features", "Built for everyday use")
 feats = [("Background uploads", "Add many photos at once and leave: a notification shows progress and has a Stop button."),
          ("Instant previews", "Tap a photo: its preview appears at once, the original follows. Swipe to the next."),
          ("Folders", "Organise photos in folders. Their names are encrypted too, and restored on a new phone."),
-         ("New phone? Sync", "Sign in, same password: the vault is rebuilt from Amazon."),
+         ("New phone? Sync", "Sign in, same password: the vault is rebuilt from the cloud."),
          ("Self-test", "8 checks on your own account before you store anything."),
-         ("PC recovery", "A 115-line Python script decrypts everything, no app needed.")]
+         ("Amazon or OneDrive", "Unlimited photos with Prime, or OneDrive through Microsoft's official API.")]
 for i, (t, s) in enumerate(feats):
     x = 48 + (i % 3) * 296
     y = 262 - (i // 3) * 170
@@ -260,10 +260,11 @@ text(48, 52, "* Measured on one desktop CPU core. The in-app self-test shows the
 # 12 --------------------------------------------------------------- limits
 slide("Know before you use it", "Limits and risks, in plain words")
 bullets(48, 392, [
-    "Unofficial API|Amazon has no public Photos API. PhotoVault uses the website's own requests; if Amazon changes them, uploads pause until an update. Stored files stay decryptable.",
-    "Videos and Amazon's terms|Prime is unlimited for photos, 5 GB for videos. Encrypted videos stored as images go against the spirit of the offer.",
+    "Amazon: unofficial API|No public Photos API: PhotoVault uses the website's own requests. If Amazon changes them, uploads pause until an update.",
+    "Amazon: videos|Prime is unlimited for photos, 5 GB for videos. Encrypted videos stored as images go against the spirit of the offer.",
+    "OneDrive: your quota|Files count against your OneDrive storage (5 GB free, 1 TB with Microsoft 365).",
     "Password = only key|It can't be recovered. Changing it re-encrypts the whole vault in the background.",
-    "Beta|Not independently audited yet. Big videos are downloaded completely before they play."], 864, 18, 22, "!", AMBER)
+    "Beta|Not independently audited yet. No Google Photos: its API can't store or return exact files."], 864, 17, 16, "!", AMBER)
 
 # 13 --------------------------------------------------------------- get it / support
 slide("Get involved", "Free, open, and supported by people like you")
@@ -279,9 +280,9 @@ text(514, 366, "♥  Support PhotoVault", "B", 20, TEXT)
 para(514, 330, "No ads, no tracking, no paid tier: ever. If PhotoVault is useful to you, a voluntary donation funds development and, one day, an independent security audit.", 376, "R", 14, MUTED)
 text(514, 206, "buymeacoffee.com/rimaturus", "B", 15, TEAL)
 c.linkURL("https://buymeacoffee.com/rimaturus", (514, 200, 900, 224), relative=0)
-text(514, 184, "Also in the app: Menu > Support PhotoVault", "R", 13, TEXT)
+text(514, 184, "Also in the app: Settings > Support PhotoVault", "R", 13, TEXT)
 text(514, 162, "Donations unlock nothing: everything stays free for all.", "R", 12, MUTED)
-para(48, 96, "Not affiliated with or endorsed by Amazon. Amazon, Amazon Photos and Prime are trademarks of Amazon.com, Inc. or its affiliates.", 864, "R", 11, MUTED)
+para(48, 96, "Not affiliated with or endorsed by Amazon or Microsoft. Amazon, Amazon Photos and Prime are trademarks of Amazon.com, Inc. or its affiliates; Microsoft and OneDrive of the Microsoft group of companies.", 864, "R", 11, MUTED)
 
 c.save()
 print("pages:", page[0])

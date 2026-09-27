@@ -11,35 +11,39 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 /**
- * Amazon Photos web API as used by the amazon.it website (unofficial; same endpoints as
- * github.com/trevorhobenshield/amazon_photos). Auth = the session cookies of the in-app login page.
- * Only encrypted PNGs ever go through here.
+ * Amazon Photos, through the requests its own website makes (unofficial; same endpoints as
+ * github.com/trevorhobenshield/amazon_photos). Auth = the session cookies of the in-app sign-in page.
  */
-final class Amazon {
+final class Amazon extends Cloud {
     static final String WEB = "https://www.amazon.it";
     static final String DRIVE = WEB + "/drive/v1";
     static final String CDPROXY = "https://content-eu.drive.amazonaws.com/cdproxy/nodes";
     static final String BASE = "asset=ALL&tempLink=false&resourceVersion=V2&ContentType=JSON";
     static final String UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36";
 
-    interface Progress { void on(long done, long total); }
+    private final Store st;
 
-    static final class ApiError extends IOException {
-        final int code;
-        ApiError(int code, String msg) { super(msg); this.code = code; }
-        boolean isAuth() { return code == 401 || code == 403; }
-    }
+    Amazon(Store st) { this.st = st; }
 
-    /** Amazon's store/sign-in domains. The in-app login page only shows these; other links open in the normal browser. */
+    @Override String name() { return "Amazon Photos"; }
+
+    @Override String trashName() { return "Amazon Photos trash"; }
+
+    /** Amazon's store/sign-in domains. The in-app sign-in page only shows these; other links open in the normal browser. */
     static boolean isAmazonHost(String host) {
         return host != null && host.toLowerCase(Locale.ROOT).matches("(.+\\.)?amazon\\.(it|com|co\\.uk|de|fr|es|nl|se|pl|com\\.be|ie|ca|com\\.mx|com\\.br|co\\.jp|com\\.au|in|sg|ae|sa|eg|com\\.tr)");
     }
 
     static String cookies() { String c = CookieManager.getInstance().getCookie(WEB); return c == null ? "" : c; }
 
-    static boolean hasSession() {
+    @Override boolean hasSession() {
         String c = cookies();
         return c.contains("session-id=") && (c.contains("at-acb") || c.contains("at-main") || c.contains("at_main"));
+    }
+
+    @Override void signOut() {
+        android.webkit.WebStorage.getInstance().deleteAllData();
+        CookieManager.getInstance().removeAllCookies(null);
     }
 
     private static String cookie(String name) {
@@ -94,14 +98,15 @@ final class Amazon {
         try { return finish(c, method, url, t0, allow409); } finally { c.disconnect(); }
     }
 
-    /** Root node of the Amazon Drive behind Amazon Photos: {id, ownerId, ...}. */
-    static JSONObject root() throws IOException, JSONException {
-        return new JSONObject(call("GET", DRIVE + "/nodes?filters=" + enc("isRoot:true") + "&" + BASE, null, false))
+    /** Folder "PhotoVault" at the top of the Amazon Drive behind Amazon Photos. */
+    @Override String vaultFolder() throws Exception {
+        JSONObject root = new JSONObject(call("GET", DRIVE + "/nodes?filters=" + enc("isRoot:true") + "&" + BASE, null, false))
                 .getJSONArray("data").getJSONObject(0);
+        st.prefs.edit().putString("owner", root.optString("ownerId")).apply();
+        return folder(root.getString("id"), "PhotoVault");
     }
 
-    /** Id of folder `name` under `parentId`, created if missing. */
-    static String folder(String parentId, String name) throws IOException, JSONException {
+    @Override String folder(String parentId, String name) throws IOException, JSONException {
         JSONObject b = new JSONObject().put("kind", "FOLDER").put("name", name)
                 .put("parents", new JSONArray().put(parentId)).put("resourceVersion", "V2").put("ContentType", "JSON");
         JSONObject r = new JSONObject(call("POST", DRIVE + "/nodes", b, true));
@@ -111,15 +116,9 @@ final class Amazon {
         return id;
     }
 
-    static final class Listing {
-        final List<JSONObject> files = new ArrayList<>();
-        boolean complete; // true only if Amazon said there is nothing more
-    }
-
     private static volatile String fileFilter = "kind:FILE AND status:AVAILABLE";
 
-    /** Files in a folder (up to `max`), without the ones in the Amazon trash. */
-    static Listing listFiles(String folderId, int max) throws IOException, JSONException {
+    @Override Listing listFiles(String folderId, int max) throws IOException, JSONException {
         Listing res = new Listing();
         List<JSONObject> out = res.files;
         Set<String> seen = new HashSet<>();
@@ -141,7 +140,8 @@ final class Amazon {
                 JSONObject n = d.getJSONObject(i);
                 if (!seen.add(n.getString("id"))) continue;
                 added++;
-                if ("AVAILABLE".equals(n.optString("status", "AVAILABLE"))) out.add(n); // skip anything in the Amazon trash
+                if ("AVAILABLE".equals(n.optString("status", "AVAILABLE"))) // skip anything in the Amazon trash
+                    out.add(node(n.getString("id"), n.optString("name"), n.optString("createdDate")));
             }
             token = r.isNull("nextToken") ? "" : r.optString("nextToken", "");
             if (token.isEmpty() && d.length() < limit) { res.complete = true; break; }
@@ -152,8 +152,7 @@ final class Amazon {
         return res;
     }
 
-    /** Uploads an (already encrypted) PNG. Returns the new node. */
-    static JSONObject upload(File png, String name, String parentId, Progress p) throws IOException, JSONException {
+    @Override JSONObject upload(File png, String name, String parentId, Progress p) throws IOException, JSONException {
         String url = CDPROXY + "?name=" + enc(name) + "&kind=FILE&parentNodeId=" + enc(parentId);
         long t0 = System.currentTimeMillis();
         HttpURLConnection c = open("POST", url);
@@ -161,13 +160,15 @@ final class Amazon {
         c.setRequestProperty("Content-Type", "image/png");
         c.setFixedLengthStreamingMode(png.length());
         try (InputStream in = new FileInputStream(png); OutputStream o = c.getOutputStream()) { copy(in, o, png.length(), p); }
-        try { return new JSONObject(finish(c, "POST", url, t0, false)); } finally { c.disconnect(); }
+        JSONObject n;
+        try { n = new JSONObject(finish(c, "POST", url, t0, false)); } finally { c.disconnect(); }
+        JSONObject cp = n.optJSONObject("contentProperties");
+        return new JSONObject().put("id", n.getString("id")).put("type", cp == null ? "" : cp.optString("contentType"));
     }
 
-    /** Downloads a node's original bytes to `dst`. */
-    static void download(String id, String ownerId, File dst, Progress p) throws IOException {
+    @Override void download(String id, File dst, Progress p) throws IOException {
         try {
-            get(DRIVE + "/nodes/" + id + "/contentRedirection?querySuffix=" + enc("?download=true") + "&ownerId=" + enc(ownerId), dst, p);
+            get(DRIVE + "/nodes/" + id + "/contentRedirection?querySuffix=" + enc("?download=true") + "&ownerId=" + enc(st.owner()), dst, p);
         } catch (ApiError e) {
             if (e.isAuth()) throw e;
             Journal.add("  retrying download via content endpoint");
@@ -182,58 +183,27 @@ final class Amazon {
         try {
             int code = c.getResponseCode();
             if (code >= 400) { finish(c, "GET", url, t0, false); return; }
-            File tmp = new File(dst.getPath() + ".part");
-            boolean done = false;
-            try {
-                try (InputStream in = c.getInputStream(); OutputStream o = new FileOutputStream(tmp)) { copy(in, o, c.getContentLengthLong(), p); }
-                if (!tmp.renameTo(dst)) throw new IOException("cannot write " + dst);
-                done = true;
-            } finally { if (!done) tmp.delete(); } // stopped or failed: no half file left behind
+            save(c.getInputStream(), c.getContentLengthLong(), dst, p);
             Journal.add("GET " + url.split("\\?")[0].replaceFirst("https://[^/]+", "") + " -> HTTP " + code + ", "
                     + dst.length() / 1024 + " KB (" + (System.currentTimeMillis() - t0) + " ms)");
         } finally { c.disconnect(); }
     }
 
     /** Moves nodes to the Amazon Photos trash (recoverable there for a while, like a normal delete). */
-    static void trash(List<String> ids) throws IOException, JSONException {
+    @Override void trash(List<String> ids) throws IOException, JSONException {
         JSONArray v = new JSONArray();
         for (String id : ids) v.put(id);
         call("PATCH", DRIVE + "/trash", new JSONObject().put("recurse", "true").put("op", "add").put("filters", "")
                 .put("conflictResolution", "RENAME").put("value", v).put("resourceVersion", "V2").put("ContentType", "JSON"), false);
     }
 
-    /** Trash in batches of 50; if Amazon refuses a batch, one by one, counting "not found" (already gone) as done. */
-    static void trashAll(List<String> ids) throws IOException, JSONException {
-        for (int i = 0; i < ids.size(); i += 50) {
-            List<String> batch = ids.subList(i, Math.min(ids.size(), i + 50));
-            try { trash(batch); }
-            catch (ApiError e) {
-                if (e.isAuth()) throw e;
-                for (String one : batch)
-                    try { trash(Collections.singletonList(one)); }
-                    catch (ApiError x) { if (x.code != 404) throw x; }
-            }
-        }
-    }
-
-    /** Storage usage per category: {photo:{billable:{bytes,count}, total:{...}}, video:..., ...}. */
-    static JSONObject usage() throws IOException, JSONException {
-        return new JSONObject(call("GET", DRIVE + "/account/usage?" + BASE, null, false));
-    }
-
-    static byte[] readAll(InputStream in) throws IOException {
-        ByteArrayOutputStream b = new ByteArrayOutputStream();
-        copy(in, b, -1, null);
-        return b.toByteArray();
-    }
-
-    static void copy(InputStream in, OutputStream out, long total, Progress p) throws IOException {
-        byte[] buf = new byte[1 << 16];
-        long done = 0, last = 0;
-        for (int n; (n = in.read(buf)) > 0; ) {
-            out.write(buf, 0, n);
-            done += n;
-            if (p != null && done - last > (1 << 20)) { p.on(done, total); last = done; }
-        }
+    /** Prime: photos are free. Anything billed as "photo" means unlimited photo storage isn't active. */
+    @Override String[] storage() throws Exception {
+        JSONObject u = new JSONObject(call("GET", DRIVE + "/account/usage?" + BASE, null, false)), ph = u.optJSONObject("photo");
+        if (ph == null) return new String[]{"warn", "Amazon didn't report photo storage"};
+        long bill = ph.optJSONObject("billable") == null ? -1 : ph.getJSONObject("billable").optLong("bytes", -1);
+        long total = ph.optJSONObject("total") == null ? -1 : ph.getJSONObject("total").optLong("bytes", -1);
+        if (bill == 0) return new String[]{"ok", "Photos stored: " + Store.human(total) + ", billed: 0 B (Prime unlimited photos active)"};
+        return new String[]{"warn", "Photos billed: " + Store.human(bill) + " of " + Store.human(total) + ". Prime unlimited photos may not be active on this account"};
     }
 }

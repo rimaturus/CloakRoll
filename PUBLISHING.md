@@ -47,7 +47,7 @@ Sources: [Ko-fi fees](https://help.ko-fi.com/hc/en-us/articles/360002506494-Does
 4. Settings > Security: enable *Private vulnerability reporting*.
 5. Optional, more reach, donation links allowed: ask **IzzyOnDroid** to list the app. It takes the APK from GitHub releases. [IzzyOnDroid policy](https://izzyondroid.org/docs/general/AppInclusionPolicy/)
 
-Switching from the test key to the release key means uninstalling the test build once; *Sync from Amazon* restores the vault.
+Switching from the test key to the release key means uninstalling the test build once; *Sync* restores the vault.
 
 **Coming in 2027: Android developer verification.** Apps installed outside Google Play will need a verified developer. It starts 30 September 2026 in Brazil, Indonesia, Singapore and Thailand, and goes global in 2027. Register the package name `app.photovault` and your release key in the Android Developer Console before then. [Android developer verification](https://developer.android.com/developer-verification)
 
@@ -62,11 +62,11 @@ Switching from the test key to the release key means uninstalling the test build
 5. **Play App Signing.** Upload with an *upload key*; Google holds the signing key. If Play users and GitHub users should be able to update each other's installs, give Google your own release key before the first release. [Play App Signing](https://support.google.com/googleplay/android-developer/answer/9842756?hl=en)
 6. **App content forms** (Play Console > Policy > App content):
    - Privacy policy URL: link `PRIVACY.md` on GitHub, or a GitHub Pages copy.
-   - Data safety: *no data collected, no data shared*. Say that user files are sent, encrypted, to the user's own Amazon account at the user's request.
+   - Data safety: *no data collected, no data shared*. Say that user files are sent, encrypted, to the user's own Amazon or Microsoft account at the user's request.
    - Ads: no. Content rating questionnaire. Target audience: 18+.
    - **Foreground service (dataSync):** description ("uploads and downloads of the user's encrypted photos that the user started"), what happens if interrupted, and a **video** of an upload continuing in the background. Use case *Network transfer: upload or download*. [Foreground service requirements](https://support.google.com/googleplay/android-developer/answer/13392821?hl=en)
-   - **App access:** reviewers need a login. Create a separate **test Amazon account** with Prime or the free 5 GB, a test vault password, and step-by-step instructions. [App access](https://support.google.com/googleplay/android-developer/answer/9859455)
-7. **Store listing:** title without "Amazon" (e.g. *PhotoVault: encrypted photo backup*), description saying "works with Amazon Photos, not affiliated with Amazon", icon, feature graphic, 2+ screenshots. To take screenshots, use *Info > Allow screenshots*. [Impersonation policy](https://support.google.com/googleplay/android-developer/answer/9888374?hl=en)
+   - **App access:** reviewers need a login. Create a separate **test Microsoft account** (free, 5 GB of OneDrive: the easiest for reviewers) and/or a **test Amazon account**, a test vault password, and step-by-step instructions. [App access](https://support.google.com/googleplay/android-developer/answer/9859455)
+7. **Store listing:** title without "Amazon" (e.g. *PhotoVault: encrypted photo backup*), description saying "works with Amazon Photos, not affiliated with Amazon", icon, feature graphic, 2+ screenshots. To take screenshots, use *Settings > Allow screenshots*. [Impersonation policy](https://support.google.com/googleplay/android-developer/answer/9888374?hl=en)
 
 ### Donations on Play
 
@@ -78,10 +78,39 @@ Switching from the test key to the release key means uninstalling the test build
 
 ### Real risk
 
-Play bans apps that use a service or API against that service's terms. [Play policy](https://support.google.com/googleplay/android-developer/answer/16559646?hl=en) PhotoVault uses Amazon Photos' private web API, and old Amazon Drive terms limited use to Amazon's own features. A complaint from Amazon or a strict reviewer could get the app rejected or removed. GitHub and IzzyOnDroid don't carry this risk.
+Play bans apps that use a service or API against that service's terms. [Play policy](https://support.google.com/googleplay/android-developer/answer/16559646?hl=en) PhotoVault uses Amazon Photos' private web API, and old Amazon Drive terms limited use to Amazon's own features. A complaint from Amazon or a strict reviewer could get the app rejected or removed. GitHub and IzzyOnDroid don't carry this risk. OneDrive goes through Microsoft's official API, so it doesn't have this problem; if Play objects to the Amazon part, a Play build with OneDrive only is a way out.
 
 ### Order of work
 
-1. Donation link live (section 1). Release key created (section 2).
+1. Donation link live (section 1). Release key created (section 2). Microsoft app registered (section 4).
 2. Repo public, GitHub release, and IzzyOnDroid, where donations are fine.
 3. Play: account, then .aab build, then closed test with 12 testers for 14 days, then forms and listing, then production.
+
+## 4. OneDrive app registration
+
+Every app that signs in with a Microsoft account must be registered with Microsoft. The registration is free and gives an **Application (client) ID**, which goes into the build. There is no secret: the app signs in with OAuth 2.0 + PKCE in the browser. One registration serves all users.
+
+### What you need
+
+- A **Microsoft Entra directory (tenant)**. Personal Microsoft accounts can no longer register apps outside a directory. If you don't have one (work or school), the usual way is a free Azure account at [azure.microsoft.com/free](https://azure.microsoft.com/free): it creates a "Default Directory". Azure may ask for a card to verify your identity; app registrations cost nothing.
+
+### Steps (about 10 minutes)
+
+1. Sign in at [entra.microsoft.com](https://entra.microsoft.com), open **App registrations** (the search box at the top finds it if the menu differs) > **New registration**.
+2. **Name: `PhotoVault`.** OneDrive names the app's folder after it (`Apps/PhotoVault`).
+3. **Supported account types:** *Accounts in any organizational directory and personal Microsoft accounts*. (The app signs in through the `common` endpoint, which needs this option.)
+4. **Redirect URI:** platform *Public client/native (mobile & desktop)*, value exactly:
+   `io.github.rimaturus.photovault://auth`
+   Then **Register**.
+5. On the app's page, copy the **Application (client) ID**.
+6. Optional but tidy: **API permissions > Add a permission > Microsoft Graph > Delegated**: `Files.ReadWrite.AppFolder` and `offline_access` (and `Files.ReadWrite`, used only if a user picks the "full OneDrive access" fallback). Don't grant admin consent; users consent for themselves.
+7. Build with it:
+   `ONEDRIVE_CLIENT_ID='the-client-id' KS_PASS='...' ./build.sh`
+   The client ID is not a secret: it ends up inside the APK and in the sign-in URL.
+
+### Good to know
+
+- The consent screen shows PhotoVault as **unverified**. Publisher verification needs a Microsoft Cloud Partner Program account (a business), so a personal project stays unverified. Personal Microsoft accounts can still consent; some organisations block unverified apps for their work accounts.
+- The app asks only for `Files.ReadWrite.AppFolder`: it sees its own folder and nothing else in the user's OneDrive. If Microsoft refuses the app folder for a new registration (it happens), setup offers *full OneDrive access* instead; the vault then goes in a normal folder `PhotoVault`.
+- Refresh tokens of public clients last up to 90 days without use; after that the app asks to sign in again. Users can remove the app's access at [account.live.com/consent/Manage](https://account.live.com/consent/Manage).
+- Why not Google Photos: the Google Photos API allows uploading only real photos and videos, has no delete, and doesn't return bit-exact originals, which encrypted files need. Google Drive (`drive.file` scope) would work, but Google's sign-in for Android apps without Google Play services libraries needs extra work (custom URI schemes are disabled for new Android OAuth clients). Possible later.

@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="app.photovault" android:versionCode="5" android:versionName="1.4">
+    package="app.photovault" android:versionCode="6" android:versionName="1.5">
     <uses-sdk android:minSdkVersion="33" android:targetSdkVersion="36" />
 
     <!-- The complete list of permissions. No storage, contacts, location, camera or microphone access. -->
-    <uses-permission android:name="android.permission.INTERNET" />                     <!-- talk to Amazon Photos -->
+    <uses-permission android:name="android.permission.INTERNET" />                     <!-- talk to Amazon Photos or OneDrive -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />                <!-- optional fingerprint unlock -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />           <!-- uploads continue in background -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
@@ -21,6 +21,16 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <!-- OneDrive sign-in: Microsoft sends the browser back here (OAuth redirect, checked with PKCE and state) -->
+        <activity android:name=".AuthRedirect" android:exported="true" android:noHistory="true"
+            android:excludeFromRecents="true" android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="io.github.rimaturus.photovault" android:host="auth" />
             </intent-filter>
         </activity>
         <service android:name=".SyncService" android:exported="false"

@@ -3,11 +3,14 @@
 #   Ubuntu 24.04:  sudo apt install aapt apksigner dalvik-exchange zipalign openjdk-21-jdk-headless zip curl
 #   KS_PASS=... ./build.sh           GitHub build (with the donation link)
 #   KS_PASS=... PLAY=1 ./build.sh    Google Play build (no donation link: Play's payments policy)
+#   ONEDRIVE_CLIENT_ID=... KS_PASS=... ./build.sh   with OneDrive (needs your Microsoft app registration)
 set -e
 cd "$(dirname "$0")"
 # Donation link shown in the app (Info and Menu > Support PhotoVault). Empty = no donation button.
 DONATE_URL="${DONATE_URL-https://buymeacoffee.com/rimaturus}"
 SOURCE_URL="${SOURCE_URL-https://github.com/rimaturus/PhotoVault}"
+# OneDrive: the "Application (client) ID" of your Microsoft app registration (PUBLISHING.md). Empty = OneDrive not offered.
+ONEDRIVE_CLIENT_ID="${ONEDRIVE_CLIENT_ID-}"
 # Google Play: no donation link and no link to a page with donation links (Play payments policy, see PUBLISHING.md)
 [ "$PLAY" = 1 ] && DONATE_URL="" && SOURCE_URL=""
 # Java compiles against API 36; resources are linked against API 34 because Debian's aapt can't read newer
@@ -23,6 +26,7 @@ package app.photovault;
 final class Config {
     static final String DONATE_URL = "$DONATE_URL";
     static final String SOURCE_URL = "$SOURCE_URL";
+    static final String ONEDRIVE_CLIENT_ID = "$ONEDRIVE_CLIENT_ID";
 }
 EOC
 aapt package -f -0 arsc -M AndroidManifest.xml -S res -I "$RES_JAR" -F build/res.apk
