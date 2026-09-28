@@ -1,12 +1,13 @@
 #!/bin/sh
-# Builds PhotoVault.apk without Gradle: aapt + javac + dx + zipalign + apksigner.
-#   Ubuntu 24.04:  sudo apt install aapt apksigner dalvik-exchange zipalign openjdk-21-jdk-headless zip curl
-#   KS_PASS=... ./build.sh           GitHub build (with the donation link)
-#   KS_PASS=... PLAY=1 ./build.sh    Google Play build (no donation link: Play's payments policy)
+# Builds PhotoVault without Gradle: aapt/aapt2 + javac + dx, then an APK (zipalign + apksigner) or an App Bundle (bundletool).
+#   Ubuntu 24.04:  sudo apt install aapt apksigner dalvik-exchange zipalign openjdk-21-jdk-headless zip unzip curl
+#   KS_PASS=... ./build.sh                 PhotoVault.apk, GitHub build (with the donation link)
+#   KS_PASS=... PLAY=1 ./build.sh          PhotoVault-play.apk, Google Play texts (no donation link: Play's payments policy)
+#   KS_PASS=... PLAY=1 AAB=1 ./build.sh    PhotoVault-play.aab for Google Play: App Bundle with code transparency
 #   ONEDRIVE_CLIENT_ID=... KS_PASS=... ./build.sh   with OneDrive (needs your Microsoft app registration)
 set -e
 cd "$(dirname "$0")"
-# Donation link shown in the app (Info and Menu > Support PhotoVault). Empty = no donation button.
+# Donation link shown in the app (Settings > Support PhotoVault). Empty = no donation button.
 DONATE_URL="${DONATE_URL-https://buymeacoffee.com/rimaturus}"
 SOURCE_URL="${SOURCE_URL-https://github.com/rimaturus/PhotoVault}"
 # OneDrive: the "Application (client) ID" of your Microsoft app registration (PUBLISHING.md). Empty = OneDrive not offered.
@@ -15,10 +16,13 @@ ONEDRIVE_CLIENT_ID="${ONEDRIVE_CLIENT_ID-}"
 [ "$PLAY" = 1 ] && DONATE_URL="" && SOURCE_URL=""
 # Java compiles against API 36; resources are linked against API 34 because Debian's aapt can't read newer
 # framework resource tables (the framework attribute IDs used here are identical in both).
-JAR=sdk/android-36.jar RES_JAR=sdk/android-34.jar
+JAR=sdk/android-36.jar RES_JAR=sdk/android-34.jar BUNDLETOOL=sdk/bundletool-all-1.18.3.jar
 mkdir -p sdk
 [ -f "$JAR" ] || curl -sSL -o "$JAR" https://raw.githubusercontent.com/Reginer/aosp-android-jar/main/android-36/android.jar
 [ -f "$RES_JAR" ] || curl -sSL -o "$RES_JAR" https://raw.githubusercontent.com/Reginer/aosp-android-jar/main/android-34/android.jar
+[ "$AAB" != 1 ] || [ -f "$BUNDLETOOL" ] || curl -sSL -o "$BUNDLETOOL" https://github.com/google/bundletool/releases/download/1.18.3/bundletool-all-1.18.3.jar
+KEYSTORE="${KEYSTORE-photovault.jks}"
+[ -n "$KS_PASS" ] || { echo "Set KS_PASS to the signing-key password (README > Build from source)."; exit 1; }
 rm -rf build && mkdir -p build/classes build/gen/app/photovault
 cat > build/gen/app/photovault/Config.java <<EOC
 package app.photovault;
@@ -30,19 +34,41 @@ final class Config {
 }
 EOC
 # resources: texts in 6 languages; R.java is generated for the Java package app.photovault
-aapt package -f -0 arsc -M AndroidManifest.xml -S res -I "$RES_JAR" -F build/res.apk -J build/gen --custom-package app.photovault
+if [ "$AAB" = 1 ]; then # App Bundle: resources in aapt2's protobuf format
+    aapt2 compile --dir res -o build/res.zip
+    aapt2 link --proto-format -o build/res.apk -I "$RES_JAR" --manifest AndroidManifest.xml --java build/gen --custom-package app.photovault build/res.zip
+else
+    aapt package -f -0 arsc -M AndroidManifest.xml -S res -I "$RES_JAR" -F build/res.apk -J build/gen --custom-package app.photovault
+fi
 javac -nowarn -Xlint:-options -source 8 -target 8 -bootclasspath "$JAR" -d build/classes $(find src build/gen -name '*.java')
 dalvik-exchange --dex --min-sdk-version=26 --output=build/classes.dex build/classes
-cp build/res.apk build/unsigned.apk
-(cd build && zip -q unsigned.apk classes.dex)
-zipalign -f -p 4 build/unsigned.apk build/aligned.apk
-# Signing: keep the keystore private and out of git. Anyone with it can publish "updates" that install over your users' app.
-KEYSTORE="${KEYSTORE-photovault.jks}"
-[ -n "$KS_PASS" ] || { echo "Set KS_PASS to the signing-key password (README → Build from source)."; exit 1; }
 [ -f "$KEYSTORE" ] || keytool -genkeypair -keystore "$KEYSTORE" -storepass "$KS_PASS" -keypass "$KS_PASS" \
     -alias photovault -keyalg RSA -keysize 4096 -validity 10000 -dname "CN=PhotoVault"
-OUT=PhotoVault.apk; [ "$PLAY" = 1 ] && OUT=PhotoVault-play.apk
-apksigner sign --v2-signing-enabled true --v3-signing-enabled true --ks "$KEYSTORE" --ks-pass env:KS_PASS \
-    --ks-key-alias photovault --out "$OUT" build/aligned.apk
-apksigner verify --print-certs "$OUT" | grep SHA-256
+# Signing: keep the keystore private and out of git. Anyone with it can publish "updates" that install over your users' app.
+
+if [ "$AAB" = 1 ]; then
+    # base module layout: manifest/, dex/, res/, resources.pb
+    mkdir -p build/base/manifest build/base/dex
+    (cd build/base && unzip -q ../res.apk && mv AndroidManifest.xml manifest/ && cp ../classes.dex dex/ && zip -qr ../base.zip .)
+    java -jar "$BUNDLETOOL" build-bundle --modules=build/base.zip --output=build/plain.aab
+    # code transparency: a signed list of the code, so anyone can check that what Play installs is exactly this build
+    (umask 077; printf '%s\n' "$KS_PASS" > build/ks.pass)
+    java -jar "$BUNDLETOOL" add-transparency --bundle=build/plain.aab --output=build/transparent.aab \
+        --ks="$KEYSTORE" --ks-key-alias=photovault --ks-pass=file:build/ks.pass
+    rm -f build/ks.pass
+    OUT=PhotoVault-play.aab; [ "$PLAY" = 1 ] || OUT=PhotoVault.aab
+    # the bundle is signed with the upload key; Google Play re-signs the APKs it delivers (Play App Signing)
+    jarsigner -keystore "$KEYSTORE" -storepass:env KS_PASS -sigalg SHA256withRSA -digestalg SHA-256 \
+        -signedjar "$OUT" build/transparent.aab photovault > /dev/null
+    jarsigner -verify "$OUT" | head -1
+    keytool -printcert -jarfile "$OUT" | grep SHA256
+else
+    cp build/res.apk build/unsigned.apk
+    (cd build && zip -q unsigned.apk classes.dex)
+    zipalign -f -p 4 build/unsigned.apk build/aligned.apk
+    OUT=PhotoVault.apk; [ "$PLAY" = 1 ] && OUT=PhotoVault-play.apk
+    apksigner sign --v2-signing-enabled true --v3-signing-enabled true --ks "$KEYSTORE" --ks-pass env:KS_PASS \
+        --ks-key-alias photovault --out "$OUT" build/aligned.apk
+    apksigner verify --print-certs "$OUT" | grep SHA-256
+fi
 echo "OK: $OUT  sha256 $(sha256sum "$OUT" | cut -d' ' -f1)"

@@ -184,9 +184,10 @@ The 36-byte header is authenticated as GCM associated data. The format is implem
 No Gradle and no Android Studio needed. On Ubuntu 24.04:
 
 ```
-sudo apt install aapt apksigner dalvik-exchange zipalign openjdk-21-jdk-headless zip curl
+sudo apt install aapt apksigner dalvik-exchange zipalign openjdk-21-jdk-headless zip unzip curl
 KS_PASS='a-strong-password' ./build.sh           # creates photovault.jks on first run; DONATE_URL=... to change the donation link
 KS_PASS='a-strong-password' PLAY=1 ./build.sh     # Google Play variant: no donation or source links (Play payments policy)
+KS_PASS='a-strong-password' PLAY=1 AAB=1 ./build.sh   # the same as an App Bundle (.aab) for Google Play, with code transparency
 ONEDRIVE_CLIENT_ID='your-app-id' KS_PASS='...' ./build.sh   # with OneDrive (see PUBLISHING.md, "OneDrive app registration")
 ```
 
