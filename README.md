@@ -8,7 +8,7 @@ Amazon Prime includes unlimited full-resolution photo storage, and OneDrive come
 
 ![What you see vs. what the cloud stores](docs/comparison.png)
 
-> **Status: beta (v1.5).** Android 13 or newer. Not affiliated with, endorsed by or connected to Amazon or Microsoft.
+> **Status: beta (v1.6).** Android 13 or newer. Not affiliated with, endorsed by or connected to Amazon or Microsoft.
 
 ---
 
@@ -110,7 +110,7 @@ No storage, contacts, location, camera or microphone permission. Photos are chos
 
 - **Two storage options**: Amazon Photos (unlimited photos with Prime, unofficial web interface) or OneDrive (official Microsoft Graph API, uses your OneDrive quota). You choose at setup
 - Encrypt and upload many photos and videos at once, of any size; big files go up as 32 MB encrypted parts. The queue keeps running in the background with a progress notification and a *Stop* button
-- Gallery with instant previews; opening an item shows its preview immediately, then the full-quality original as soon as it is downloaded and decrypted. Swipe left and right to move between items
+- Gallery with instant previews. Opening an item shows its small preview (kept encrypted on the phone) and downloads nothing: the full-quality original is fetched only when you tap *Original* or *Save to phone*, so browsing costs no data. Swipe left and right to move between items
 - **Folders**: create folders, long-press photos to select several and *Move* or *Delete* them, rename or delete folders (their photos are kept). Folder names and contents are saved in the cloud in one more encrypted file, so the provider can't read them and a new phone gets them back
 - *Cloud view* button: see the exact file the cloud stores
 - Fingerprint unlock, auto-lock, no screenshots
@@ -119,6 +119,7 @@ No storage, contacts, location, camera or microphone permission. Photos are chos
 - Save a decrypted copy back to your gallery
 - Self-test on your own account before you store anything: upload, check that the cloud keeps the file bit-for-bit, decrypt, check the storage, clean up
 - Light and dark theme, following the phone
+- In English, Italian, Spanish, German, French and Portuguese (*Settings > Language*, or Android's per-app language setting)
 - Recovery **without the app**, on any PC, with a 115-line Python script
 
 ## Install
@@ -203,6 +204,7 @@ Source layout:
 | `src/app/photovault/SyncService.java` | Background uploads and sync |
 | `src/app/photovault/MainActivity.java` | All screens |
 | `src/app/photovault/Ui.java` | Colors, cards, buttons and icons, drawn in code |
+| `res/values*/strings.xml` | All texts, one file per language (default: English) |
 | `photovault.py` | PC tool, same format |
 
 ## Limits and honest risks

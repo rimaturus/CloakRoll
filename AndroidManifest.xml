@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="app.photovault" android:versionCode="6" android:versionName="1.5">
+    package="io.github.rimaturus.photovault" android:versionCode="7" android:versionName="1.6">
+    <!-- Application id io.github.rimaturus.photovault (as on Google Play); the Java code lives in package app.photovault -->
     <uses-sdk android:minSdkVersion="33" android:targetSdkVersion="36" />
 
     <!-- The complete list of permissions. No storage, contacts, location, camera or microphone access. -->
@@ -13,9 +14,9 @@
     <application android:label="PhotoVault" android:icon="@mipmap/ic_launcher"
         android:allowBackup="false" android:dataExtractionRules="@xml/data_extraction_rules"
         android:usesCleartextTraffic="false" android:largeHeap="true"
-        android:enableOnBackInvokedCallback="true"
+        android:enableOnBackInvokedCallback="true" android:localeConfig="@xml/locales_config"
         android:theme="@android:style/Theme.DeviceDefault.DayNight">
-        <activity android:name=".MainActivity" android:exported="true"
+        <activity android:name="app.photovault.MainActivity" android:exported="true"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|density"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
@@ -24,7 +25,7 @@
             </intent-filter>
         </activity>
         <!-- OneDrive sign-in: Microsoft sends the browser back here (OAuth redirect, checked with PKCE and state) -->
-        <activity android:name=".AuthRedirect" android:exported="true" android:noHistory="true"
+        <activity android:name="app.photovault.AuthRedirect" android:exported="true" android:noHistory="true"
             android:excludeFromRecents="true" android:theme="@android:style/Theme.Translucent.NoTitleBar">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
@@ -33,7 +34,7 @@
                 <data android:scheme="io.github.rimaturus.photovault" android:host="auth" />
             </intent-filter>
         </activity>
-        <service android:name=".SyncService" android:exported="false"
+        <service android:name="app.photovault.SyncService" android:exported="false"
             android:foregroundServiceType="dataSync" />
     </application>
 </manifest>

@@ -49,7 +49,7 @@ Sources: [Ko-fi fees](https://help.ko-fi.com/hc/en-us/articles/360002506494-Does
 
 Switching from the test key to the release key means uninstalling the test build once; *Sync* restores the vault.
 
-**Coming in 2027: Android developer verification.** Apps installed outside Google Play will need a verified developer. It starts 30 September 2026 in Brazil, Indonesia, Singapore and Thailand, and goes global in 2027. Register the package name `app.photovault` and your release key in the Android Developer Console before then. [Android developer verification](https://developer.android.com/developer-verification)
+**Coming in 2027: Android developer verification.** Apps installed outside Google Play will need a verified developer. It starts 30 September 2026 in Brazil, Indonesia, Singapore and Thailand, and goes global in 2027. Register the package name `io.github.rimaturus.photovault` and your release key in the Android Developer Console before then. [Android developer verification](https://developer.android.com/developer-verification)
 
 ## 3. Google Play
 
@@ -57,7 +57,8 @@ Switching from the test key to the release key means uninstalling the test build
 
 1. **Developer account.** Personal account, $25 once, government ID, and a check that you own an Android phone (Play Console app). [Play Console Help](https://support.google.com/googleplay/android-developer/answer/6112435?hl=en)
 2. **Closed test.** At least **12 testers** opted in for **14 days in a row**, then apply for production access. Friends and colleagues are fine; they need an Android phone and a Google account. [Play Console Help](https://support.google.com/googleplay/android-developer/answer/14151465?hl=en)
-3. **Target API 36:** done in v1.2. [Target API requirements](https://support.google.com/googleplay/android-developer/answer/11926878?hl=en)
+3. **Package name `io.github.rimaturus.photovault`** (the app uses it since v1.6). It is permanent once the app is created. It sits under your GitHub name, `rimaturus.github.io`, which you control.
+   **Target API 36:** done in v1.2. [Target API requirements](https://support.google.com/googleplay/android-developer/answer/11926878?hl=en)
 4. **Android App Bundle (.aab)**, not an APK. `build.sh` makes APKs only; the .aab needs Google's `aapt2` and `bundletool`. The simplest route is a GitHub Actions job (GitHub's servers have the Android tools) that builds and signs the .aab. [App bundles](https://android-developers.googleblog.com/2021/06/the-future-of-android-app-bundles-is.html)
 5. **Play App Signing.** Upload with an *upload key*; Google holds the signing key. If Play users and GitHub users should be able to update each other's installs, give Google your own release key before the first release. [Play App Signing](https://support.google.com/googleplay/android-developer/answer/9842756?hl=en)
 6. **App content forms** (Play Console > Policy > App content):
@@ -66,7 +67,12 @@ Switching from the test key to the release key means uninstalling the test build
    - Ads: no. Content rating questionnaire. Target audience: 18+.
    - **Foreground service (dataSync):** description ("uploads and downloads of the user's encrypted photos that the user started"), what happens if interrupted, and a **video** of an upload continuing in the background. Use case *Network transfer: upload or download*. [Foreground service requirements](https://support.google.com/googleplay/android-developer/answer/13392821?hl=en)
    - **App access:** reviewers need a login. Create a separate **test Microsoft account** (free, 5 GB of OneDrive: the easiest for reviewers) and/or a **test Amazon account**, a test vault password, and step-by-step instructions. [App access](https://support.google.com/googleplay/android-developer/answer/9859455)
-7. **Store listing:** title without "Amazon" (e.g. *PhotoVault: encrypted photo backup*), description saying "works with Amazon Photos, not affiliated with Amazon", icon, feature graphic, 2+ screenshots. To take screenshots, use *Settings > Allow screenshots*. [Impersonation policy](https://support.google.com/googleplay/android-developer/answer/9888374?hl=en)
+7. **"Create app" form:**
+   - App, free (this can't be changed to paid later).
+   - **Automatic protection: turn it off.** Google would rewrite the Play version to add its own licence check against copies installed outside Play. That protects against piracy, which a free GPL app doesn't need. It shows nothing to users. And the Play binary would no longer match the published source. Once on, it can only be switched off release by release. [Automatic protection](https://support.google.com/googleplay/android-developer/answer/10183279?hl=en)
+   - Accept the three declarations. On US export rules: the app uses only standard cryptography (AES from Android) and is open source.
+   - Instead, add **code transparency** to the .aab (`bundletool add-transparency`, with a key only you hold). Anyone can then check that the code installed from Play is the code you built. That is the trust signal that fits an open-source app. [Code transparency](https://developer.android.com/guide/app-bundle/code-transparency)
+8. **Store listing:** title without "Amazon" (e.g. *PhotoVault: encrypted photo backup*), description saying "works with Amazon Photos, not affiliated with Amazon", icon, feature graphic, 2+ screenshots. To take screenshots, use *Settings > Allow screenshots*. [Impersonation policy](https://support.google.com/googleplay/android-developer/answer/9888374?hl=en)
 
 ### Donations on Play
 

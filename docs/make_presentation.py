@@ -120,7 +120,7 @@ c.drawImage("res/mipmap-xxxhdpi/ic_launcher.png", 64, H - 200, 104, 104, mask="a
 text(64, 250, "PhotoVault", "B", 64, TEXT)
 para(64, 196, "Your photos on Amazon Photos or OneDrive. The cloud only sees noise.", 860, "L", 27, TEXT)
 text(64, 120, "Free  ·  Open source  ·  No ads  ·  No tracking  ·  Donation-funded", "B", 15, TEAL)
-text(64, 64, REPO + "   ·   v1.5 beta   ·   Android 13+", "R", 12, MUTED)
+text(64, 64, REPO + "   ·   v1.6 beta   ·   Android 13+", "R", 12, MUTED)
 c.linkURL("https://" + REPO, (64, 58, 300, 78), relative=0)
 
 # 2 ---------------------------------------------------------------- problem

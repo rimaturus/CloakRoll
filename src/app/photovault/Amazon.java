@@ -27,7 +27,7 @@ final class Amazon extends Cloud {
 
     @Override String name() { return "Amazon Photos"; }
 
-    @Override String trashName() { return "Amazon Photos trash"; }
+    @Override String trashName() { return st.app.getString(R.string.trash_amazon); }
 
     /** Amazon's store/sign-in domains. The in-app sign-in page only shows these; other links open in the normal browser. */
     static boolean isAmazonHost(String host) {
@@ -200,10 +200,10 @@ final class Amazon extends Cloud {
     /** Prime: photos are free. Anything billed as "photo" means unlimited photo storage isn't active. */
     @Override String[] storage() throws Exception {
         JSONObject u = new JSONObject(call("GET", DRIVE + "/account/usage?" + BASE, null, false)), ph = u.optJSONObject("photo");
-        if (ph == null) return new String[]{"warn", "Amazon didn't report photo storage"};
+        if (ph == null) return new String[]{"warn", st.app.getString(R.string.stor_amz_none)};
         long bill = ph.optJSONObject("billable") == null ? -1 : ph.getJSONObject("billable").optLong("bytes", -1);
         long total = ph.optJSONObject("total") == null ? -1 : ph.getJSONObject("total").optLong("bytes", -1);
-        if (bill == 0) return new String[]{"ok", "Photos stored: " + Store.human(total) + ", billed: 0 B (Prime unlimited photos active)"};
-        return new String[]{"warn", "Photos billed: " + Store.human(bill) + " of " + Store.human(total) + ". Prime unlimited photos may not be active on this account"};
+        if (bill == 0) return new String[]{"ok", st.app.getString(R.string.stor_amz_ok, Store.human(total))};
+        return new String[]{"warn", st.app.getString(R.string.stor_amz_warn, Store.human(bill), Store.human(total))};
     }
 }
