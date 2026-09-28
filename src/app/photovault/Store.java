@@ -82,7 +82,8 @@ final class Store {
     List<Item> items = new ArrayList<>(); // decrypted index: in memory only while unlocked
     List<String> folders = new ArrayList<>();
     String status;                        // last background-job line shown in the gallery
-    boolean jobRunning, needLogin, allowScreenshots;
+    boolean jobRunning, statusBad, needLogin, allowScreenshots;
+    String reopen;                        // screen to show again after the language changed (the activity restarts)
     long backgroundSince;
     Runnable onChange;                    // set by the visible screen
 
@@ -113,9 +114,9 @@ final class Store {
 
     void post(Runnable r) { ui.post(r); }
 
-    /** Any thread. */
-    void setStatus(final String s, final boolean running) {
-        post(new Runnable() { public void run() { status = s; jobRunning = running; changed(); } });
+    /** Any thread. `bad`: the job failed or stopped early (shown with a warning sign). */
+    void setStatus(final String s, final boolean running, final boolean bad) {
+        post(new Runnable() { public void run() { status = s; jobRunning = running; statusBad = bad; changed(); } });
     }
 
     /** Main thread. Background jobs keep their own copy of the key until they finish. */
@@ -543,11 +544,13 @@ final class Store {
         return String.format(Locale.ROOT, "%.2f GB", b / 1073741824.0);
     }
 
-    static String explain(Throwable e) {
-        if (isAuth(e)) return "sign-in expired or not accepted: sign in again";
-        if (e instanceof AEADBadTagException) return "decryption check failed: wrong key, or the file was altered";
-        if (e instanceof java.net.UnknownHostException) return "no internet connection";
-        if (e instanceof OutOfMemoryError) return "file too big for this phone's app memory";
+    /** An error in words, in the app's language. Our own IOExceptions carry their message as it is. */
+    String explain(Throwable e) {
+        if (isAuth(e)) return app.getString(R.string.e_auth);
+        if (e instanceof AEADBadTagException) return app.getString(R.string.e_tamper);
+        if (e instanceof java.net.UnknownHostException) return app.getString(R.string.e_offline);
+        if (e instanceof OutOfMemoryError) return app.getString(R.string.e_memory);
+        if (e.getClass() == IOException.class && e.getMessage() != null) return e.getMessage();
         return e.getClass().getSimpleName() + ": " + e.getMessage();
     }
 

@@ -43,7 +43,7 @@ final class OneDrive extends Cloud {
 
     @Override String name() { return "OneDrive"; }
 
-    @Override String trashName() { return "OneDrive recycle bin"; }
+    @Override String trashName() { return st.app.getString(R.string.trash_onedrive); }
 
     /** The vault uses full OneDrive access (folder "PhotoVault") instead of the app folder. Kept across sign-outs. */
     boolean allFiles() { return st.prefs.getBoolean("od_all", false); }
@@ -73,12 +73,12 @@ final class OneDrive extends Cloud {
     synchronized void redeem(Uri answer) throws Exception {
         String state = answer.getQueryParameter("state"), code = answer.getQueryParameter("code");
         if (state == null || !state.equals(st.prefs.getString("od_state", null)))
-            throw new IOException("the sign-in answer doesn't match the request: start again");
+            throw new IOException(st.app.getString(R.string.od_err_state));
         String verifier = st.prefs.getString("od_verifier", ""), scope = st.prefs.getString("od_scope_req", SCOPE_APP_FOLDER);
         st.prefs.edit().remove("od_state").remove("od_verifier").remove("od_scope_req").commit(); // one answer per request
         String err = answer.getQueryParameter("error");
-        if (err != null) throw new IOException("Microsoft answered " + err);
-        if (code == null) throw new IOException("Microsoft sent no sign-in code");
+        if ("access_denied".equals(err)) throw new IOException(st.app.getString(R.string.od_err_cancelled));
+        if (err != null || code == null) throw new IOException(st.app.getString(R.string.od_err_answer, err != null ? err : "no code"));
         access = null;
         tokens("grant_type=authorization_code&client_id=" + Uri.encode(Config.ONEDRIVE_CLIENT_ID) + "&code=" + Uri.encode(code)
                 + "&redirect_uri=" + Uri.encode(REDIRECT) + "&code_verifier=" + Uri.encode(verifier) + "&scope=" + Uri.encode(scope));
@@ -298,11 +298,11 @@ final class OneDrive extends Cloud {
         try { q = call("GET", GRAPH + "/me/drive?$select=quota", null).optJSONObject("quota"); }
         catch (ApiError e) {
             if (e.code != 403) throw e;
-            return new String[]{"warn", "OneDrive doesn't show the storage use to an app limited to its own folder: check it on onedrive.live.com"};
+            return new String[]{"warn", st.app.getString(R.string.stor_od_hidden)};
         }
-        if (q == null) return new String[]{"warn", "OneDrive didn't report storage"};
+        if (q == null) return new String[]{"warn", st.app.getString(R.string.stor_od_none)};
         long used = q.optLong("used"), total = q.optLong("total"), free = q.optLong("remaining");
         return new String[]{free < (1L << 30) ? "warn" : "ok",
-                "OneDrive: " + Store.human(used) + " used of " + Store.human(total) + " (" + Store.human(free) + " free)"};
+                st.app.getString(R.string.stor_od, Store.human(used), Store.human(total), Store.human(free))};
     }
 }

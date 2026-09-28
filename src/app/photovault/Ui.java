@@ -20,6 +20,7 @@ import android.widget.*;
 /**
  * Look and feel, built in code (no resources, no libraries): one palette for light and one for dark mode,
  * cards, pill buttons, inputs and a small set of icons drawn as paths, so no font can show them as empty boxes.
+ * Texts come from the strings.xml files in res (one per language); the only symbol used in them is the bullet.
  */
 final class Ui {
     static final int PRIMARY = 0, TONAL = 1, TEXT = 2, DANGER = 3;
@@ -139,6 +140,7 @@ final class Ui {
         t.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
         t.setTextColor(color);
         t.setLineSpacing(0, 1.18f);
+        t.setTextAlignment(View.TEXT_ALIGNMENT_GRAVITY); // gravity decides, whatever the phone's theme sets
         if (bold) t.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         if (parent != null) parent.addView(t);
         return t;
@@ -185,6 +187,8 @@ final class Ui {
         };
         b.setText(s);
         b.setGravity(Gravity.CENTER);
+        b.setTextAlignment(View.TEXT_ALIGNMENT_CENTER);
+        b.setIncludeFontPadding(false); // optically centered also with fonts that have uneven built-in padding
         b.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
         b.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         b.setMinHeight(dp(52));
@@ -219,7 +223,8 @@ final class Ui {
             }
         });
         box.addView(e, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        final TextView show = label(box, "Show", 14, accent, true);
+        final String showText = c.getString(R.string.show), hideText = c.getString(R.string.hide);
+        final TextView show = label(box, showText, 14, accent, true);
         show.setPadding(dp(14), dp(14), dp(16), dp(14));
         show.setBackground(ripple(null, dp(14)));
         show.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
@@ -227,7 +232,7 @@ final class Ui {
             e.setInputType(visible ? hidden : InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
             e.setTypeface(Typeface.DEFAULT);
             e.setSelection(e.getText().length());
-            show.setText(visible ? "Show" : "Hide");
+            show.setText(visible ? showText : hideText);
         }});
         parent.addView(box, wide(dp(10)));
         return e;
@@ -235,17 +240,17 @@ final class Ui {
 
     /** A line under a new password: too short / ok / strong. Advice only; the length rule is checked on submit. */
     void strength(final EditText e, LinearLayout parent) {
-        final TextView t = label(parent, "At least 10 characters. A few random words is ideal.", 13, muted, false);
+        final TextView t = label(parent, c.getString(R.string.strength_hint), 13, muted, false);
         t.setPadding(dp(6), dp(6), 0, 0);
         e.addTextChangedListener(new TextWatcher() {
             public void beforeTextChanged(CharSequence s, int a, int b, int d) { }
             public void onTextChanged(CharSequence s, int a, int b, int d) { }
             public void afterTextChanged(Editable s) {
                 int n = s.length(), words = s.toString().trim().split("[\\s\\-_.]+").length;
-                if (n == 0) { t.setText("At least 10 characters. A few random words is ideal."); t.setTextColor(muted); }
-                else if (n < 10) { t.setText("Too short: " + n + " of at least 10 characters"); t.setTextColor(bad); }
-                else if (n < 16 && words < 4) { t.setText("OK. Longer is stronger: 4 or more random words is best."); t.setTextColor(warn); }
-                else { t.setText("Strong"); t.setTextColor(ok); }
+                if (n == 0) { t.setText(R.string.strength_hint); t.setTextColor(muted); }
+                else if (n < 10) { t.setText(c.getString(R.string.strength_short, n)); t.setTextColor(bad); }
+                else if (n < 16 && words < 4) { t.setText(R.string.strength_ok); t.setTextColor(warn); }
+                else { t.setText(R.string.strength_strong); t.setTextColor(ok); }
             }
         });
     }
@@ -339,6 +344,8 @@ final class Ui {
         a.addView(iv, new LinearLayout.LayoutParams(dp(24), dp(24)));
         TextView t = label(a, s, 12, color, true);
         t.setPadding(0, dp(4), 0, 0);
+        t.setGravity(Gravity.CENTER);
+        t.setIncludeFontPadding(false);
         a.setOnClickListener(l);
         parent.addView(a, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         return a;
@@ -348,7 +355,7 @@ final class Ui {
 
     static final int BACK = 1, CLOSE = 2, MORE = 3, PLUS = 4, CHECK = 5, LOCK = 6, KEY = 7, FOLDER = 8, MOVE = 9, TRASH = 10,
             SAVE = 11, EYE = 12, CLOUD = 13, SYNC = 14, HEART = 15, SHIELD = 16, INFO = 17, ALERT = 18, LIST = 19, CODE = 20,
-            FINGER = 21, IMAGE = 22, NOISE = 23, CIRCLE = 24;
+            FINGER = 21, IMAGE = 22, NOISE = 23, CIRCLE = 24, GLOBE = 25;
 
     /** Line icons on a 24 x 24 grid, stroked in one color. */
     static final class Icon extends Drawable {
@@ -450,6 +457,11 @@ final class Ui {
                     break;
                 }
                 case CIRCLE: a.addCircle(12, 12, 8, Path.Direction.CW); break;
+                case GLOBE:
+                    a.addCircle(12, 12, 9, Path.Direction.CW);
+                    a.addOval(new RectF(8, 3, 16, 21), Path.Direction.CW);
+                    a.moveTo(3, 12); a.lineTo(21, 12);
+                    break;
             }
             cv.drawPath(a, p);
             cv.restore();

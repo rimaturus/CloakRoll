@@ -29,7 +29,8 @@ final class Config {
     static final String ONEDRIVE_CLIENT_ID = "$ONEDRIVE_CLIENT_ID";
 }
 EOC
-aapt package -f -0 arsc -M AndroidManifest.xml -S res -I "$RES_JAR" -F build/res.apk
+# resources: texts in 6 languages; R.java is generated for the Java package app.photovault
+aapt package -f -0 arsc -M AndroidManifest.xml -S res -I "$RES_JAR" -F build/res.apk -J build/gen --custom-package app.photovault
 javac -nowarn -Xlint:-options -source 8 -target 8 -bootclasspath "$JAR" -d build/classes $(find src build/gen -name '*.java')
 dalvik-exchange --dex --min-sdk-version=26 --output=build/classes.dex build/classes
 cp build/res.apk build/unsigned.apk

@@ -38,7 +38,7 @@ public class SyncService extends Service {
     volatile int cancelUpTo;
     long lastNote;
 
-    /** Notification and status texts are plain ASCII: some phone fonts show symbols like check marks as empty boxes. */
+    /** Notification and status texts are words only (no symbols like check marks, which some phone fonts show as boxes). */
     static void start(Context c, String action, List<Uri> uris, String intoFolder) {
         Intent i = new Intent(c, SyncService.class).setAction(action).putExtra("folder", intoFolder);
         if (uris != null && !uris.isEmpty()) {
@@ -58,12 +58,12 @@ public class SyncService extends Service {
         super.onCreate();
         st = Store.get(this);
         nm = getSystemService(NotificationManager.class);
-        nm.createNotificationChannel(new NotificationChannel(CHANNEL, "Uploads and sync", NotificationManager.IMPORTANCE_LOW));
+        nm.createNotificationChannel(new NotificationChannel(CHANNEL, getString(R.string.channel), NotificationManager.IMPORTANCE_LOW));
     }
 
     @Override public int onStartCommand(Intent in, int flags, int startId) {
         try {
-            startForeground(NOTE, note("Preparing...", null, -1, true), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
+            startForeground(NOTE, note(getString(R.string.preparing), null, -1, true), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
         } catch (Exception e) { // e.g. a stale "Stop" tapped while the app is in the background
             Journal.add("background service not allowed now: " + e);
             if (pending == 0) stopSelf(startId);
@@ -73,7 +73,7 @@ public class SyncService extends Service {
         String action = in == null ? "" : String.valueOf(in.getAction());
         if (STOP.equals(action)) {
             cancelUpTo = seq;
-            if (pending > 0) show("Stopping after the current file...", -1);
+            if (pending > 0) show(getString(R.string.stopping), -1);
         } else if (st.key != null && (UPLOAD.equals(action) || SYNC.equals(action) || REENCRYPT.equals(action))) {
             final byte[] k = st.key.clone(), salt = st.salt(); // taken together: they always belong to the same key
             final int id = ++seq;
@@ -88,7 +88,7 @@ public class SyncService extends Service {
                 try {
                     if (id <= cancelUpTo) return;
                     if (!st.keyIsCurrent(k)) { // the password was changed after this job was queued
-                        done(upload ? "Not added: the vault password changed meanwhile. Add these items again." : "Stopped: the vault password changed.");
+                        done(getString(upload ? R.string.not_added_pw : R.string.stopped_pw), true);
                         return;
                     }
                     if (upload) upload(k, salt, uris, into, id); else if (reencrypt) reencrypt(k, id); else sync(k, id);
@@ -106,7 +106,7 @@ public class SyncService extends Service {
 
     /** Main thread, when the queue is empty. A start request still on its way keeps the service alive. */
     void finish() {
-        if (st.jobRunning) st.setStatus("Stopped", false); // jobs cancelled before they began
+        if (st.jobRunning) st.setStatus(getString(R.string.stopped), false, true); // jobs cancelled before they began
         stopForeground(STOP_FOREGROUND_REMOVE);
         stopSelf(lastStartId);
     }
@@ -140,23 +140,23 @@ public class SyncService extends Service {
         if (ongoing) {
             b.setProgress(100, Math.max(0, pct), pct < 0);
             PendingIntent stop = PendingIntent.getService(this, 1, new Intent(this, SyncService.class).setAction(STOP), PendingIntent.FLAG_IMMUTABLE);
-            b.addAction(new Notification.Action.Builder(null, "Stop", stop).build());
+            b.addAction(new Notification.Action.Builder(null, getString(R.string.stop), stop).build());
         } else b.setAutoCancel(true);
         return b.build();
     }
 
     /** Progress in the notification (throttled) and in the gallery. */
     void show(String text, int pct) {
-        st.setStatus(text, true);
+        st.setStatus(text, true, false);
         if (destroyed) return; // stopped by the system (6 h limit): no orphan notification
         long now = SystemClock.elapsedRealtime();
         if (now - lastNote < 700 && pct > 0 && pct < 100) return;
         lastNote = now;
-        nm.notify(NOTE, note(text, "PhotoVault is working", pct, true));
+        nm.notify(NOTE, note(text, getString(R.string.n_working), pct, true));
     }
 
-    void done(String text) {
-        st.setStatus(text, false);
+    void done(String text, boolean bad) {
+        st.setStatus(text, false, bad);
         nm.notify(DONE_NOTE, note(text, "PhotoVault", 100, false));
     }
 
@@ -167,7 +167,7 @@ public class SyncService extends Service {
         for (int n = 0; n < uris.size(); n++) {
             if (id <= cancelUpTo) break;
             Uri u = uris.get(n);
-            String pre = "Adding " + (n + 1) + " of " + uris.size();
+            String pre = getString(R.string.adding, n + 1, uris.size());
             try {
                 String name = "item", mime = getContentResolver().getType(u);
                 long taken = System.currentTimeMillis();
@@ -194,7 +194,7 @@ public class SyncService extends Service {
                         System.arraycopy(first, 0, plain, plain.length - len, len);
                         first = null;
                         thumb = Store.makeThumb(plain, plain.length - len, len, it.video());
-                        it.id = put(k, salt, plain, Store.hex(Vault.random(8)) + ".png", pre + ": uploading");
+                        it.id = put(k, salt, plain, Store.hex(Vault.random(8)) + ".png", getString(R.string.up_single, pre));
                         it.size = len;
                     } else {
                         thumb = Store.makeThumb(this, u, null, it.video());
@@ -212,9 +212,12 @@ public class SyncService extends Service {
         }
         int skipped = uris.size() - ok - failed;
         if (ok > 0 && !into.isEmpty()) st.backupFolders(k);
-        done("Done: " + ok + " added" + (into.isEmpty() ? "" : " to a folder") + (failed > 0 ? ", " + failed + " failed (see Log)" : "")
-                + (skipped > 0 ? ", " + skipped + " not started" : ""));
+        done(plural(into.isEmpty() ? R.plurals.done_added : R.plurals.done_added_folder, ok)
+                + (failed > 0 ? plural(R.plurals.done_failed, failed) : "") + (skipped > 0 ? plural(R.plurals.done_not_started, skipped) : ""),
+                failed > 0 || skipped > 0);
     }
+
+    String plural(int id, int n) { return getResources().getQuantityString(id, n, n); }
 
     /** Reads until `buf` is full or the stream ends. */
     static int readUpTo(InputStream in, byte[] buf) throws IOException {
@@ -252,7 +255,7 @@ public class SyncService extends Service {
                 String meta = new JSONObject().put("group", group).put("part", part).toString();
                 byte[] plain = Vault.plainBuffer(meta, nextLen);
                 System.arraycopy(next, 0, plain, plain.length - nextLen, nextLen);
-                ids.add(put(k, salt, plain, Store.hex(Vault.random(8)) + ".png", pre + ": " + Store.human(total) + " sent, uploading"));
+                ids.add(put(k, salt, plain, Store.hex(Vault.random(8)) + ".png", getString(R.string.up_part, pre, Store.human(total))));
                 total += nextLen;
                 nextLen = readUpTo(in, next);
             }
@@ -263,7 +266,7 @@ public class SyncService extends Service {
             if (m.toString().getBytes("UTF-8").length > 65_000) throw new IOException("file too big (over about 80 GB)");
             byte[] plain = Vault.plainBuffer(m.toString(), first.length);
             System.arraycopy(first, 0, plain, plain.length - first.length, first.length);
-            it.id = put(k, salt, plain, Store.hex(Vault.random(8)) + ".png", pre + ": " + Store.human(total) + " sent, finishing");
+            it.id = put(k, salt, plain, Store.hex(Vault.random(8)) + ".png", getString(R.string.up_finish, pre, Store.human(total)));
             it.parts.add(it.id);
             it.parts.addAll(ids);
             it.size = total;
@@ -287,7 +290,7 @@ public class SyncService extends Service {
         int restored = 0, skipped = 0, retry = 0, removed = 0;
         try {
             final Cloud cloud = st.cloud();
-            show("Sync: listing your vault on " + cloud.name() + "...", -1);
+            show(getString(R.string.sync_listing, cloud.name()), -1);
             Cloud.Listing listing = cloud.listFiles(st.folder(), 1_000_000);
             List<JSONObject> nodes = listing.files;
             final Set<String> remote = new HashSet<>(), local = new HashSet<>();
@@ -340,7 +343,7 @@ public class SyncService extends Service {
                 if (id <= cancelUpTo) break;
                 String nid = node.getString("id");
                 if (skip.contains(nid)) continue;
-                show("Sync: restoring " + n + " of " + nodes.size(), 100 * n / nodes.size());
+                show(getString(R.string.sync_restoring, n, nodes.size()), 100 * n / nodes.size());
                 File f = new File(getCacheDir(), "sync.png");
                 try {
                     try { cloud.download(nid, f, null); }
@@ -418,14 +421,14 @@ public class SyncService extends Service {
                 st.prefs.edit().putBoolean("restore_pending", false).commit();
                 if (st.foldersDirty()) st.backupFolders(k);
             } else if (!restoring && st.foldersDirty()) st.backupFolders(k); // retry an upload that failed
-            done("Sync done: " + restored + " restored, " + removed + " removed"
-                    + (skipped > 0 ? ", " + skipped + " skipped (not openable with this vault's key, see Log)" : "")
-                    + (retry > 0 ? ", " + retry + " to retry: run Sync again" : ""));
+            done(getString(R.string.sync_done, restored, removed)
+                    + (skipped > 0 ? getString(R.string.sync_skipped, skipped) : "")
+                    + (retry > 0 ? getString(R.string.sync_retry, retry) : ""), retry > 0 || id <= cancelUpTo);
             res.retry = retry;
             res.ok = id > cancelUpTo;
         } catch (Throwable e) {
             Journal.add("sync failed: " + e);
-            done("Sync failed: " + Store.explain(e));
+            done(getString(R.string.sync_failed, st.explain(e)), true);
             if (Store.isAuth(e)) st.post(new Runnable() { public void run() { st.needLogin = true; st.changed(); } });
         }
         return res;
@@ -469,7 +472,7 @@ public class SyncService extends Service {
             for (int n = 0; n < todo.size(); n++) {
                 if (id <= cancelUpTo) break;
                 final Store.Item it = todo.get(n);
-                show("Password change: re-encrypting " + (n + 1) + " of " + todo.size() + ". New uploads wait until it's done.", 100 * n / todo.size());
+                show(getString(R.string.reenc_progress, n + 1, todo.size()), 100 * n / todo.size());
                 File cached = st.blobFile(it.id);
                 try {
                     final List<String> fresh = reencryptItem(k, salt, it, id);
@@ -515,15 +518,16 @@ public class SyncService extends Service {
             if (all.complete && unknown == 0 && left == 0 && after.retire.isEmpty()) {
                 st.finishPasswordChange();
                 Journal.add("password change complete: every file uses the new key");
-                done("Password change complete: every file in your vault now uses the new password.");
+                done(getString(R.string.reenc_complete), false);
             } else if (!all.complete) {
-                done("Password change: " + ok + " files re-encrypted. " + st.cloud().name() + " doesn't list vaults this big completely, "
-                        + "so the old key is kept to make sure no file becomes unreadable.");
-            } else done("Password change paused: " + Math.max(left, unknown) + " files left" + (failed > 0 ? " (" + failed + " failed, see Log)" : "")
-                    + ". It continues the next time you unlock PhotoVault.");
+                done(getResources().getQuantityString(R.plurals.reenc_incomplete_list, ok, ok, st.cloud().name()), false);
+            } else {
+                int n = Math.max(left, unknown);
+                done(getResources().getQuantityString(R.plurals.reenc_paused, n, n, failed > 0 ? " " + plural(R.plurals.reenc_failed_part, failed) : ""), true);
+            }
         } catch (Throwable e) {
             Journal.add("re-encryption stopped: " + e);
-            done("Password change paused: " + Store.explain(e) + ". It continues the next time you unlock PhotoVault.");
+            done(getString(R.string.reenc_paused_err, st.explain(e)), true);
             if (Store.isAuth(e)) st.post(new Runnable() { public void run() { st.needLogin = true; st.changed(); } });
         }
     }
@@ -546,7 +550,7 @@ public class SyncService extends Service {
                 JSONObject m = new JSONObject(o.meta);
                 if (group == null) group = m.optString("group");
                 if (m.optInt("part", -1) != p || !group.equals(m.optString("group"))) throw new IOException("part " + (p + 1) + " doesn't belong to this file");
-                fresh.add(put(k, salt, o.plain, "r" + olds.get(p) + "-" + Store.hex(Vault.random(4)) + ".png", "Password change: uploading"));
+                fresh.add(put(k, salt, o.plain, "r" + olds.get(p) + "-" + Store.hex(Vault.random(4)) + ".png", getString(R.string.reenc_uploading)));
             }
             File src = cached.exists() ? cached : down;
             if (src == down) st.cloud().download(it.id, down, null);
@@ -560,7 +564,7 @@ public class SyncService extends Service {
                 plain = Vault.plainBuffer(meta, o.dataLen());
                 System.arraycopy(o.plain, o.dataOff, plain, plain.length - o.dataLen(), o.dataLen());
             }
-            fresh.add(0, put(k, salt, plain, "r" + it.id + "-" + Store.hex(Vault.random(4)) + ".png", "Password change: uploading"));
+            fresh.add(0, put(k, salt, plain, "r" + it.id + "-" + Store.hex(Vault.random(4)) + ".png", getString(R.string.reenc_uploading)));
             return fresh;
         } catch (Throwable e) {
             cached.delete(); // a damaged cached copy must not be reused
