@@ -23,7 +23,7 @@ Sources: [Ko-fi fees](https://help.ko-fi.com/hc/en-us/articles/360002506494-Does
 1. Sign up at ko-fi.com and pick a page name, e.g. `ko-fi.com/photovault` or your name.
 2. *Settings > Payments*: connect **Stripe** as an individual. If Stripe asks for a partita IVA or a company, connect **PayPal** instead (fees become 3.40% + €0.35).
 3. Make sure **Contributor status is off** (0% platform fee on tips).
-4. Page text: "PhotoVault is free, open source, with no ads and no tracking. Tips are voluntary and unlock nothing."
+4. Page text: "Cloakroll is free, open source, with no ads and no tracking. Tips are voluntary and unlock nothing."
 5. Don't enable shop, commissions, memberships or perks.
 6. Put the link in the app and the repo:
    - app: `DONATE_URL=https://ko-fi.com/yourname ./build.sh`
@@ -33,7 +33,7 @@ Sources: [Ko-fi fees](https://help.ko-fi.com/hc/en-us/articles/360002506494-Does
 ### Taxes in Italy (keep it simple, keep records)
 
 - **Voluntary donations with nothing in return** are most defensibly *liberalità*: not a TUIR income category, so not IRPEF income. There is no official ruling on open-source donations and commercialisti disagree, so get one paid opinion if amounts become significant. [LaLeggePerTutti](https://www.laleggepertutti.it/701818_i-proventi-da-donazioni-online-vanno-dichiarati), [FinanzaOnline thread](https://forum.finanzaonline.com/threads/donazioni-provenienti-da-applicazione-open-source.2091488/)
-- **Perks turn donations into sales.** Rewards, tiers, paid features or priority support make them consideration: taxable income, and with regularity a partita IVA. Agenzia delle Entrate Risposta 137/2018 treated reward crowdfunding this way. [Il Sole 24 Ore](https://ntplusfisco.ilsole24ore.com/art/obbligo-partita-iva-volta-ottenuto-finanziamento-tramite-crowdfunding-AErOxy5G) PhotoVault's "donations unlock nothing" rule is also the tax-friendly one.
+- **Perks turn donations into sales.** Rewards, tiers, paid features or priority support make them consideration: taxable income, and with regularity a partita IVA. Agenzia delle Entrate Risposta 137/2018 treated reward crowdfunding this way. [Il Sole 24 Ore](https://ntplusfisco.ilsole24ore.com/art/obbligo-partita-iva-volta-ottenuto-finanziamento-tramite-crowdfunding-AErOxy5G) Cloakroll's "donations unlock nothing" rule is also the tax-friendly one.
 - **Donation tax** (8% between unrelated people): since 2025, small gifts of modest value are expressly excluded, and informal gifts are assessed only in specific cases. Normal €5 to €50 tips are fine. [art. 56-bis TUS](https://www.brocardi.it/testo-unico-successioni-donazioni/titolo-iii/art56bis.html), [Federnotizie](https://www.federnotizie.it/le-modifiche-del-d-lgs-139-2024-novita-per-laccertamento-e-la-tassazione-delle-liberalita-indirette/)
 - **Foreign balances** (Stripe, PayPal): withdraw to your Italian bank regularly. Above €15,000 peak balance you must fill in quadro RW; above €5,000 average, IVAFE is due. [Fiscomania](https://fiscomania.com/quadro-rw-conti-esteri-5000-euro/)
 - **Keep:** yearly platform statements, a screenshot of the "unlock nothing" text, receipts of project costs (e.g. the Play fee).
@@ -41,7 +41,7 @@ Sources: [Ko-fi fees](https://help.ko-fi.com/hc/en-us/articles/360002506494-Does
 ## 2. GitHub releases
 
 1. Create your **release signing key** on your own PC. Never commit it, and back it up offline: losing it means users can't update.
-   `keytool -genkeypair -keystore release.jks -alias photovault -keyalg RSA -keysize 4096 -validity 10000 -dname "CN=PhotoVault"`
+   `keytool -genkeypair -keystore release.jks -alias photovault -keyalg RSA -keysize 4096 -validity 10000 -dname "CN=Cloakroll"`
 2. Build: `KEYSTORE=release.jks KS_PASS='...' ./build.sh`
 3. Make the repo public. Then create a release, attach `PhotoVault.apk`, and paste the SHA-256 lines of `apksigner verify --print-certs PhotoVault.apk` and `sha256sum PhotoVault.apk` in the notes.
 4. Settings > Security: enable *Private vulnerability reporting*.
@@ -72,7 +72,7 @@ Switching from the test key to the release key means uninstalling the test build
    - **Automatic protection: turn it off.** Google would rewrite the Play version to add its own licence check against copies installed outside Play. That protects against piracy, which a free GPL app doesn't need. It shows nothing to users. And the Play binary would no longer match the published source. Once on, it can only be switched off release by release. [Automatic protection](https://support.google.com/googleplay/android-developer/answer/10183279?hl=en)
    - Accept the three declarations. On US export rules: the app uses only standard cryptography (AES from Android) and is open source.
    - Instead, add **code transparency** to the .aab (`bundletool add-transparency`, with a key only you hold). Anyone can then check that the code installed from Play is the code you built. That is the trust signal that fits an open-source app. [Code transparency](https://developer.android.com/guide/app-bundle/code-transparency)
-8. **Store listing:** title without "Amazon" (e.g. *PhotoVault: encrypted photo backup*), description saying "works with Amazon Photos, not affiliated with Amazon", icon, feature graphic, 2+ screenshots. To take screenshots, use *Settings > Allow screenshots*. [Impersonation policy](https://support.google.com/googleplay/android-developer/answer/9888374?hl=en)
+8. **Store listing:** title without "Amazon" (e.g. *Cloakroll: encrypted photo backup*), description saying "works with Amazon Photos, not affiliated with Amazon", icon, feature graphic, 2+ screenshots. To take screenshots, use *Settings > Allow screenshots*. [Impersonation policy](https://support.google.com/googleplay/android-developer/answer/9888374?hl=en)
 
 ### Donations on Play
 
@@ -84,7 +84,7 @@ Switching from the test key to the release key means uninstalling the test build
 
 ### Real risk
 
-Play bans apps that use a service or API against that service's terms. [Play policy](https://support.google.com/googleplay/android-developer/answer/16559646?hl=en) PhotoVault uses Amazon Photos' private web API, and old Amazon Drive terms limited use to Amazon's own features. A complaint from Amazon or a strict reviewer could get the app rejected or removed. GitHub and IzzyOnDroid don't carry this risk. OneDrive goes through Microsoft's official API, so it doesn't have this problem; if Play objects to the Amazon part, a Play build with OneDrive only is a way out.
+Play bans apps that use a service or API against that service's terms. [Play policy](https://support.google.com/googleplay/android-developer/answer/16559646?hl=en) Cloakroll uses Amazon Photos' private web API, and old Amazon Drive terms limited use to Amazon's own features. A complaint from Amazon or a strict reviewer could get the app rejected or removed. GitHub and IzzyOnDroid don't carry this risk. OneDrive goes through Microsoft's official API, so it doesn't have this problem; if Play objects to the Amazon part, a Play build with OneDrive only is a way out.
 
 ### Order of work
 
@@ -116,7 +116,7 @@ Every app that signs in with a Microsoft account must be registered with Microso
 
 ### Good to know
 
-- The consent screen shows PhotoVault as **unverified**. Publisher verification needs a Microsoft Cloud Partner Program account (a business), so a personal project stays unverified. Personal Microsoft accounts can still consent; some organisations block unverified apps for their work accounts.
+- The consent screen shows Cloakroll as **unverified**. Publisher verification needs a Microsoft Cloud Partner Program account (a business), so a personal project stays unverified. Personal Microsoft accounts can still consent; some organisations block unverified apps for their work accounts.
 - The app asks only for `Files.ReadWrite.AppFolder`: it sees its own folder and nothing else in the user's OneDrive. If Microsoft refuses the app folder for a new registration (it happens), setup offers *full OneDrive access* instead; the vault then goes in a normal folder `PhotoVault`.
 - Refresh tokens of public clients last up to 90 days without use; after that the app asks to sign in again. Users can remove the app's access at [account.live.com/consent/Manage](https://account.live.com/consent/Manage).
 - Why not Google Photos: the Google Photos API allows uploading only real photos and videos, has no delete, and doesn't return bit-exact originals, which encrypted files need. Google Drive (`drive.file` scope) would work, but Google's sign-in for Android apps without Google Play services libraries needs extra work (custom URI schemes are disabled for new Android OAuth clients). Possible later.

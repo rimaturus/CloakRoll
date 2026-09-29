@@ -131,7 +131,7 @@ public class SyncService extends Service {
         PendingIntent open = PendingIntent.getActivity(this, 0, getPackageManager().getLaunchIntentForPackage(getPackageName()), PendingIntent.FLAG_IMMUTABLE);
         Notification.Builder b = new Notification.Builder(this, CHANNEL)
                 .setSmallIcon(ongoing ? android.R.drawable.stat_sys_upload : android.R.drawable.stat_sys_upload_done)
-                .setContentTitle(title == null ? "PhotoVault" : title)
+                .setContentTitle(title == null ? "Cloakroll" : title)
                 .setContentText(text)
                 .setContentIntent(open)
                 .setOnlyAlertOnce(true)
@@ -157,7 +157,7 @@ public class SyncService extends Service {
 
     void done(String text, boolean bad) {
         st.setStatus(text, false, bad);
-        nm.notify(DONE_NOTE, note(text, "PhotoVault", 100, false));
+        nm.notify(DONE_NOTE, note(text, "Cloakroll", 100, false));
     }
 
     // ---------------------------------------------------------------- jobs
