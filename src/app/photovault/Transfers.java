@@ -2,6 +2,7 @@ package app.photovault;
 
 import android.os.SystemClock;
 import java.io.File;
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.CancellationException;
 import org.json.JSONObject;
@@ -10,6 +11,8 @@ import org.json.JSONObject;
  * The storage as the app uses it: the chosen cloud (or phone folder), with every upload and download timed for the
  * statistics and, if switched on, a copy of each encrypted PNG kept in a folder on the phone. Downloads come from
  * that copy when it's there. Copies are best effort: a failed copy never fails the upload.
+ * A transfer cut short by the network is tried again here (3 times in all), so one bad moment doesn't throw away
+ * the parts of a big file that are already through.
  */
 final class Transfers extends Cloud {
     final Cloud c;
@@ -23,19 +26,46 @@ final class Transfers extends Cloud {
         try { return Store.hex(id.getBytes("UTF-8")) + ".png"; } catch (java.io.UnsupportedEncodingException e) { throw new RuntimeException(e); }
     }
 
+    /** Ids become file names on the phone (previews, downloads): one that would point outside their folder is refused. */
+    static boolean safe(String id) { return !id.isEmpty() && id.indexOf('/') < 0; }
+
+    /** The network failed (not: the storage said no, the phone is offline, a file is missing): worth another try. */
+    private static boolean again(Exception e, int attempt) {
+        return attempt < 2 && e instanceof IOException && !(e instanceof ApiError)
+                && !(e instanceof java.net.UnknownHostException) && !(e instanceof java.io.FileNotFoundException);
+    }
+
     @Override String name() { return c.name(); }
     @Override String trashName() { return c.trashName(); }
     @Override boolean hasSession() { return c.hasSession(); }
     @Override String vaultFolder() throws Exception { return c.vaultFolder(); }
     @Override String folder(String parentId, String name) throws Exception { return c.folder(parentId, name); }
-    @Override Listing listFiles(String folderId, int max) throws Exception { return c.listFiles(folderId, max); }
     @Override String[] storage() throws Exception { return c.storage(); }
     @Override void signOut() { c.signOut(); }
 
+    @Override Listing listFiles(String folderId, int max) throws Exception {
+        Listing l = c.listFiles(folderId, max);
+        for (Iterator<JSONObject> i = l.files.iterator(); i.hasNext(); )
+            if (!safe(i.next().optString("id"))) { i.remove(); Journal.add("a file with an unusable id was ignored"); }
+        return l;
+    }
+
     @Override JSONObject upload(File png, String name, String parentId, Progress p) throws Exception {
-        long t0 = SystemClock.elapsedRealtime();
-        JSONObject r = c.upload(png, name, parentId, p);
-        stats.add(Stats.UP, png.length(), SystemClock.elapsedRealtime() - t0);
+        JSONObject r = null;
+        for (int attempt = 0; r == null; attempt++) {
+            long t0 = SystemClock.elapsedRealtime();
+            try {
+                r = c.upload(png, name, parentId, p);
+                stats.add(Stats.UP, png.length(), SystemClock.elapsedRealtime() - t0);
+            } catch (Exception e) {
+                if (!again(e, attempt)) throw e;
+                Journal.add("upload interrupted, trying again: " + e.getClass().getSimpleName());
+                Thread.sleep(3000L << attempt);
+                for (JSONObject n : c.listFiles(parentId, 1_000_000).files) // it may have arrived all the same: no second copy
+                    if (name.equals(n.optString("name"))) r = new JSONObject().put("id", n.getString("id")).put("type", "");
+            }
+        }
+        if (!safe(r.getString("id"))) throw new IOException("the storage gave an unusable file id");
         if (copy != null) try { copy.put(png, copyName(r.getString("id"))); }
         catch (Exception e) { Journal.add("copy on the phone not saved: " + e.getClass().getSimpleName()); }
         return r;
@@ -45,9 +75,18 @@ final class Transfers extends Cloud {
         if (copy != null) try { if (copy.get(copyName(id), dst, p)) return; }
         catch (CancellationException e) { throw e; } // the viewer was closed: no download either
         catch (Exception e) { Journal.add("copy on the phone not readable, downloading: " + e.getClass().getSimpleName()); }
-        long t0 = SystemClock.elapsedRealtime();
-        c.download(id, dst, p);
-        stats.add(Stats.DOWN, dst.length(), SystemClock.elapsedRealtime() - t0);
+        for (int attempt = 0; ; attempt++) {
+            long t0 = SystemClock.elapsedRealtime();
+            try {
+                c.download(id, dst, p);
+                stats.add(Stats.DOWN, dst.length(), SystemClock.elapsedRealtime() - t0);
+                break;
+            } catch (Exception e) {
+                if (!again(e, attempt)) throw e;
+                Journal.add("download interrupted, trying again: " + e.getClass().getSimpleName());
+                Thread.sleep(3000L << attempt);
+            }
+        }
         if (copy != null) try { copy.put(dst, copyName(id)); }
         catch (Exception e) { Journal.add("copy on the phone not saved: " + e.getClass().getSimpleName()); }
     }

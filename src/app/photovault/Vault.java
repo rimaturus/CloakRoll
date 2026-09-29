@@ -23,6 +23,8 @@ public final class Vault {
     static final byte[] MAGIC = {'P', 'V', 'T', '2'};
     static final int HDR = 4 + 16 + 12 + 8;
     static final int ITERATIONS = 600_000;
+    /** No file is bigger (parts: 32 MB, before parts existed: 100 MB). The length in the header isn't authenticated yet when memory is set aside for it. */
+    static final long MAX_CT = 1 << 28;
     static final SecureRandom RNG = new SecureRandom();
     private static final byte[] PNG_SIG = {(byte) 137, 80, 78, 71, 13, 10, 26, 10};
 
@@ -92,7 +94,7 @@ public final class Vault {
         checkMagic(hdr);
         long ctLen = 0;
         for (int i = 0; i < 8; i++) ctLen = (ctLen << 8) | (hdr[32 + i] & 0xFF);
-        if (ctLen < 18 || ctLen > r.capacity() - HDR) throw new IOException("corrupt vault header");
+        if (ctLen < 18 || ctLen > MAX_CT || ctLen > r.capacity() - HDR) throw new IOException("corrupt vault header");
         byte[] ct = new byte[(int) ctLen];
         r.readFully(ct, 0, ct.length);
         Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
@@ -261,7 +263,7 @@ public final class Vault {
             int f = z.read();
             if (f < 0) throw new EOFException("PNG too short");
             for (int n = 0; n < row; ) { int k = z.read(cur, n, row - n); if (k < 0) throw new EOFException(); n += k; }
-            for (int i = 0; i < row; i++) {
+            if (f != 0) for (int i = 0; i < row; i++) { // our own PNGs use no filter: nothing to undo
                 int a = i >= 3 ? cur[i - 3] & 0xFF : 0, b = prev[i] & 0xFF, c = i >= 3 ? prev[i - 3] & 0xFF : 0, p;
                 switch (f) {
                     case 0: continue;

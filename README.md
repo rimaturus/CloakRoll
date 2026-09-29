@@ -114,14 +114,14 @@ No storage, contacts, location, camera or microphone permission. Photos are chos
 
 - **Four storage options**, chosen at setup: Amazon Photos (unlimited photos with Prime, unofficial web interface), OneDrive (official Microsoft Graph API), Google Drive (official Drive API, `drive.file` access only), or **only on this phone**, in a folder you choose
 - **Encrypted copy on the phone** next to any cloud (setup or *Settings*): every encrypted PNG also goes in a folder you choose, so items open faster and offline, and you have one more backup
-- **Time estimates and statistics**: time left while adding or opening files, and *Settings > Transfer statistics* with the measured upload, download, encryption and decryption speeds of your phone and connection
-- Encrypt and upload many photos and videos at once, of any size; big files go up as 32 MB encrypted parts. The queue keeps running in the background with a progress notification and a *Stop* button
+- **Time estimates and statistics**: time left while adding or opening files, during *Sync* and a password change (from the speed of the transfer under way, or the measured ones until it has one), and *Settings > Transfer statistics* with the measured upload, download, encryption and decryption speeds of your phone and connection
+- Encrypt and upload many photos and videos at once, of any size; big files go up as 32 MB encrypted parts, and a part cut short by the network is sent again by itself instead of failing the whole file. The queue keeps running in the background with a progress notification and a *Stop* button
 - Gallery with instant previews. Opening an item shows its small preview (kept encrypted on the phone) and downloads nothing: the full-quality original is fetched only when you tap *Original* or *Save to phone*, so browsing costs no data. Swipe left and right to move between items
-- **Folders**: create folders, long-press photos to select several and *Move* or *Delete* them, rename or delete folders (their photos are kept). Folder names and contents are saved in the cloud in one more encrypted file, so the provider can't read them and a new phone gets them back
+- **Folders**: create folders, long-press photos to select several and *Move* or *Delete* them, rename or delete folders (their photos are kept). Folder names and contents are saved in the cloud in one more encrypted file, together with the list of your items (name, date, size), so the provider can't read them and a new phone gets them back
 - *Cloud view* button: see the exact file the cloud stores
 - Fingerprint unlock, auto-lock, no screenshots
 - **Change the vault password** (*Settings > Change vault password*): the app shows first what it costs (data, time), then re-encrypts every file in the cloud with the new key in the background, resuming by itself if interrupted
-- *Sync*: restores your vault on a new phone and removes items you deleted on the provider's website
+- *Sync*: restores your vault on a new phone and removes items you deleted on the provider's website. The list comes from that encrypted file, so restoring downloads no photos: previews are made when you open an item, or all at once with *Settings > Download the missing previews*. A file that is damaged in the cloud (it doesn't open on two Syncs) is left where it is and skipped, so it can't hold up a restore or a password change
 - Save a decrypted copy back to your gallery
 - Self-test on your own account before you store anything: upload, check that the cloud keeps the file bit-for-bit, decrypt, check the storage, clean up
 - Light and dark theme, following the phone

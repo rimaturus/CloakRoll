@@ -13,6 +13,7 @@
 - **A folder on your phone** (if you keep the vault only on the phone, or a copy of it) is chosen with Android's folder picker; the app gets access to that folder only, and writes only encrypted files there.
 - **Transfer statistics** (speeds and times of uploads, downloads, encryption and decryption) are kept in the app's settings on your phone only, to show time estimates. They are never sent anywhere.
 - **On your phone** the app stores, in its private storage: the list of your items and small previews (both encrypted with your vault key), encrypted downloads used as a cache, and settings (vault salt, a password-check value, and optionally your key wrapped by a fingerprint-protected hardware key). This data is excluded from Android backups and device transfers.
+- **The list of your items** (names, dates, sizes) and your folders are also saved in your storage, in one more file encrypted with your vault key, so a new phone can restore them without downloading every file. Deleting an item removes it from that list.
 - **Amazon, Microsoft or Google** receives the encrypted files and sees their number, size and upload time, plus the usual information from using your account. Their handling of that is governed by their own privacy notices. Cloakroll is not affiliated with Amazon, Microsoft or Google.
 
 ## Data sharing and selling

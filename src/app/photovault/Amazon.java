@@ -58,16 +58,26 @@ final class Amazon extends Cloud {
         try { return URLEncoder.encode(s, "UTF-8"); } catch (UnsupportedEncodingException e) { throw new RuntimeException(e); }
     }
 
-    private static HttpURLConnection open(String method, String url) throws IOException {
+    private static HttpURLConnection open(String method, String url) throws IOException { return open(method, url, true); }
+
+    /** `session`: with the sign-in cookies. */
+    private static HttpURLConnection open(String method, String url, boolean session) throws IOException {
         HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
         c.setRequestMethod(method);
         c.setConnectTimeout(30_000);
         c.setReadTimeout(180_000);
         c.setRequestProperty("User-Agent", UA);
-        c.setRequestProperty("Cookie", cookies());
-        c.setRequestProperty("x-amzn-sessionid", cookie("session-id"));
+        if (session) {
+            c.setRequestProperty("Cookie", cookies());
+            c.setRequestProperty("x-amzn-sessionid", cookie("session-id"));
+        }
         c.setRequestProperty("Accept", "application/json, */*");
         return c;
+    }
+
+    /** Hosts that get the sign-in cookies: Amazon's sites and its drive servers, over https. */
+    static boolean takesSession(URL u) {
+        return "https".equals(u.getProtocol()) && (isAmazonHost(u.getHost()) || u.getHost().toLowerCase(Locale.ROOT).endsWith(".drive.amazonaws.com"));
     }
 
     /** Logs method, path and status only: never cookies, keys or file names. */
@@ -176,17 +186,30 @@ final class Amazon extends Cloud {
         }
     }
 
+    /**
+     * Redirects are followed here, not by the connection, which would send the sign-in cookies along to whatever
+     * address a redirect names: download links on other hosts are fetched without them.
+     */
     private static void get(String url, File dst, Progress p) throws IOException {
         long t0 = System.currentTimeMillis();
-        HttpURLConnection c = open("GET", url);
-        c.setInstanceFollowRedirects(true);
-        try {
-            int code = c.getResponseCode();
-            if (code >= 400) { finish(c, "GET", url, t0, false); return; }
-            save(c.getInputStream(), c.getContentLengthLong(), dst, p);
-            Journal.add("GET " + url.split("\\?")[0].replaceFirst("https://[^/]+", "") + " -> HTTP " + code + ", "
-                    + dst.length() / 1024 + " KB (" + (System.currentTimeMillis() - t0) + " ms)");
-        } finally { c.disconnect(); }
+        URL at = new URL(url);
+        for (int hop = 0; ; hop++) {
+            boolean session = takesSession(at);
+            HttpURLConnection c = open("GET", at.toString(), session);
+            c.setInstanceFollowRedirects(false);
+            try {
+                int code = c.getResponseCode();
+                String to = c.getHeaderField("Location");
+                if (code / 100 == 3 && to != null && hop < 5) { at = new URL(at, to); continue; }
+                if (code >= 400 && !session) // a link's refusal is not an expired sign-in: the other endpoint is tried
+                    throw new ApiError(code == 401 || code == 403 ? 410 : code, "Amazon download link answered HTTP " + code);
+                if (code >= 400) { finish(c, "GET", url, t0, false); return; }
+                save(c.getInputStream(), c.getContentLengthLong(), dst, p);
+                Journal.add("GET " + url.split("\\?")[0].replaceFirst("https://[^/]+", "") + " -> HTTP " + code + ", "
+                        + dst.length() / 1024 + " KB (" + (System.currentTimeMillis() - t0) + " ms)");
+                return;
+            } finally { c.disconnect(); }
+        }
     }
 
     /** Moves nodes to the Amazon Photos trash (recoverable there for a while, like a normal delete). */

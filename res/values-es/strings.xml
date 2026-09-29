@@ -195,7 +195,7 @@
     <string name="off">Desactivado</string>
     <string name="screenshots_t">Permitir capturas de pantalla</string>
     <string name="screenshots_d">Hasta cerrar la app. Desactivado: la app también aparece en blanco en las apps recientes</string>
-    <string name="sync_d">Restaura elementos y carpetas, quita los eliminados allí</string>
+    <string name="sync_d">Restaura elementos y carpetas desde la lista guardada allí, quita los eliminados allí</string>
     <string name="selftest_t">Ejecutar la autoprueba</string>
     <string name="selftest_d">Comprueba toda la cadena con una imagen de prueba</string>
     <string name="signout_t">Cerrar sesión en %1$s</string>
@@ -214,7 +214,7 @@
     <string name="promise_d">• Sin anuncios. Sin rastreadores, sin analíticas, sin informes de fallos.\n• Sin servidores ni cuentas nuestras: la app solo habla con %1$s, y solo con archivos cifrados.\n• No recopilamos nada, así que no podemos vender ni filtrar nada.\n• Gratis y de código abierto (GPL-3.0): cualquiera puede comprobar qué hace la app.\n• Financiada solo con donaciones voluntarias. Donar no desbloquea nada: todas las funciones son gratis para todos.</string>
     <string name="where_t">Dónde están tus datos</string>
     <string name="where_cloud">• %1$s: %2$s, %3$s (los archivos grandes ocupan varios). También aparecen en la app de %1$s como imágenes de ruido: son ellos, no los borres allí.</string>
-    <string name="where_folders">• Carpetas: sus nombres y qué elemento está en cuál se guardan allí en un PNG cifrado más (subcarpeta \"index\"), así un teléfono nuevo las recupera al sincronizar. %1$s no puede leer los nombres de las carpetas.</string>
+    <string name="where_folders">• Carpetas y lista: los nombres de las carpetas, qué elemento está en cuál y la lista de tus elementos (nombre, fecha, tamaño) se guardan allí en un PNG cifrado más (subcarpeta \"index\"), así un teléfono nuevo los recupera al sincronizar sin descargar cada archivo. %1$s no puede leer nada de eso.</string>
     <string name="where_phone">• Este teléfono: la lista de elementos y las pequeñas vistas previas, ambas cifradas con la clave de tu bóveda, en el almacenamiento privado de la app, excluidas de las copias de seguridad y de las transferencias entre teléfonos.</string>
     <string name="where_signin_od">• Inicio de sesión: un token de Microsoft, guardado cifrado con una clave en el hardware seguro del teléfono.</string>
     <string name="where_signin_amazon">• Inicio de sesión: las cookies de sesión de Amazon de la página de inicio de sesión, en el almacenamiento privado de la app.</string>
@@ -284,7 +284,7 @@
     <string name="sync_skipped">, %1$d omitidos (no se pueden abrir con la clave de esta bóveda, ver registro)</string>
     <string name="sync_retry">, %1$d por reintentar: vuelve a sincronizar</string>
     <string name="sync_failed">Falló la sincronización: %1$s</string>
-    <string name="reenc_progress">Cambio de contraseña: recifrando %1$d de %2$d. Las subidas nuevas esperan a que termine.</string>
+    <string name="reenc_progress">Cambio de contraseña: recifrando %1$d de %2$d%3$s. Las subidas nuevas esperan a que termine.</string>
     <string name="reenc_uploading">Cambio de contraseña: subiendo</string>
     <string name="reenc_complete">Cambio de contraseña completado: ahora cada archivo de tu bóveda usa la contraseña nueva.</string>
     <string name="reenc_paused_err">Cambio de contraseña en pausa: %1$s. Sigue la próxima vez que desbloquees Cloakroll.</string>
@@ -448,4 +448,8 @@
     <string name="est_line">• Archivo de %1$s: %2$s para añadirlo, %3$s para abrirlo</string>
     <string name="est_note">\"?\" hasta que ese paso se haya medido: primero añade o abre un archivo. Las mismas estimaciones aparecen como tiempo restante al añadir o abrir archivos.</string>
     <string name="stats_reset">Restablecer estadísticas</string>
+    <string name="previews_t">Descargar las vistas previas que faltan</string>
+    <string name="previews_d">%1$d sin vista previa. Descarga cada uno una vez (%2$s): mejor con Wi-Fi. Abrir un elemento también crea su vista previa</string>
+    <string name="previews_progress">Vistas previas: %1$d de %2$d</string>
+    <string name="previews_done">Vistas previas creadas: %1$d</string>
 </resources>

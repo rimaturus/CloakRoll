@@ -27,7 +27,7 @@ import org.json.JSONObject;
  * The notification never shows file names.
  */
 public class SyncService extends Service {
-    static final String UPLOAD = "upload", SYNC = "sync", REENCRYPT = "reencrypt", STOP = "stop", CHANNEL = "sync";
+    static final String UPLOAD = "upload", SYNC = "sync", REENCRYPT = "reencrypt", PREVIEWS = "previews", STOP = "stop", CHANNEL = "sync";
     static final int NOTE = 1, DONE_NOTE = 2;
 
     final ExecutorService worker = Executors.newSingleThreadExecutor();
@@ -37,7 +37,8 @@ public class SyncService extends Service {
     volatile boolean destroyed;
     volatile int cancelUpTo;
     long lastNote;
-    long jobTotal, jobDone; // upload job: bytes of all its files, and of the ones already uploaded (for the time left)
+    long jobTotal, jobDone;  // bytes of all the files of the job, and of the ones already uploaded (for the time left)
+    String[] jobSteps = {};  // what the rest of them goes through before it is uploaded
 
     /** Notification and status texts are words only (no symbols like check marks, which some phone fonts show as boxes). */
     static void start(Context c, String action, List<Uri> uris, String intoFolder) {
@@ -75,13 +76,13 @@ public class SyncService extends Service {
         if (STOP.equals(action)) {
             cancelUpTo = seq;
             if (pending > 0) show(getString(R.string.stopping), -1);
-        } else if (st.key != null && (UPLOAD.equals(action) || SYNC.equals(action) || REENCRYPT.equals(action))) {
+        } else if (st.key != null && (UPLOAD.equals(action) || SYNC.equals(action) || REENCRYPT.equals(action) || PREVIEWS.equals(action))) {
             final byte[] k = st.key.clone(), salt = st.salt(); // taken together: they always belong to the same key
             final int id = ++seq;
             final List<Uri> uris = new ArrayList<>();
             ClipData c = in.getClipData();
             if (c != null) for (int n = 0; n < c.getItemCount(); n++) uris.add(c.getItemAt(n).getUri());
-            final boolean upload = UPLOAD.equals(action), reencrypt = REENCRYPT.equals(action);
+            final boolean upload = UPLOAD.equals(action), reencrypt = REENCRYPT.equals(action), previews = PREVIEWS.equals(action);
             final String into = in.getStringExtra("folder") == null ? "" : in.getStringExtra("folder");
             pending++;
             st.busyJobs = pending;
@@ -92,7 +93,8 @@ public class SyncService extends Service {
                         done(getString(upload ? R.string.not_added_pw : R.string.stopped_pw), true);
                         return;
                     }
-                    if (upload) upload(k, salt, uris, into, id); else if (reencrypt) reencrypt(k, id); else sync(k, id);
+                    if (upload) upload(k, salt, uris, into, id); else if (reencrypt) reencrypt(k, id);
+                    else if (previews) previews(k, id); else sync(k, id);
                 } catch (Throwable e) {
                     Journal.add("background job failed: " + e);
                 } finally {
@@ -165,11 +167,16 @@ public class SyncService extends Service {
 
     void upload(byte[] k, byte[] salt, List<Uri> uris, String into, int id) throws Exception {
         int ok = 0, failed = 0;
+        long[] sizes = new long[uris.size()];
+        long before = 0; // bytes of the files before this one
         jobTotal = jobDone = 0;
-        for (Uri u : uris) jobTotal += size(u);
+        jobSteps = new String[]{Stats.ENC};
+        for (int n = 0; n < sizes.length; n++) jobTotal += sizes[n] = size(uris.get(n));
         for (int n = 0; n < uris.size(); n++) {
             if (id <= cancelUpTo) break;
             Uri u = uris.get(n);
+            jobDone = before; // also after a file that failed half way
+            before += sizes[n];
             String pre = getString(R.string.adding, n + 1, uris.size());
             try {
                 String name = "item", mime = getContentResolver().getType(u);
@@ -187,9 +194,10 @@ public class SyncService extends Service {
                 it.name = name; it.mime = mime; it.taken = taken; it.folder = into; it.salt = Store.hex(salt);
                 byte[] thumb;
                 try (InputStream in = getContentResolver().openInputStream(u)) {
-                    byte[] first = new byte[Store.CHUNK];
+                    // as big as the file, not 32 MB for every photo (one byte more shows a file longer than it said)
+                    byte[] first = new byte[(int) Math.min(Store.CHUNK, sizes[n] > 0 ? sizes[n] + 1 : Store.CHUNK)];
                     int len = readUpTo(in, first);
-                    byte[] second = len < Store.CHUNK ? null : new byte[Store.CHUNK];
+                    byte[] second = len < first.length ? null : new byte[Store.CHUNK];
                     int len2 = second == null ? 0 : readUpTo(in, second);
                     if (len2 == 0) { // fits in one PNG
                         String meta = new JSONObject().put("name", name).put("taken", taken).put("mime", mime).toString();
@@ -204,7 +212,7 @@ public class SyncService extends Service {
                         uploadParts(k, salt, it, first, second, len2, in, thumb, pre, id);
                     }
                 }
-                if (thumb != null) Store.writeFile(st.thumbFile(it.id), Vault.seal(k, thumb));
+                st.saveThumb(it.id, k, thumb);
                 st.add(k, it, false);
                 ok++;
             } catch (Throwable e) {
@@ -215,7 +223,7 @@ public class SyncService extends Service {
         }
         jobTotal = 0;
         int skipped = uris.size() - ok - failed;
-        if (ok > 0 && !into.isEmpty()) st.backupFolders(k);
+        if (ok > 0) st.backupFolders(k); // the list in the cloud knows the new items: another phone gets them without downloading
         done(plural(into.isEmpty() ? R.plurals.done_added : R.plurals.done_added_folder, ok)
                 + (failed > 0 ? plural(R.plurals.done_failed, failed) : "") + (skipped > 0 ? plural(R.plurals.done_not_started, skipped) : ""),
                 failed > 0 || skipped > 0);
@@ -231,11 +239,13 @@ public class SyncService extends Service {
         return 0;
     }
 
-    /** " · about 3 min left" for the rest of an upload job, from the measured speeds; "" if not known yet. */
-    String left(long uploadedNow) {
+    /**
+     * " · about 3 min left" for the rest of the job, `sent` bytes into an upload that began `ms` ago: at the speed of
+     * that upload, or at the measured ones until it has one. "" if not known yet.
+     */
+    String left(long sent, long ms) {
         if (jobTotal <= 0) return "";
-        String t = st.eta(st.stats.seconds(Math.max(0, jobTotal - jobDone - uploadedNow), Stats.ENC, Stats.UP));
-        return t.isEmpty() ? "" : " · " + getString(R.string.eta_left, t);
+        return st.left(st.stats.seconds(Math.max(0, jobTotal - jobDone - sent), st.stats.speed(Stats.UP, sent, ms), jobSteps));
     }
 
     /** Reads until `buf` is full or the stream ends. */
@@ -252,9 +262,12 @@ public class SyncService extends Service {
             long t0 = SystemClock.elapsedRealtime();
             try (OutputStream o = new BufferedOutputStream(new FileOutputStream(png), 1 << 16)) { Vault.encryptToPng(k, salt, plain, o); }
             st.stats.add(Stats.ENC, plain.length, SystemClock.elapsedRealtime() - t0);
-            final long total = png.length();
+            final long total = png.length(), began = SystemClock.elapsedRealtime();
             String id = st.cloud().upload(png, name, st.folder(), new Cloud.Progress() {
-                public void on(long d, long t) { int pct = (int) (100 * d / Math.max(1, total)); show(label + " " + pct + "%" + left(d), pct); }
+                public void on(long d, long t) {
+                    int pct = (int) (100 * d / Math.max(1, total));
+                    show(label + " " + pct + "%" + left(d, SystemClock.elapsedRealtime() - began), pct);
+                }
             }).getString("id");
             jobDone += plain.length;
             return id;
@@ -310,7 +323,7 @@ public class SyncService extends Service {
 
     SyncResult sync(final byte[] k, int id) throws Exception {
         SyncResult res = new SyncResult();
-        int restored = 0, skipped = 0, retry = 0, removed = 0;
+        int restored = 0, skipped = 0, retry = 0, removed = 0, fetched = 0; // fetched: restored by downloading the file
         try {
             final Cloud cloud = st.cloud();
             show(getString(R.string.sync_listing, cloud.name()), -1);
@@ -323,6 +336,12 @@ public class SyncService extends Service {
             final Set<String> skip = new HashSet<>();
             for (Store.Item it : before.items) skip.addAll(it.nodes());
             skip.addAll(before.retire); // old copies replaced during a password change: to be trashed, never restored
+            // files no key of this vault opens (found by an earlier Sync): known without downloading them again
+            final Set<String> foreign = new HashSet<>(st.prefs.getStringSet("unopenable", Collections.<String>emptySet()));
+            // files of this vault that didn't open once: a second time, they are damaged in the cloud (see below)
+            final Set<String> suspect = new HashSet<>(st.prefs.getStringSet("suspect", Collections.<String>emptySet()));
+            if (listing.complete) { foreign.retainAll(remote); suspect.retainAll(remote); }
+            for (String x : foreign) if (remote.contains(x) && skip.add(x)) { res.unopenable.add(x); skipped++; }
             if (listing.complete) { // drop items deleted on the cloud's website or app (only if it listed everything)
                 final List<String> gone = new ArrayList<>();
                 for (String x : local) if (!remote.contains(x)) gone.add(x);
@@ -341,12 +360,33 @@ public class SyncService extends Service {
             // Skipped if the phone has newer folder changes that aren't in the cloud yet, unless a restore is under way.
             final boolean restoring = st.prefs.getBoolean("restore_pending", false);
             JSONObject fb = null;
+            boolean noList = false; // the cloud has no list of the items yet (made by an older version): this Sync saves one
             if (restoring || !st.foldersDirty())
-                try { fb = st.readFoldersBackup(k); }
+                try { fb = st.readFoldersBackup(k); noList = fb == null || !fb.has("items"); }
                 catch (Exception e) { if (Store.isAuth(e)) throw e; Journal.add("sync: folders backup not readable: " + e); }
             final JSONObject map = fb == null || fb.optJSONObject("map") == null ? new JSONObject() : fb.getJSONObject("map");
             final JSONArray remoteFolders = fb == null || fb.optJSONArray("folders") == null ? new JSONArray() : fb.getJSONArray("folders");
+            // files the list in the cloud knows: added as they are written there, without downloading them.
+            // Their previews are made when they are opened, or all together (Settings).
+            final List<Store.Item> listed = new ArrayList<>();
+            try {
+                JSONArray l = fb == null ? null : fb.optJSONArray("items");
+                for (int i = 0; l != null && i < l.length(); i++) {
+                    Store.Item it = Store.item(l.getJSONObject(i));
+                    if (!l.getJSONObject(i).has("salt")) it.salt = fb.optString("salt");
+                    it.folder = map.optString(it.id, "");
+                    if (!skip.contains(it.id) && remote.containsAll(it.nodes())) listed.add(it);
+                }
+            } catch (Exception e) { listed.clear(); Journal.add("sync: list in the cloud not readable, files are looked at one by one: " + e); }
+            for (Store.Item it : listed) skip.addAll(it.nodes());
+            restored += listed.size();
             if (fb != null) st.edit(k, new Store.Edit() { public void apply(Store.Index ix) {
+                Set<String> have = new HashSet<>();
+                for (Store.Item it : ix.items) have.add(it.id);
+                for (Store.Item it : listed) if (have.add(it.id)) {
+                    if (!it.folder.isEmpty()) { it.folder = ix.canonical(it.folder); if (!ix.folders.contains(it.folder)) ix.folders.add(it.folder); }
+                    ix.items.add(it);
+                }
                 if (!restoring && st.foldersDirty()) return; // changed on the phone while the backup was downloading
                 for (int i = 0; i < remoteFolders.length(); i++) {
                     String f = remoteFolders.optString(i);
@@ -365,13 +405,18 @@ public class SyncService extends Service {
             SimpleDateFormat iso = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.ROOT);
             iso.setTimeZone(TimeZone.getTimeZone("UTC"));
             String twoDaysAgo = iso.format(new Date(System.currentTimeMillis() - 48L * 3600_000));
-            int n = 0;
+            int n = 0, todo = 0, looked = 0; // files to look at, and looked at: the time left goes by how long these took
+            for (JSONObject node : ordered) if (!skip.contains(node.getString("id"))) todo++;
+            long began = SystemClock.elapsedRealtime();
             for (JSONObject node : ordered) {
                 n++;
                 if (id <= cancelUpTo) break;
                 String nid = node.getString("id");
                 if (skip.contains(nid)) continue;
-                show(getString(R.string.sync_restoring, n, nodes.size()), 100 * n / nodes.size());
+                show(getString(R.string.sync_restoring, n, nodes.size())
+                        + st.left(looked < 3 ? -1 : (SystemClock.elapsedRealtime() - began) * todo / looked / 1000), 100 * n / nodes.size());
+                looked++;
+                todo--;
                 File f = new File(getCacheDir(), "sync.png");
                 try {
                     try { cloud.download(nid, f, null); }
@@ -387,15 +432,22 @@ public class SyncService extends Service {
                         String s = "";
                         try (InputStream in = new FileInputStream(f)) { s = Store.hex(Vault.readSalt(in)); } catch (Exception ignored) { }
                         if (s.equals(Store.hex(st.salt())) || s.equals(st.prefs.getString("old_salt", "-"))) {
-                            Journal.add("sync: a file of this vault didn't open (damaged download?), retried on the next Sync: " + e);
-                            retry++; // made with one of our keys: never treated as "not ours"
-                            continue;
-                        }
-                        Journal.add("sync: skipped a file this vault's key can't open: " + e); // another key, or not PhotoVault's
+                            if (suspect.add(nid)) { // the first time: it may be the download
+                                Journal.add("sync: a file of this vault didn't open (damaged download?), retried on the next Sync: " + e);
+                                retry++;
+                                continue;
+                            }
+                            // on two Syncs: damaged where it is stored. Its own key doesn't open it, so no key is kept for it
+                            // and nothing waits for it; the file stays in the cloud, only Sync passes it by from now on
+                            Journal.add("sync: a file of this vault is damaged in the cloud (didn't open on two Syncs): left there, skipped from now on: " + e);
+                        } else Journal.add("sync: skipped a file this vault's key can't open: " + e); // another key, or not PhotoVault's
+                        suspect.remove(nid);
                         res.unopenable.add(nid);
+                        foreign.add(nid);
                         skipped++;
                         continue;
                     }
+                    suspect.remove(nid);
                     JSONObject m = new JSONObject(o.meta);
                     Store.Item it = new Store.Item();
                     it.id = nid; it.name = m.optString("name", "item"); it.mime = m.optString("mime", "");
@@ -415,7 +467,7 @@ public class SyncService extends Service {
                             it.parts.add(ids.getString(i));
                             if (!remote.contains(ids.getString(i))) missing.add(ids.getString(i));
                         }
-                        skip.addAll(it.parts);
+                        for (String p : it.parts) if (skip.add(p) && remote.contains(p) && !p.equals(nid)) todo--; // not looked at
                         if (ids == null || it.parts.size() != m.optInt("parts") || !missing.isEmpty()) {
                             Journal.add("sync: a big file has " + missing.size() + " missing parts in the cloud: not restored");
                             if (Arrays.equals(o.salt, st.salt())) res.unopenable.addAll(it.parts); // with the old key: keep it
@@ -426,15 +478,17 @@ public class SyncService extends Service {
                         String small = m.optString("thumb", "");
                         thumb = small.isEmpty() ? null : Base64.decode(small, Base64.NO_WRAP);
                     } else thumb = Store.makeThumb(o.plain, o.dataOff, o.dataLen(), it.video());
-                    if (thumb != null) Store.writeFile(st.thumbFile(nid), Vault.seal(k, thumb));
+                    st.saveThumb(nid, k, thumb);
                     st.add(k, it, true);
                     restored++;
+                    fetched++;
                 } catch (Throwable e) {
                     if (Store.isAuth(e)) throw e;
                     Journal.add("sync: could not restore a file, retried on the next Sync: " + e);
                     retry++;
                 } finally { f.delete(); }
             }
+            st.prefs.edit().putStringSet("unopenable", foreign).putStringSet("suspect", suspect).apply();
             // parts no part 0 refers to: an upload that was interrupted. Removed once the cloud has listed everything
             strayParts.removeAll(skip);
             for (Iterator<String> i = strayParts.iterator(); i.hasNext(); ) if (heads.contains(strayGroup.get(i.next()))) i.remove();
@@ -447,8 +501,8 @@ public class SyncService extends Service {
             // restore finished: everything that can be restored is here (files other keys made never will be)
             if (restoring && retry == 0 && id > cancelUpTo) {
                 st.prefs.edit().putBoolean("restore_pending", false).commit();
-                if (st.foldersDirty()) st.backupFolders(k);
-            } else if (!restoring && st.foldersDirty()) st.backupFolders(k); // retry an upload that failed
+                if (st.foldersDirty() || noList || fetched > 0) st.backupFolders(k);
+            } else if (!restoring && (st.foldersDirty() || noList || fetched > 0)) st.backupFolders(k); // also: retry an upload that failed
             done(getString(R.string.sync_done, restored, removed)
                     + (skipped > 0 ? getString(R.string.sync_skipped, skipped) : "")
                     + (retry > 0 ? getString(R.string.sync_retry, retry) : ""), retry > 0 || id <= cancelUpTo);
@@ -497,10 +551,16 @@ public class SyncService extends Service {
             ix = st.readIndex(k);
             List<Store.Item> todo = new ArrayList<>();
             for (Store.Item it : ix.items) if (!cur.equals(it.salt)) todo.add(it);
+            long before = 0; // bytes of the files before this one
+            jobTotal = jobDone = 0;
+            jobSteps = new String[]{Stats.DOWN, Stats.DEC, Stats.ENC};
+            for (Store.Item it : todo) jobTotal += it.size;
             for (int n = 0; n < todo.size(); n++) {
                 if (id <= cancelUpTo) break;
                 final Store.Item it = todo.get(n);
-                show(getString(R.string.reenc_progress, n + 1, todo.size()), 100 * n / todo.size());
+                jobDone = before;
+                before += it.size;
+                show(getString(R.string.reenc_progress, n + 1, todo.size(), left(0, 0)), 100 * n / todo.size());
                 File cached = st.blobFile(it.id);
                 try {
                     final List<String> fresh = reencryptItem(k, salt, it, id);
@@ -531,8 +591,10 @@ public class SyncService extends Service {
                     Journal.add("re-encryption of one file failed, retried later: " + e);
                     cached.delete(); // a damaged cached copy must not be reused
                     failed++;
+                    if (e instanceof javax.crypto.AEADBadTagException) damaged(k, it, cur);
                 }
             }
+            jobTotal = 0;
             st.backupFolders(k);
             // 5. finished only if the cloud lists every file and none needs the old key any more
             Cloud.Listing all = st.cloud().listFiles(st.folder(), 1_000_000);
@@ -554,8 +616,61 @@ public class SyncService extends Service {
                 done(getResources().getQuantityString(R.plurals.reenc_paused, n, n, failed > 0 ? " " + plural(R.plurals.reenc_failed_part, failed) : ""), true);
             }
         } catch (Throwable e) {
+            jobTotal = 0;
             Journal.add("re-encryption stopped: " + e);
             done(getString(R.string.reenc_paused_err, st.explain(e)), true);
+            if (Store.isAuth(e)) st.post(new Runnable() { public void run() { st.needLogin = true; st.changed(); } });
+        }
+    }
+
+    /**
+     * An item whose file arrived but its own key doesn't open it. The first time it may be the download; the second
+     * time the file is damaged where it is stored: no key opens it, so the previous one isn't kept for it and the
+     * password change doesn't wait for it. It stays in the list and in the cloud as it is.
+     */
+    void damaged(byte[] k, final Store.Item it, final String cur) throws Exception {
+        Set<String> suspect = new HashSet<>(st.prefs.getStringSet("suspect", Collections.<String>emptySet()));
+        if (suspect.add(it.id)) { st.prefs.edit().putStringSet("suspect", suspect).apply(); return; }
+        Journal.add("a file is damaged in the cloud (didn't open twice): left as it is, the password change goes on without it");
+        st.edit(k, new Store.Edit() { public void apply(Store.Index x) {
+            for (Store.Item i : x.items) if (i.id.equals(it.id)) i.salt = cur;
+        }});
+    }
+
+    /**
+     * Makes the previews that are missing (items that came from the list in the cloud): each file is downloaded once,
+     * a big file only its first part, which carries a small preview.
+     */
+    void previews(byte[] k, int id) {
+        int made = 0, failed = 0;
+        try {
+            List<Store.Item> todo = st.withoutPreview(st.readIndex(k).items);
+            long rest = 0;
+            for (Store.Item it : todo) rest += Math.min(it.size, Store.CHUNK);
+            for (int n = 0; n < todo.size(); n++) {
+                if (id <= cancelUpTo) break;
+                Store.Item it = todo.get(n);
+                show(getString(R.string.previews_progress, n + 1, todo.size()) + st.left(st.stats.seconds(rest, Stats.DOWN, Stats.DEC)), 100 * n / todo.size());
+                rest -= Math.min(it.size, Store.CHUNK);
+                File cached = st.blobFile(it.id), f = cached.exists() ? cached : new File(getCacheDir(), "preview.png");
+                try {
+                    if (f != cached) st.cloud().download(it.id, f, null);
+                    Vault.Opened o = st.decrypt(f, k);
+                    String small = new JSONObject(o.meta).optString("thumb", "");
+                    st.saveThumb(it.id, k, !it.parts.isEmpty() ? small.isEmpty() ? null : Base64.decode(small, Base64.NO_WRAP)
+                            : Store.makeThumb(o.plain, o.dataOff, o.dataLen(), it.video()));
+                    made++;
+                } catch (Throwable e) {
+                    if (Store.isAuth(e)) throw e;
+                    Journal.add("preview not made: " + e);
+                    failed++;
+                } finally { if (f != cached) f.delete(); }
+            }
+            st.post(new Runnable() { public void run() { st.items = new ArrayList<>(st.items); st.changed(); } }); // the gallery draws its tiles again
+            done(getString(R.string.previews_done, made) + (failed > 0 ? plural(R.plurals.done_failed, failed) : ""), failed > 0 || id <= cancelUpTo);
+        } catch (Throwable e) {
+            Journal.add("previews stopped: " + e);
+            done(getString(R.string.v_error, st.explain(e)), true);
             if (Store.isAuth(e)) st.post(new Runnable() { public void run() { st.needLogin = true; st.changed(); } });
         }
     }
