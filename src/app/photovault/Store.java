@@ -274,10 +274,14 @@ final class Store {
 
     /** Subfolder "index" of the vault folder: holds one encrypted PNG with the folder organisation. */
     String indexFolder() throws Exception {
-        String pref = "index_folder_" + folder(), id = prefs.getString(pref, "");
-        if (id.isEmpty()) { id = cloud().folder(folder(), "index"); prefs.edit().putString(pref, id).apply(); }
-        return id;
+        synchronized (indexLock) { // backup, Sync and restore may ask at the same time: one lookup, one folder
+            String pref = "index_folder_" + folder(), id = prefs.getString(pref, "");
+            if (id.isEmpty()) { id = cloud().folder(folder(), "index"); prefs.edit().putString(pref, id).apply(); }
+            return id;
+        }
     }
+
+    private final Object indexLock = new Object();
 
     /**
      * Saves the folders (names and which item is in which) to the cloud as one more encrypted PNG, so a new phone

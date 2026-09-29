@@ -54,7 +54,7 @@ import org.json.JSONObject;
 
 public class MainActivity extends Activity {
     static final String VERIFY = Store.VERIFY, BIO_ALIAS = "photovault_fingerprint", REDIRECT_SCHEME = "io.github.rimaturus.photovault";
-    static final int REQ_PICK = 1, REQ_NOTIF = 2, REQ_TREE = 3, RUN = 1, OK = 2, WARN = 3, BAD = 4, INFO_TEXT = 0xB3FFFFFF, INFO_ERROR = 0xFFFF9A93;
+    static final int REQ_PICK = 1, REQ_NOTIF = 2, REQ_TREE = 10, RUN = 1, OK = 2, WARN = 3, BAD = 4, INFO_TEXT = 0xB3FFFFFF, INFO_ERROR = 0xFFFF9A93;
     static final int MATCH = ViewGroup.LayoutParams.MATCH_PARENT, WRAP = ViewGroup.LayoutParams.WRAP_CONTENT;
     static final List<String> VAULT_SCREENS = Arrays.asList("gallery", "viewer", "settings", "about", "changepw", "stats");
     /** App languages ("" = the phone's). Also in res/xml/locales_config.xml. */
@@ -70,7 +70,8 @@ public class MainActivity extends Activity {
     final Runnable onChange = new Runnable() { public void run() { refresh(); } };
     final Runnable autoBio = new Runnable() { public void run() { if (started && "unlock".equals(screen) && bioEnabled()) bioUnlock(); } };
     String screen = "";
-    String treeFor;                                       // what the folder picker is open for: "vault", "copy", "copy_settings"
+    /** What the folder picker is open for; its index is added to REQ_TREE, so the answer survives a restart of the screen. */
+    static final String[] TREE_FOR = {"vault", "copy", "copy_settings"};
     boolean picking, connecting, testing, started;
     long nextLoginTry;
     volatile int viewToken;
@@ -501,8 +502,7 @@ public class MainActivity extends Activity {
     void pickFolder(String what) {
         try {
             startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
-                    | Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION), REQ_TREE);
-            treeFor = what;
+                    | Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION), REQ_TREE + Arrays.asList(TREE_FOR).indexOf(what));
             picking = true; // longer auto-lock while the picker is in front
         } catch (Exception e) { toast(s(R.string.no_folder_picker)); }
     }
@@ -510,7 +510,7 @@ public class MainActivity extends Activity {
     /** A folder was picked (or not) for the vault, for the copy during setup, or for the copy from Settings. */
     void folderPicked(String what, Uri tree) {
         if (tree != null) try { st.local.setTree(tree); }
-        catch (Exception e) { Journal.add("folder not usable: " + e); toast(s(R.string.local_failed, explain(e))); tree = null; }
+        catch (Exception e) { Journal.add("folder not usable: " + e.getClass().getSimpleName()); toast(s(R.string.local_failed, explain(e))); tree = null; }
         if ("vault".equals(what)) {
             if (tree == null) return; // stays where it was: pick again or choose something else
             connect(screen, new Failed() { public void run(Exception e) { toast(s(R.string.local_failed, explain(e))); } });
@@ -724,7 +724,7 @@ public class MainActivity extends Activity {
         setIntent(new Intent()); // handled once
         Cloud b = st.base();
         boolean microsoft = "auth".equals(x.getHost()) && b instanceof OneDrive;
-        boolean google = x.getHost() == null && "/oauth2redirect".equals(x.getPath()) && b instanceof GoogleDrive;
+        boolean google = TextUtils.isEmpty(x.getHost()) && "/oauth2redirect".equals(x.getPath()) && b instanceof GoogleDrive;
         if (!(microsoft || google) || !((OAuthCloud) b).expects(x)) return; // not the answer to a sign-in started here: ignored
         final OAuthCloud oc = (OAuthCloud) b;
         final String error = x.getQueryParameter("error");
@@ -1649,10 +1649,8 @@ public class MainActivity extends Activity {
 
     @Override protected void onActivityResult(int req, int res, Intent data) {
         picking = false;
-        if (req == REQ_TREE) {
-            String what = treeFor;
-            treeFor = null;
-            if (what != null) folderPicked(what, res == RESULT_OK && data != null ? data.getData() : null);
+        if (req >= REQ_TREE && req < REQ_TREE + TREE_FOR.length) {
+            folderPicked(TREE_FOR[req - REQ_TREE], res == RESULT_OK && data != null ? data.getData() : null);
             return;
         }
         if (req != REQ_PICK || res != RESULT_OK || data == null) return;

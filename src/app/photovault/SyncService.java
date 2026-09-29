@@ -331,6 +331,11 @@ public class SyncService extends Service {
                     Iterator<Store.Item> i = ix.items.iterator();
                     while (i.hasNext()) if (gone.contains(i.next().id)) i.remove();
                 }});
+                if (removed > 0 && cloud instanceof Transfers) { // their copies on the phone go too
+                    List<String> files = new ArrayList<>();
+                    for (Store.Item it : before.items) if (gone.contains(it.id)) files.addAll(it.nodes());
+                    ((Transfers) cloud).dropCopies(files);
+                }
             }
             // folders saved in the cloud: fill in items that aren't in a folder here (new phone, reinstall).
             // Skipped if the phone has newer folder changes that aren't in the cloud yet, unless a restore is under way.
