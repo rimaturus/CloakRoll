@@ -54,9 +54,9 @@ import org.json.JSONObject;
 
 public class MainActivity extends Activity {
     static final String VERIFY = Store.VERIFY, BIO_ALIAS = "photovault_fingerprint", REDIRECT_SCHEME = "io.github.rimaturus.photovault";
-    static final int REQ_PICK = 1, REQ_NOTIF = 2, RUN = 1, OK = 2, WARN = 3, BAD = 4, INFO_TEXT = 0xB3FFFFFF, INFO_ERROR = 0xFFFF9A93;
+    static final int REQ_PICK = 1, REQ_NOTIF = 2, REQ_TREE = 3, RUN = 1, OK = 2, WARN = 3, BAD = 4, INFO_TEXT = 0xB3FFFFFF, INFO_ERROR = 0xFFFF9A93;
     static final int MATCH = ViewGroup.LayoutParams.MATCH_PARENT, WRAP = ViewGroup.LayoutParams.WRAP_CONTENT;
-    static final List<String> VAULT_SCREENS = Arrays.asList("gallery", "viewer", "settings", "about", "changepw");
+    static final List<String> VAULT_SCREENS = Arrays.asList("gallery", "viewer", "settings", "about", "changepw", "stats");
     /** App languages ("" = the phone's). Also in res/xml/locales_config.xml. */
     static final String[] LANGS = {"", "en", "it", "es", "de", "fr", "pt"};
 
@@ -70,6 +70,7 @@ public class MainActivity extends Activity {
     final Runnable onChange = new Runnable() { public void run() { refresh(); } };
     final Runnable autoBio = new Runnable() { public void run() { if (started && "unlock".equals(screen) && bioEnabled()) bioUnlock(); } };
     String screen = "";
+    String treeFor;                                       // what the folder picker is open for: "vault", "copy", "copy_settings"
     boolean picking, connecting, testing, started;
     long nextLoginTry;
     volatile int viewToken;
@@ -135,6 +136,7 @@ public class MainActivity extends Activity {
         else if ("about".equals(again)) showAbout();
         else if ("changepw".equals(again)) showChangePassword();
         else if ("log".equals(again)) showLog();
+        else if ("stats".equals(again)) showStats();
         else showGallery();
     }
 
@@ -229,7 +231,7 @@ public class MainActivity extends Activity {
                 else finish();
                 break;
             case "settings": showGallery(); break;
-            case "about": case "changepw": showSettings(); break;
+            case "about": case "changepw": case "stats": showSettings(); break;
             case "log":
                 if (!prefs.contains("verifier")) showSignIn();
                 else if (st.key != null) showSettings();
@@ -355,12 +357,34 @@ public class MainActivity extends Activity {
 
     /** Where the vault is, in words. */
     String vaultPlace() {
-        Cloud c = st.cloud();
+        Cloud c = st.base();
         if (c instanceof OneDrive) return s(((OneDrive) c).allFiles() ? R.string.place_od_all : R.string.place_od_app);
-        return s(R.string.place_amazon);
+        return s(by(R.string.place_amazon, 0, R.string.place_google, R.string.place_local));
+    }
+
+    /** The text for the storage in use. */
+    int by(int amazon, int oneDrive, int google, int local) {
+        switch (st.backend()) {
+            case "onedrive": return oneDrive;
+            case "google": return google;
+            case "local": return local;
+            default: return amazon;
+        }
+    }
+
+    /** " · about 40 s left" to move `bytes` through these steps, from the measured speeds; "" until they are known. */
+    String left(long bytes, String... kinds) {
+        String t = st.eta(st.stats.seconds(bytes, kinds));
+        return t.isEmpty() ? "" : " · " + s(R.string.eta_left, t);
     }
 
     void askRelogin() {
+        if (st.base() instanceof Local) {
+            new AlertDialog.Builder(this).setTitle(R.string.local_lost_t).setMessage(R.string.local_lost_d)
+                    .setPositiveButton(R.string.local_choose, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { showSignIn(); } })
+                    .setNegativeButton(R.string.later, null).show();
+            return;
+        }
         new AlertDialog.Builder(this).setTitle(s(R.string.relogin_title, cloudName()))
                 .setMessage(s(R.string.relogin_msg, cloudName()))
                 .setPositiveButton(R.string.sign_in, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { showSignIn(); } })
@@ -425,19 +449,29 @@ public class MainActivity extends Activity {
         u.steps(l, 1, 3);
         u.title(l, s(R.string.choose_title));
         u.note(l, s(R.string.choose_note));
-        option(l, "Amazon Photos", s(R.string.amazon_tag), s(R.string.amazon_detail), true, "amazon");
-        option(l, "OneDrive", s(R.string.od_tag), s(R.string.od_detail) + (OneDrive.configured() ? "" : "\n\n" + s(R.string.od_unavailable)),
+        LinearLayout copy = u.card(l);
+        copy.setPadding(u.dp(6), u.dp(4), u.dp(6), u.dp(4));
+        final Switch sw = u.toggle(prefs.getBoolean("local_copy", false));
+        u.row(copy, Ui.PHONE, s(R.string.copy_t), s(R.string.copy_setup_d), sw, new View.OnClickListener() { public void onClick(View v) {
+            sw.setChecked(!sw.isChecked());
+            prefs.edit().putBoolean("local_copy", sw.isChecked()).apply();
+        }});
+        option(l, Ui.CLOUD, "Amazon Photos", s(R.string.amazon_tag), s(R.string.amazon_detail), true, "amazon");
+        option(l, Ui.CLOUD, "OneDrive", s(R.string.od_tag), s(R.string.od_detail) + (OneDrive.configured() ? "" : "\n\n" + s(R.string.not_in_build, "Microsoft")),
                 OneDrive.configured(), "onedrive");
+        option(l, Ui.CLOUD, "Google Drive", s(R.string.gd_tag), s(R.string.gd_detail) + (GoogleDrive.configured() ? "" : "\n\n" + s(R.string.not_in_build, "Google")),
+                GoogleDrive.configured(), "google");
+        option(l, Ui.PHONE, s(R.string.local_title), s(R.string.local_tag), s(R.string.local_detail), true, "local");
         LinearLayout n = u.notice(l, u.field);
         u.heading(n, s(R.string.google_t));
         u.note(n, s(R.string.google_d));
         setScreen("choose", s(R.string.storage_title), s(R.string.step_n, 1), Ui.BACK, u.scroll(l));
     }
 
-    void option(LinearLayout parent, String name, String tag, String detail, boolean enabled, final String backend) {
+    void option(LinearLayout parent, int icon, String name, String tag, String detail, boolean enabled, final String backend) {
         LinearLayout k = u.card(parent);
         LinearLayout head = u.hbox();
-        head.addView(u.badge(Ui.CLOUD, u.accent, u.accentSoft, 44), new LinearLayout.LayoutParams(u.dp(44), u.dp(44)));
+        head.addView(u.badge(icon, u.accent, u.accentSoft, 44), new LinearLayout.LayoutParams(u.dp(44), u.dp(44)));
         LinearLayout t = u.vbox();
         t.setPadding(u.dp(14), 0, 0, 0);
         u.label(t, name, 18, u.text, true);
@@ -450,11 +484,45 @@ public class MainActivity extends Activity {
         k.setBackground(u.ripple(Ui.round(u.surface, u.dp(20)), u.dp(20)));
         k.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
             prefs.edit().putString("backend", backend).apply();
-            showSignIn();
+            if ("local".equals(backend)) pickFolder("vault");
+            else if (prefs.getBoolean("local_copy", false)) pickFolder("copy");
+            else showSignIn();
         }});
     }
 
-    void showSignIn() { if (st.cloud() instanceof OneDrive) showOneDriveLogin(); else showLogin(); }
+    void showSignIn() {
+        Cloud c = st.base();
+        if (c instanceof OAuthCloud) showOAuthLogin();
+        else if (c instanceof Local) pickFolder("vault");
+        else showLogin();
+    }
+
+    /** Android's folder picker: the app gets access to the chosen folder only. The answer arrives in onActivityResult. */
+    void pickFolder(String what) {
+        try {
+            startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+                    | Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION), REQ_TREE);
+            treeFor = what;
+            picking = true; // longer auto-lock while the picker is in front
+        } catch (Exception e) { toast(s(R.string.no_folder_picker)); }
+    }
+
+    /** A folder was picked (or not) for the vault, for the copy during setup, or for the copy from Settings. */
+    void folderPicked(String what, Uri tree) {
+        if (tree != null) try { st.local.setTree(tree); }
+        catch (Exception e) { Journal.add("folder not usable: " + e); toast(s(R.string.local_failed, explain(e))); tree = null; }
+        if ("vault".equals(what)) {
+            if (tree == null) return; // stays where it was: pick again or choose something else
+            connect(screen, new Failed() { public void run(Exception e) { toast(s(R.string.local_failed, explain(e))); } });
+        } else if ("copy".equals(what)) {
+            if (tree == null) { prefs.edit().putBoolean("local_copy", false).apply(); toast(s(R.string.copy_off_no_folder)); }
+            showSignIn();
+        } else if ("copy_settings".equals(what) && tree != null) {
+            prefs.edit().putBoolean("local_copy", true).apply();
+            Journal.add("copy on the phone switched on");
+            if (st.key != null) showSettings(); else start();
+        }
+    }
 
     interface Failed { void run(Exception e); }
 
@@ -476,7 +544,7 @@ public class MainActivity extends Activity {
                     if (!prefs.contains("verifier") || old.isEmpty() || old.equals(folder)) { connecting = false; useFolder(folder, first); return; }
                     // `connecting` stays true while the question is open: the sign-in page doesn't connect again meanwhile
                     new AlertDialog.Builder(MainActivity.this).setTitle(R.string.other_account_t)
-                            .setMessage(s(R.string.other_account_d, c.name()))
+                            .setMessage(st.base() instanceof Local ? s(R.string.other_folder_d) : s(R.string.other_account_d, c.name()))
                             .setPositiveButton(R.string.sign_out, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { connecting = false; signOut(); } })
                             .setNegativeButton(R.string.use_this_account, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { connecting = false; useFolder(folder, first); } })
                             .setCancelable(false).show();
@@ -493,15 +561,15 @@ public class MainActivity extends Activity {
 
     void useFolder(String folder, List<JSONObject> first) {
         prefs.edit().putString("folder", folder).apply();
-        if (prefs.contains("verifier")) { toast(s(R.string.signed_in_to, cloudName())); start(); }
+        if (prefs.contains("verifier")) { if (!(st.base() instanceof Local)) toast(s(R.string.signed_in_to, cloudName())); start(); }
         else if (first.isEmpty()) showCreatePassword();
         else showRestorePassword(first.get(0).optString("id"));
     }
 
     void signOut() {
-        final Cloud c = st.cloud();
+        final Cloud c = st.base();
         c.signOut();
-        toast(s(R.string.signed_out, c.name()));
+        if (!(c instanceof Local)) toast(s(R.string.signed_out, c.name()));
         if (c instanceof Amazon) // cookies are removed in the background: open the sign-in page after that
             CookieManager.getInstance().removeAllCookies(new ValueCallback<Boolean>() { public void onReceiveValue(Boolean b) { if (!isDestroyed()) showSignIn(); } });
         else showSignIn();
@@ -588,19 +656,33 @@ public class MainActivity extends Activity {
 
     // ================================================================ setup 1b: OneDrive sign-in in the browser
 
-    void showOneDriveLogin() {
+    /** Sign-in for OneDrive or Google Drive: in the phone's browser, which comes back to the app (handleRedirect). */
+    void showOAuthLogin() {
         final boolean setup = !prefs.contains("verifier");
+        final Cloud c = st.base();
         LinearLayout l = u.page();
         if (setup) u.steps(l, 1, 3);
-        u.title(l, s(R.string.od_title));
-        LinearLayout k = u.card(l);
-        u.feature(k, Ui.KEY, s(R.string.od_pw_t), s(((OneDrive) st.cloud()).allFiles() ? R.string.od_pw_d_all : R.string.od_pw_d_app));
+        LinearLayout k;
+        if (c instanceof GoogleDrive) {
+            u.title(l, s(R.string.gd_title));
+            k = u.card(l);
+            u.feature(k, Ui.KEY, s(R.string.gd_pw_t), s(R.string.gd_pw_d));
+        } else {
+            u.title(l, s(R.string.od_title));
+            k = u.card(l);
+            u.feature(k, Ui.KEY, s(R.string.od_pw_t), s(((OneDrive) c).allFiles() ? R.string.od_pw_d_all : R.string.od_pw_d_app));
+        }
         u.feature(k, Ui.LOCK, s(R.string.od_token_t), s(R.string.od_token_d));
-        u.button(l, s(R.string.od_sign_in), Ui.PRIMARY, new View.OnClickListener() { public void onClick(View v) {
-            openAuth(((OneDrive) st.cloud()).allFiles());
+        u.button(l, s(c instanceof GoogleDrive ? R.string.gd_sign_in : R.string.od_sign_in), Ui.PRIMARY, new View.OnClickListener() { public void onClick(View v) {
+            openAuth(c instanceof OneDrive && ((OneDrive) c).allFiles());
         }});
         odStatus = u.note(l, "");
         odStatus.setVisibility(View.GONE);
+        odFallback = null;
+        if (c instanceof GoogleDrive) {
+            setScreen("odlogin", c.name(), setup ? s(R.string.step_n, 1) : s(R.string.sign_in_again), Ui.BACK, u.scroll(l), logButton());
+            return;
+        }
         LinearLayout fb = u.notice(l, u.warnSoft);
         u.heading(fb, s(R.string.od_refused_t));
         u.body(fb, s(R.string.od_refused_d));
@@ -619,7 +701,8 @@ public class MainActivity extends Activity {
 
     void openAuth(boolean allFiles) {
         try {
-            String url = ((OneDrive) st.cloud()).authUrl(allFiles);
+            Cloud c = st.base();
+            String url = c instanceof GoogleDrive ? ((GoogleDrive) c).authUrl() : ((OneDrive) c).authUrl(allFiles);
             startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
             picking = true; // longer auto-lock while the browser is in front
             odMessage(s(R.string.od_waiting), u.muted);
@@ -631,37 +714,41 @@ public class MainActivity extends Activity {
         if (!prefs.contains("verifier") && !od.allFiles() && odFallback != null && "odlogin".equals(screen)) odFallback.setVisibility(View.VISIBLE);
     }
 
-    /** Microsoft sends the browser back to io.github.rimaturus.photovault://auth?code=...; the code is exchanged here. */
+    /**
+     * The browser comes back with the sign-in answer: Microsoft to io.github.rimaturus.photovault://auth?code=..., Google to
+     * io.github.rimaturus.photovault:/oauth2redirect?code=... Only the answer to the sign-in started here is used.
+     */
     void handleRedirect(Intent i) {
         final Uri x = i == null ? null : i.getData();
         if (x == null || !REDIRECT_SCHEME.equals(x.getScheme())) return;
         setIntent(new Intent()); // handled once
-        String state = x.getQueryParameter("state");
-        if (!"auth".equals(x.getHost()) || !(st.cloud() instanceof OneDrive) || state == null || !state.equals(prefs.getString("od_state", null)))
-            return; // not the answer to a sign-in started here: ignored
-        final OneDrive od = (OneDrive) st.cloud();
+        Cloud b = st.base();
+        boolean microsoft = "auth".equals(x.getHost()) && b instanceof OneDrive;
+        boolean google = x.getHost() == null && "/oauth2redirect".equals(x.getPath()) && b instanceof GoogleDrive;
+        if (!(microsoft || google) || !((OAuthCloud) b).expects(x)) return; // not the answer to a sign-in started here: ignored
+        final OAuthCloud oc = (OAuthCloud) b;
         final String error = x.getQueryParameter("error");
-        if (!"odlogin".equals(screen)) showOneDriveLogin();
+        if (!"odlogin".equals(screen)) showOAuthLogin();
         if (connecting) return;
         connecting = true;
         odMessage(s(R.string.od_finishing), u.muted);
         io.execute(new Runnable() { public void run() {
             try {
-                od.redeem(x);
+                oc.redeem(x);
                 post(new Runnable() { public void run() {
-                    odMessage(s(R.string.od_opening), u.muted);
+                    odMessage(s(R.string.od_opening, oc.name()), u.muted);
                     connect("odlogin", new Failed() { public void run(Exception e) {
-                        odMessage(s(R.string.od_folder_failed, explain(e)), u.bad);
+                        odMessage(s(R.string.od_folder_failed, oc.name(), explain(e)), u.bad);
                         int code = e instanceof Cloud.ApiError ? ((Cloud.ApiError) e).code : 0;
-                        if (code == 400 || code == 403 || code == 404) offerAllFiles(od); // app folder refused for this app registration
+                        if (oc instanceof OneDrive && (code == 400 || code == 403 || code == 404)) offerAllFiles((OneDrive) oc); // app folder refused
                     }});
                 }});
             } catch (final Exception e) {
-                Journal.add("OneDrive sign-in failed: " + e);
+                Journal.add(oc.name() + " sign-in failed: " + e);
                 post(new Runnable() { public void run() {
                     connecting = false;
                     odMessage(s(R.string.od_not_completed, explain(e)), u.bad);
-                    if ("invalid_scope".equals(error) || "unauthorized_client".equals(error)) offerAllFiles(od);
+                    if (oc instanceof OneDrive && ("invalid_scope".equals(error) || "unauthorized_client".equals(error))) offerAllFiles((OneDrive) oc);
                 }});
             }
         }});
@@ -709,7 +796,7 @@ public class MainActivity extends Activity {
         LinearLayout l = u.page();
         u.steps(l, 2, 3);
         u.title(l, s(R.string.restore_title));
-        u.note(l, s(R.string.restore_note, cloudName()));
+        u.note(l, st.base() instanceof Local ? s(R.string.restore_note_local) : s(R.string.restore_note, cloudName()));
         final TextView[] go = new TextView[1];
         final EditText p = u.password(l, s(R.string.hint_password), new Runnable() { public void run() { if (go[0].isEnabled()) go[0].performClick(); } });
         final TextView err = u.note(l, "");
@@ -764,7 +851,7 @@ public class MainActivity extends Activity {
     final class StepRow { ImageView icon; ProgressBar spin; TextView detail; }
 
     void showSelfTest() {
-        final Cloud c = st.cloud();
+        final Cloud c = st.base(); // the storage itself: the phone copy must not stand in for it
         LinearLayout l = u.page();
         boolean setup = !prefs.contains("done_selftest");
         if (setup) u.steps(l, 3, 3);
@@ -1562,6 +1649,12 @@ public class MainActivity extends Activity {
 
     @Override protected void onActivityResult(int req, int res, Intent data) {
         picking = false;
+        if (req == REQ_TREE) {
+            String what = treeFor;
+            treeFor = null;
+            if (what != null) folderPicked(what, res == RESULT_OK && data != null ? data.getData() : null);
+            return;
+        }
         if (req != REQ_PICK || res != RESULT_OK || data == null) return;
         if (st.key == null) { toast(s(R.string.locked_toast)); return; }
         List<Uri> uris = new ArrayList<>();
@@ -1674,7 +1767,8 @@ public class MainActivity extends Activity {
             return new Cloud.Progress() { public void on(final long d, final long total) {
                 if (!open()) throw new CancellationException();
                 post(new Runnable() { public void run() {
-                    if (open()) say(owner, s(R.string.v_downloading, total > 0 ? 100 * d / total + "%" : human(d)), false);
+                    if (open()) say(owner, s(R.string.v_downloading, total > 0 ? 100 * d / total + "%" : human(d))
+                            + (total > 0 ? left(total - d, Stats.DOWN) : ""), false);
                 }});
             }};
         }
@@ -1699,7 +1793,7 @@ public class MainActivity extends Activity {
             loading = true;
             original.setEnabled(false);
             final boolean play = then == null; // Save to phone doesn't start the video
-            if (!png.exists() || !it.parts.isEmpty()) say(null, s(R.string.v_downloading, ""), false);
+            if (!png.exists() || !it.parts.isEmpty()) say(null, s(R.string.v_downloading, "") + left(it.size, Stats.DOWN, Stats.DEC), false);
             viewIo.execute(new Runnable() { public void run() {
                 File f = null;
                 try {
@@ -1715,7 +1809,8 @@ public class MainActivity extends Activity {
                             public void on(final long d, final long total) {
                                 if (!open()) throw new CancellationException(); // viewer closed: stop downloading
                                 post(new Runnable() { public void run() {
-                                    if (open()) say(null, s(R.string.v_parts, (int) d + 1, (int) total), false);
+                                    if (open()) say(null, s(R.string.v_parts, (int) d + 1, (int) total)
+                                            + left(it.size * (total - d) / Math.max(1, total), Stats.DOWN, Stats.DEC), false);
                                 }});
                             }
                         });
@@ -1913,12 +2008,27 @@ public class MainActivity extends Activity {
                 new View.OnClickListener() { public void onClick(View v) { startSync(); showGallery(); } });
         u.row(sto, Ui.CHECK, s(R.string.selftest_t), s(R.string.selftest_d), null,
                 new View.OnClickListener() { public void onClick(View v) { showSelfTest(); } });
-        u.row(sto, Ui.CLOUD, s(R.string.signout_t, cloudName()), s(R.string.signout_d), null, new View.OnClickListener() { public void onClick(View v) {
-            new AlertDialog.Builder(MainActivity.this).setTitle(s(R.string.signout_q, cloudName()))
-                    .setMessage(R.string.signout_msg)
-                    .setPositiveButton(R.string.sign_out, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { signOut(); } })
-                    .setNegativeButton(R.string.cancel, null).show();
-        }});
+        u.row(sto, Ui.CHART, s(R.string.stats_t), s(R.string.stats_d), null,
+                new View.OnClickListener() { public void onClick(View v) { showStats(); } });
+        if (st.base() instanceof Local) {
+            u.row(sto, Ui.FOLDER, s(R.string.local_change_t), s(R.string.local_change_d), null,
+                    new View.OnClickListener() { public void onClick(View v) { pickFolder("vault"); } });
+        } else {
+            final boolean copying = st.keepsCopy();
+            u.row(sto, Ui.PHONE, s(R.string.copy_t), s(copying ? R.string.copy_on_d : R.string.copy_off_d), u.toggle(copying), new View.OnClickListener() { public void onClick(View v) {
+                if (!copying) { pickFolder("copy_settings"); return; }
+                prefs.edit().putBoolean("local_copy", false).apply(); // the copies already made stay in the folder
+                st.local.signOut();
+                Journal.add("copy on the phone switched off");
+                showSettings();
+            }});
+            u.row(sto, Ui.CLOUD, s(R.string.signout_t, cloudName()), s(R.string.signout_d), null, new View.OnClickListener() { public void onClick(View v) {
+                new AlertDialog.Builder(MainActivity.this).setTitle(s(R.string.signout_q, cloudName()))
+                        .setMessage(R.string.signout_msg)
+                        .setPositiveButton(R.string.sign_out, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { signOut(); } })
+                        .setNegativeButton(R.string.cancel, null).show();
+            }});
+        }
 
         u.section(l, s(R.string.sec_about).toUpperCase(getResources().getConfiguration().getLocales().get(0)));
         LinearLayout ab = u.card(l);
@@ -1941,17 +2051,48 @@ public class MainActivity extends Activity {
         setScreen("settings", s(R.string.settings), null, Ui.BACK, u.scroll(l));
     }
 
+    /** Measured speeds and what they mean for typical files. */
+    void showStats() {
+        LinearLayout l = u.page();
+        u.note(l, s(R.string.stats_note));
+        LinearLayout k = u.card(l);
+        k.setPadding(u.dp(6), u.dp(4), u.dp(6), u.dp(4));
+        String[] titles = {s(R.string.stat_up, cloudName()), s(R.string.stat_down, cloudName()), s(R.string.stat_enc), s(R.string.stat_dec)};
+        int[] icons = {Ui.CLOUD, Ui.SAVE, Ui.LOCK, Ui.KEY};
+        for (int i = 0; i < Stats.KINDS.length; i++) {
+            String kind = Stats.KINDS[i];
+            long n = st.stats.count(kind);
+            u.row(k, icons[i], titles[i], n == 0 ? s(R.string.stat_none)
+                    : s(R.string.stat_line, human((long) st.stats.speed(kind)), human(st.stats.bytes(kind)), st.eta(st.stats.millis(kind) / 1000)), null, null);
+        }
+        LinearLayout e = u.card(l);
+        u.heading(e, s(R.string.est_t));
+        StringBuilder b = new StringBuilder();
+        for (long size : new long[]{5L << 20, 100L << 20, 1L << 30}) {
+            String add = st.eta(st.stats.seconds(size, Stats.ENC, Stats.UP)), open = st.eta(st.stats.seconds(size, Stats.DOWN, Stats.DEC));
+            if (b.length() > 0) b.append("\n");
+            b.append(s(R.string.est_line, human(size), add.isEmpty() ? "?" : add, open.isEmpty() ? "?" : open));
+        }
+        u.body(e, b.toString());
+        u.note(e, s(R.string.est_note));
+        u.button(l, s(R.string.stats_reset), Ui.TEXT, new View.OnClickListener() { public void onClick(View v) { st.stats.reset(); showStats(); } });
+        setScreen("stats", s(R.string.stats_t), cloudName(), Ui.BACK, u.scroll(l));
+    }
+
     void showAbout() {
         LinearLayout l = u.page();
-        Cloud c = st.cloud();
+        Cloud c = st.base();
+        boolean phone = c instanceof Local;
         about(l, s(R.string.promise_t), s(R.string.promise_d, c.name()));
-        about(l, s(R.string.where_t), s(R.string.where_cloud, c.name(), vaultPlace(), q(R.plurals.pngs, st.items.size())) + "\n"
+        about(l, s(R.string.where_t), (phone ? s(R.string.where_local, vaultPlace(), q(R.plurals.pngs, st.items.size()))
+                : s(R.string.where_cloud, c.name(), vaultPlace(), q(R.plurals.pngs, st.items.size()))) + "\n"
+                + (st.keepsCopy() ? s(R.string.where_copy) + "\n" : "")
                 + s(R.string.where_folders, c.name()) + "\n" + s(R.string.where_phone) + "\n"
-                + s(c instanceof OneDrive ? R.string.where_signin_od : R.string.where_signin_amazon) + "\n"
+                + s(by(R.string.where_signin_amazon, R.string.where_signin_od, R.string.where_signin_google, R.string.where_signin_local)) + "\n"
                 + s(bioEnabled() ? R.string.where_key_bio : R.string.where_key));
         about(l, s(R.string.crypto_t), s(R.string.crypto_d, prefs.getString("salt", "")));
         about(l, s(R.string.recovery_t), s(R.string.recovery_d, c.name()));
-        about(l, s(R.string.limits_t), s(R.string.limits_d) + "\n" + s(c instanceof Amazon ? R.string.limits_amazon : R.string.limits_od));
+        about(l, s(R.string.limits_t), s(R.string.limits_d) + "\n" + s(by(R.string.limits_amazon, R.string.limits_od, R.string.limits_google, R.string.limits_local)));
         setScreen("about", s(R.string.about_title), null, Ui.BACK, u.scroll(l));
     }
 
@@ -1987,7 +2128,7 @@ public class MainActivity extends Activity {
             u.label(head, s(R.string.cost_t), 16, u.text, true).setPadding(u.dp(10), 0, 0, 0);
             w.addView(head);
             u.body(w, s(R.string.cost_intro) + "\n" + q(R.plurals.cost_all, n, human(bytes), duration(secs)) + "\n"
-                    + s(R.string.cost_rest, cloud.trashName(), s(cloud instanceof Amazon ? R.string.cost_trash_amazon : R.string.cost_trash_od)));
+                    + s(R.string.cost_rest, cloud.trashName(), s(by(R.string.cost_trash_amazon, R.string.cost_trash_od, R.string.cost_trash_google, R.string.cost_trash_local))));
         }
         LinearLayout k = u.card(l);
         final EditText cur = u.password(k, s(R.string.hint_current), null);

@@ -1,170 +1,65 @@
 package app.photovault;
 
 import android.net.Uri;
-import android.security.keystore.KeyGenParameterSpec;
-import android.security.keystore.KeyProperties;
-import android.util.Base64;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.security.KeyStore;
-import java.security.MessageDigest;
 import java.util.*;
-import javax.crypto.Cipher;
-import javax.crypto.KeyGenerator;
-import javax.crypto.SecretKey;
-import javax.crypto.spec.GCMParameterSpec;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 /**
- * Microsoft OneDrive through the official Microsoft Graph API. Sign-in: OAuth 2.0 authorization code with PKCE in the
- * phone's browser (no client secret, no Microsoft library). The app asks only for its own folder, OneDrive/Apps/PhotoVault,
- * not the rest of the user's files; if Microsoft refuses app folders for this app registration, the user can choose full
- * access instead and the vault goes in a normal folder "PhotoVault". The refresh token is kept encrypted with a key in the
- * phone's secure hardware.
+ * Microsoft OneDrive through the official Microsoft Graph API, signed in with OAuth in the browser (OAuthCloud). The app
+ * asks only for its own folder, OneDrive/Apps/PhotoVault, not the rest of the user's files; if Microsoft refuses app
+ * folders for this app registration, the user can choose full access instead and the vault goes in a normal folder
+ * "PhotoVault".
  */
-final class OneDrive extends Cloud {
+final class OneDrive extends OAuthCloud {
     static final String GRAPH = "https://graph.microsoft.com/v1.0";
     static final String LOGIN = "https://login.microsoftonline.com/common/oauth2/v2.0/";
     static final String REDIRECT = "io.github.rimaturus.photovault://auth";
     static final String SCOPE_APP_FOLDER = "Files.ReadWrite.AppFolder offline_access";
     static final String SCOPE_ALL_FILES = "Files.ReadWrite offline_access"; // fallback, only if the user chooses it
-    private static final String KEY_ALIAS = "photovault_onedrive_token";
 
-    private final Store st;
-    private volatile String access; // in memory only
-    private long expires;
-
-    OneDrive(Store st) { this.st = st; }
+    OneDrive(Store st) { super(st, "od", "photovault_onedrive_token", LOGIN + "token"); }
 
     /** The build has a Microsoft app registration (see PUBLISHING.md). */
     static boolean configured() { return !Config.ONEDRIVE_CLIENT_ID.isEmpty(); }
 
     @Override String name() { return "OneDrive"; }
 
+    @Override String company() { return "Microsoft"; }
+
+    @Override String clientId() { return Config.ONEDRIVE_CLIENT_ID; }
+
+    @Override String redirect() { return REDIRECT; }
+
+    @Override String scopeParam(String scope) { return "&scope=" + Uri.encode(scope.isEmpty() ? SCOPE_APP_FOLDER : scope); }
+
+    @Override String refreshScope() { return allFiles() ? SCOPE_ALL_FILES : SCOPE_APP_FOLDER; }
+
     @Override String trashName() { return st.app.getString(R.string.trash_onedrive); }
 
     /** The vault uses full OneDrive access (folder "PhotoVault") instead of the app folder. Kept across sign-outs. */
     boolean allFiles() { return st.prefs.getBoolean("od_all", false); }
 
-    private String scope() { return allFiles() ? SCOPE_ALL_FILES : SCOPE_APP_FOLDER; }
-
-    @Override boolean hasSession() { return st.prefs.contains("od_refresh"); }
-
-    @Override void signOut() { // not synchronized: must not wait for a token refresh on a slow network (main thread)
-        st.prefs.edit().remove("od_refresh").apply();
-        access = null;
-    }
-
     // ---------------------------------------------------------------- sign-in (browser, PKCE)
 
     /** Microsoft's sign-in page for the browser. The answer comes back to MainActivity through REDIRECT. */
     String authUrl(boolean allFiles) throws Exception {
-        String verifier = b64url(Vault.random(32)), state = b64url(Vault.random(16)), scope = allFiles ? SCOPE_ALL_FILES : SCOPE_APP_FOLDER;
-        st.prefs.edit().putString("od_verifier", verifier).putString("od_state", state).putString("od_scope_req", scope).commit();
-        byte[] challenge = MessageDigest.getInstance("SHA-256").digest(verifier.getBytes("US-ASCII"));
+        String scope = allFiles ? SCOPE_ALL_FILES : SCOPE_APP_FOLDER;
         return LOGIN + "authorize?client_id=" + Uri.encode(Config.ONEDRIVE_CLIENT_ID) + "&response_type=code&response_mode=query"
-                + "&redirect_uri=" + Uri.encode(REDIRECT) + "&scope=" + Uri.encode(scope) + "&state=" + state
-                + "&code_challenge=" + b64url(challenge) + "&code_challenge_method=S256&prompt=select_account";
+                + "&redirect_uri=" + Uri.encode(REDIRECT) + "&scope=" + Uri.encode(scope) + pkce(scope) + "&prompt=select_account";
     }
 
-    /** Exchanges the code from the redirect for tokens. Background thread. */
-    synchronized void redeem(Uri answer) throws Exception {
-        String state = answer.getQueryParameter("state"), code = answer.getQueryParameter("code");
-        if (state == null || !state.equals(st.prefs.getString("od_state", null)))
-            throw new IOException(st.app.getString(R.string.od_err_state));
-        String verifier = st.prefs.getString("od_verifier", ""), scope = st.prefs.getString("od_scope_req", SCOPE_APP_FOLDER);
-        st.prefs.edit().remove("od_state").remove("od_verifier").remove("od_scope_req").commit(); // one answer per request
-        String err = answer.getQueryParameter("error");
-        if ("access_denied".equals(err)) throw new IOException(st.app.getString(R.string.od_err_cancelled));
-        if (err != null || code == null) throw new IOException(st.app.getString(R.string.od_err_answer, err != null ? err : "no code"));
-        access = null;
-        tokens("grant_type=authorization_code&client_id=" + Uri.encode(Config.ONEDRIVE_CLIENT_ID) + "&code=" + Uri.encode(code)
-                + "&redirect_uri=" + Uri.encode(REDIRECT) + "&code_verifier=" + Uri.encode(verifier) + "&scope=" + Uri.encode(scope));
+    @Override synchronized String redeem(Uri answer) throws Exception {
+        String scope = super.redeem(answer);
         st.prefs.edit().putBoolean("od_all", scope.equals(SCOPE_ALL_FILES)).commit();
-        Journal.add("OneDrive: signed in (" + (scope.equals(SCOPE_APP_FOLDER) ? "app folder only" : "all files") + ")");
+        Journal.add("OneDrive: signed in (" + (scope.equals(SCOPE_ALL_FILES) ? "all files" : "app folder only") + ")");
+        return scope;
     }
-
-    /** A valid access token, refreshed when needed (they last about an hour). */
-    private synchronized String token() throws Exception {
-        if (access != null && System.currentTimeMillis() < expires - 60_000) return access;
-        String rt = refreshToken();
-        if (rt == null) throw new ApiError(401, "not signed in to OneDrive");
-        tokens("grant_type=refresh_token&client_id=" + Uri.encode(Config.ONEDRIVE_CLIENT_ID) + "&refresh_token=" + Uri.encode(rt)
-                + "&scope=" + Uri.encode(scope()));
-        return access;
-    }
-
-    private void tokens(String form) throws Exception {
-        long t0 = System.currentTimeMillis();
-        HttpURLConnection c = (HttpURLConnection) new URL(LOGIN + "token").openConnection();
-        try {
-            c.setRequestMethod("POST");
-            c.setConnectTimeout(30_000);
-            c.setReadTimeout(60_000);
-            c.setDoOutput(true);
-            c.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
-            byte[] b = form.getBytes("UTF-8");
-            c.setFixedLengthStreamingMode(b.length);
-            try (OutputStream o = c.getOutputStream()) { o.write(b); }
-            int code = c.getResponseCode();
-            String body = text(c, code);
-            Journal.add("POST /oauth2/v2.0/token -> HTTP " + code + " (" + (System.currentTimeMillis() - t0) + " ms)");
-            JSONObject j = body.isEmpty() ? new JSONObject() : new JSONObject(body);
-            if (code >= 400) {
-                String e = j.optString("error");
-                Journal.add("  " + e + ": " + j.optString("error_description").split("\\r?\\n")[0]);
-                if ("invalid_grant".equals(e) || "interaction_required".equals(e)) { signOut(); throw new ApiError(401, "OneDrive sign-in expired"); }
-                throw new ApiError(code, "Microsoft sign-in answered HTTP " + code + " (" + e + ")");
-            }
-            access = j.getString("access_token");
-            expires = System.currentTimeMillis() + j.optLong("expires_in", 3600) * 1000;
-            String rt = j.optString("refresh_token", "");
-            if (!rt.isEmpty()) st.prefs.edit().putString("od_refresh", seal(rt)).apply(); // rotated on every use
-        } finally { c.disconnect(); }
-    }
-
-    // refresh token: AES-GCM with a key that never leaves the phone's secure hardware (no fingerprint needed)
-    private static SecretKey tokenKey() throws Exception {
-        KeyStore ks = KeyStore.getInstance("AndroidKeyStore");
-        ks.load(null);
-        SecretKey k = (SecretKey) ks.getKey(KEY_ALIAS, null);
-        if (k != null) return k;
-        KeyGenerator g = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
-        g.init(new KeyGenParameterSpec.Builder(KEY_ALIAS, KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
-                .setBlockModes(KeyProperties.BLOCK_MODE_GCM).setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE).setKeySize(256).build());
-        return g.generateKey();
-    }
-
-    private static String seal(String s) throws Exception {
-        Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
-        c.init(Cipher.ENCRYPT_MODE, tokenKey());
-        return Base64.encodeToString(c.getIV(), Base64.NO_WRAP) + ":" + Base64.encodeToString(c.doFinal(s.getBytes("UTF-8")), Base64.NO_WRAP);
-    }
-
-    private String refreshToken() {
-        String s = st.prefs.getString("od_refresh", "");
-        int i = s.indexOf(':');
-        if (i < 0) return null;
-        try {
-            Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
-            c.init(Cipher.DECRYPT_MODE, tokenKey(), new GCMParameterSpec(128, Base64.decode(s.substring(0, i), Base64.NO_WRAP)));
-            return new String(c.doFinal(Base64.decode(s.substring(i + 1), Base64.NO_WRAP)), "UTF-8");
-        } catch (Exception e) { Journal.add("OneDrive: stored sign-in unreadable: " + e); return null; }
-    }
-
-    static String b64url(byte[] b) { return Base64.encodeToString(b, Base64.URL_SAFE | Base64.NO_PADDING | Base64.NO_WRAP); }
 
     // ---------------------------------------------------------------- Graph requests
-
-    private static String text(HttpURLConnection c, int code) throws IOException {
-        InputStream in = code >= 400 ? c.getErrorStream() : c.getInputStream();
-        if (in == null) return "";
-        try (InputStream i = in) { return new String(readAll(i), "UTF-8"); }
-    }
-
-    interface Body { void write(HttpURLConnection c) throws IOException; }
 
     /**
      * One Graph request, retried on 429/503 (waiting as long as Microsoft asks, at most 60 s) and once after a 401
@@ -184,7 +79,7 @@ final class OneDrive extends Cloud {
                 int code = c.getResponseCode();
                 String t = text(c, code), path = url.split("\\?")[0].replaceFirst("https://[^/]+", "");
                 Journal.add(method + " " + path.replaceAll(":/[^:]+(:|$)", ":/<name>$1") + " -> HTTP " + code + " (" + (System.currentTimeMillis() - t0) + " ms)");
-                if (code == 401 && attempt == 0) { synchronized (this) { access = null; } continue; }
+                if (code == 401 && attempt == 0) { dropToken(); continue; }
                 if ((code == 429 || code == 503) && attempt < 4) {
                     long wait = Math.min(60, Math.max(2, c.getHeaderFieldLong("Retry-After", 5)));
                     Journal.add("  OneDrive asks to wait " + wait + " s");
@@ -201,16 +96,6 @@ final class OneDrive extends Cloud {
                 return t.isEmpty() ? new JSONObject() : new JSONObject(t);
             } finally { c.disconnect(); }
         }
-    }
-
-    private static Body json(final JSONObject j) {
-        return new Body() { public void write(HttpURLConnection c) throws IOException {
-            byte[] b = j.toString().getBytes("UTF-8");
-            c.setDoOutput(true);
-            c.setRequestProperty("Content-Type", "application/json");
-            c.setFixedLengthStreamingMode(b.length);
-            try (OutputStream o = c.getOutputStream()) { o.write(b); }
-        }};
     }
 
     /** The app's own folder, OneDrive/Apps/PhotoVault (created by OneDrive on first use), or "PhotoVault" with full access. */
@@ -269,7 +154,7 @@ final class OneDrive extends Cloud {
                 c.setRequestProperty("Authorization", "Bearer " + token());
                 int code = c.getResponseCode();
                 Journal.add("GET /me/drive/items/<id>/content -> HTTP " + code + " (" + (System.currentTimeMillis() - t0) + " ms)");
-                if (code == 401 && attempt == 0) { synchronized (this) { access = null; } continue; }
+                if (code == 401 && attempt == 0) { dropToken(); continue; }
                 if ((code == 429 || code == 503) && attempt < 4) { Thread.sleep(1000 * Math.min(60, Math.max(2, c.getHeaderFieldLong("Retry-After", 5)))); continue; }
                 if (code == 200) { save(c.getInputStream(), c.getContentLengthLong(), dst, p); return; }
                 if (code / 100 != 3) { text(c, code); throw new ApiError(code, "OneDrive answered HTTP " + code + " on a download"); }
@@ -300,9 +185,9 @@ final class OneDrive extends Cloud {
             if (e.code != 403) throw e;
             return new String[]{"warn", st.app.getString(R.string.stor_od_hidden)};
         }
-        if (q == null) return new String[]{"warn", st.app.getString(R.string.stor_od_none)};
+        if (q == null) return new String[]{"warn", st.app.getString(R.string.stor_none, name())};
         long used = q.optLong("used"), total = q.optLong("total"), free = q.optLong("remaining");
         return new String[]{free < (1L << 30) ? "warn" : "ok",
-                st.app.getString(R.string.stor_od, Store.human(used), Store.human(total), Store.human(free))};
+                st.app.getString(R.string.stor_quota, name(), Store.human(used), Store.human(total), Store.human(free))};
     }
 }

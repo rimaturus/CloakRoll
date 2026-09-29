@@ -2,11 +2,11 @@
 
 # Cloakroll
 
-**Private photo backup on Amazon Photos or OneDrive. Everything is encrypted on your phone, so the cloud only ever stores noise.**
+**Private photo backup on Amazon Photos, OneDrive, Google Drive or only on your phone. Everything is encrypted on your phone, so the cloud only ever stores noise.**
 
 *Formerly PhotoVault. The vault folder in the cloud keeps the name `PhotoVault`, so existing vaults keep working.*
 
-Amazon Prime includes unlimited full-resolution photo storage, and OneDrive comes with many Microsoft accounts. Cloakroll uses that space without handing over your pictures: each photo or video is encrypted on the phone with AES-256 and uploaded as a PNG image of random pixels. Only Cloakroll, with your password, can turn it back into your photo.
+Amazon Prime includes unlimited full-resolution photo storage, and OneDrive and Google Drive come with many Microsoft and Google accounts. Cloakroll uses that space without handing over your pictures: each photo or video is encrypted on the phone with AES-256 and uploaded as a PNG image of random pixels. Only Cloakroll, with your password, can turn it back into your photo.
 
 ![What you see vs. what the cloud stores](docs/comparison.png)
 
@@ -20,7 +20,7 @@ Amazon Prime includes unlimited full-resolution photo storage, and OneDrive come
 |---|---|
 | **No ads** | Not now, not later. |
 | **No tracking** | No analytics, no crash reporting, no third-party SDKs. The app has **zero** third-party libraries. |
-| **No data collection, no data selling** | There are no Cloakroll servers and no Cloakroll accounts. The app talks only to the cloud storage you choose (Amazon Photos or OneDrive), and only sends it encrypted files. We never receive anything, so there is nothing to sell or to leak. |
+| **No data collection, no data selling** | There are no Cloakroll servers and no Cloakroll accounts. The app talks only to the cloud storage you choose (Amazon Photos, OneDrive or Google Drive), and only sends it encrypted files. We never receive anything, so there is nothing to sell or to leak. |
 | **Open source** | GPL-3.0. About 4,000 lines of plain Java and Python that anyone can read. The whole cryptography is in one file, [`Vault.java`](src/app/photovault/Vault.java) (280 lines). |
 | **Donation-funded** | Cloakroll is free. Donations are voluntary and unlock nothing: every feature is free for everyone. [Support the project](#support-the-project). |
 
@@ -34,7 +34,7 @@ Cloud photo services scan what you upload: faces, places, objects, text. That da
 flowchart LR
     A[Photo or video<br/>on your phone] -->|AES-256-GCM<br/>key from your password| B[Encrypted bytes]
     B -->|packed as pixels| C[PNG of random noise]
-    C -->|upload| D[(Amazon Photos or OneDrive<br/>folder 'PhotoVault')]
+    C -->|upload| D[(Amazon Photos, OneDrive, Google Drive<br/>or a folder on the phone)]
     D -->|download| E[PNG]
     E -->|decrypt + verify<br/>on the phone| F[Your photo]
 ```
@@ -78,6 +78,8 @@ The key is derived from your password and never stored in plain form. Nobody can
 - **No backups, no leaks:** Android backup and phone-to-phone transfer are disabled for the app's data. Screenshots and the preview in "recent apps" are blocked (you can allow screenshots temporarily in *Settings*).
 - **Amazon sign-in:** the in-app page only shows Amazon's own sign-in sites; any other link opens in your normal browser. The app never sees your Amazon password: it reuses the session cookies of that page.
 - **OneDrive sign-in:** on Microsoft's own page, in your browser (OAuth 2.0 with PKCE, no client secret). The app never sees your Microsoft password. It asks only for its own folder, `Apps/PhotoVault`, not your other files. The refresh token is stored encrypted with a key in the phone's secure hardware; the short-lived access token stays in memory.
+- **Google Drive sign-in:** the same way, on Google's own page in your browser. The app asks only for `drive.file`: it sees the files it created itself (the folder `Cloakroll`), nothing else in your Drive.
+- **Folder on the phone** (vault only on the phone, or the optional encrypted copy next to a cloud): chosen with Android's folder picker, which gives the app access to that folder only. No storage permission.
 - **The log** (*Settings → Log*) lists every request made to the cloud, and never contains cookies, tokens, keys, passwords or file names.
 
 ### Threat model
@@ -101,16 +103,18 @@ The app has **not** had an independent security audit yet. Reviews and reports a
 
 | Permission | Why |
 |---|---|
-| Internet | Talk to Amazon Photos or OneDrive |
+| Internet | Talk to Amazon Photos, OneDrive or Google Drive |
 | Biometric | Optional fingerprint unlock |
 | Foreground service (data sync) | Uploads and syncs keep running when you leave the app |
 | Notifications | Show upload progress (never file names) |
 
-No storage, contacts, location, camera or microphone permission. Photos are chosen through Android's photo picker, which grants access only to what you select.
+No storage, contacts, location, camera or microphone permission. Photos are chosen through Android's photo picker, which grants access only to what you select; a folder on the phone, through Android's folder picker, the same way.
 
 ## Features
 
-- **Two storage options**: Amazon Photos (unlimited photos with Prime, unofficial web interface) or OneDrive (official Microsoft Graph API, uses your OneDrive quota). You choose at setup
+- **Four storage options**, chosen at setup: Amazon Photos (unlimited photos with Prime, unofficial web interface), OneDrive (official Microsoft Graph API), Google Drive (official Drive API, `drive.file` access only), or **only on this phone**, in a folder you choose
+- **Encrypted copy on the phone** next to any cloud (setup or *Settings*): every encrypted PNG also goes in a folder you choose, so items open faster and offline, and you have one more backup
+- **Time estimates and statistics**: time left while adding or opening files, and *Settings > Transfer statistics* with the measured upload, download, encryption and decryption speeds of your phone and connection
 - Encrypt and upload many photos and videos at once, of any size; big files go up as 32 MB encrypted parts. The queue keeps running in the background with a progress notification and a *Stop* button
 - Gallery with instant previews. Opening an item shows its small preview (kept encrypted on the phone) and downloads nothing: the full-quality original is fetched only when you tap *Original* or *Save to phone*, so browsing costs no data. Swipe left and right to move between items
 - **Folders**: create folders, long-press photos to select several and *Move* or *Delete* them, rename or delete folders (their photos are kept). Folder names and contents are saved in the cloud in one more encrypted file, so the provider can't read them and a new phone gets them back
@@ -138,8 +142,8 @@ apksigner verify --print-certs PhotoVault.apk
 
 ## First launch
 
-1. **Choose where to store**: Amazon Photos or OneDrive.
-2. **Sign in.** Amazon: in the in-app page; the app creates a `PhotoVault` folder in your Amazon Photos. OneDrive: in your browser; the vault goes in `Apps/PhotoVault`.
+1. **Choose where to store**: Amazon Photos, OneDrive, Google Drive or only this phone; and whether to keep an encrypted copy on the phone too.
+2. **Sign in.** Amazon: in the in-app page; the app creates a `PhotoVault` folder in your Amazon Photos. OneDrive: in your browser; the vault goes in `Apps/PhotoVault`. Google Drive: in your browser; the vault goes in the folder `Cloakroll`. Only this phone: pick a folder; the vault goes in its subfolder `Cloakroll`.
 3. **Create your vault password.** At least 10 characters; a few random words is ideal. Store it in a password manager.
 4. **Self-test.** Eight checks on your real account, with the test image and its encrypted version side by side. Then turn on fingerprint unlock.
 5. Tap **Add**.
@@ -150,7 +154,7 @@ Already have a vault (new phone, reinstall)? Choose the same storage, sign in, e
 
 Every file stays readable even if this app disappears.
 
-1. On the Amazon Photos or OneDrive website, download the PNGs of the vault folder (`PhotoVault`, or `Apps/PhotoVault` on OneDrive).
+1. Get the PNGs of the vault folder: from the Amazon Photos, OneDrive or Google Drive website (`PhotoVault`, `Apps/PhotoVault` on OneDrive, `Cloakroll` on Google Drive), or copy the folder `Cloakroll` from the phone.
 2. On a PC with Python 3:
 
 ```
@@ -190,10 +194,10 @@ sudo apt install aapt apksigner dalvik-exchange zipalign openjdk-21-jdk-headless
 KS_PASS='a-strong-password' ./build.sh           # creates photovault.jks on first run; DONATE_URL=... to change the donation link
 KS_PASS='a-strong-password' PLAY=1 ./build.sh     # Google Play variant: no donation or source links (Play payments policy)
 KS_PASS='a-strong-password' PLAY=1 AAB=1 ./build.sh   # the same as an App Bundle (.aab) for Google Play, with code transparency
-ONEDRIVE_CLIENT_ID='your-app-id' KS_PASS='...' ./build.sh   # with OneDrive (see PUBLISHING.md, "OneDrive app registration")
+ONEDRIVE_CLIENT_ID='your-app-id' GOOGLE_CLIENT_ID='your-client-id' KS_PASS='...' ./build.sh   # with OneDrive and Google Drive (PUBLISHING.md)
 ```
 
-Without `ONEDRIVE_CLIENT_ID` the app builds fine and offers Amazon Photos only. `build.sh` downloads the Android API jars, compiles, and signs. **Keep `photovault.jks` private and out of git** (it is in `.gitignore`): anyone who has it can sign "updates" that install over your users' copies.
+Without `ONEDRIVE_CLIENT_ID` or `GOOGLE_CLIENT_ID` the app builds fine and shows that option as not available. `build.sh` downloads the Android API jars, compiles, and signs. **Keep `photovault.jks` private and out of git** (it is in `.gitignore`): anyone who has it can sign "updates" that install over your users' copies.
 
 Source layout:
 
@@ -202,7 +206,12 @@ Source layout:
 | `src/app/photovault/Vault.java` | File format and all cryptography (pure Java, testable on a PC) |
 | `src/app/photovault/Cloud.java` | What a storage backend must do (list, upload, download, trash) |
 | `src/app/photovault/Amazon.java` | Amazon Photos web requests |
-| `src/app/photovault/OneDrive.java` | OneDrive: Microsoft Graph requests and the browser sign-in (PKCE) |
+| `src/app/photovault/OAuthCloud.java` | Browser sign-in (OAuth 2.0 + PKCE) and token storage, shared by OneDrive and Google Drive |
+| `src/app/photovault/OneDrive.java` | OneDrive: Microsoft Graph requests |
+| `src/app/photovault/GoogleDrive.java` | Google Drive: Drive API v3 requests |
+| `src/app/photovault/Local.java` | A folder on the phone (Android's folder picker): the vault itself, or the encrypted copy |
+| `src/app/photovault/Transfers.java` | What the app uses: the storage, timed, plus the optional copy on the phone |
+| `src/app/photovault/Stats.java` | Measured speeds, time estimates |
 | `src/app/photovault/Store.java` | Shared state, encrypted local index and previews |
 | `src/app/photovault/SyncService.java` | Background uploads and sync |
 | `src/app/photovault/MainActivity.java` | All screens |
@@ -218,7 +227,9 @@ Source layout:
 - **Password.** It can't be recovered. Changing it re-encrypts the whole vault: every file is downloaded and uploaded again, and until that finishes the old password still opens the files not done yet.
 - **OneDrive: storage.** Files count against your OneDrive quota (5 GB free, 1 TB with Microsoft 365). During a password change the old copies stay in the recycle bin, so the vault needs about twice its size for a while.
 - **OneDrive: app registration.** Microsoft requires every app that signs in with a Microsoft account to be registered; builds need the registration's client ID (see [PUBLISHING.md](PUBLISHING.md)).
-- **No Google Photos.** Google's Photos API doesn't fit: apps may upload only real photos and videos (not other data), can't delete what they upload, and downloads aren't bit-exact, which encrypted files need. Google Drive would work and may come later.
+- **Google Drive: storage and registration.** Files count against your Google storage (15 GB free, shared with Gmail and Google Photos). Builds need a Google OAuth client ID (see [PUBLISHING.md](PUBLISHING.md)).
+- **Only on this phone.** No cloud copy: a lost or broken phone means a lost vault, unless you copy the folder elsewhere (a PC, a USB drive).
+- **No Google Photos.** Google's Photos API doesn't fit: apps may upload only real photos and videos (not other data), can't delete what they upload, and downloads aren't bit-exact, which encrypted files need. Google Drive is offered instead.
 - Android limits background data sync to 6 hours a day.
 
 ## Support the project
@@ -237,4 +248,4 @@ Please don't open a public issue for vulnerabilities. Use GitHub's *Report a vul
 
 [GPL-3.0](LICENSE). You may use, study, share and modify Cloakroll; modified versions you distribute must stay open source under the same license.
 
-*Amazon, Amazon Photos and Prime are trademarks of Amazon.com, Inc. or its affiliates. Microsoft and OneDrive are trademarks of the Microsoft group of companies. Cloakroll is an independent project and is not affiliated with or endorsed by Amazon or Microsoft.*
+*Amazon, Amazon Photos and Prime are trademarks of Amazon.com, Inc. or its affiliates. Microsoft and OneDrive are trademarks of the Microsoft group of companies. Google Drive is a trademark of Google LLC. Cloakroll is an independent project and is not affiliated with or endorsed by Amazon, Microsoft or Google.*

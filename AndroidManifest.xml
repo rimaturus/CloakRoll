@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="io.github.rimaturus.photovault" android:versionCode="8" android:versionName="1.7">
+    package="io.github.rimaturus.photovault" android:versionCode="9" android:versionName="1.8">
     <!-- Application id io.github.rimaturus.photovault (as on Google Play); the Java code lives in package app.photovault -->
     <uses-sdk android:minSdkVersion="33" android:targetSdkVersion="36" />
 
     <!-- The complete list of permissions. No storage, contacts, location, camera or microphone access. -->
-    <uses-permission android:name="android.permission.INTERNET" />                     <!-- talk to Amazon Photos or OneDrive -->
+    <uses-permission android:name="android.permission.INTERNET" />                     <!-- talk to Amazon Photos, OneDrive or Google Drive -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />                <!-- optional fingerprint unlock -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />           <!-- uploads continue in background -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
@@ -24,14 +24,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <!-- OneDrive sign-in: Microsoft sends the browser back here (OAuth redirect, checked with PKCE and state) -->
+        <!-- OneDrive and Google Drive sign-in: the browser comes back here (OAuth redirect, checked with PKCE and state) -->
         <activity android:name="app.photovault.AuthRedirect" android:exported="true" android:noHistory="true"
             android:excludeFromRecents="true" android:theme="@android:style/Theme.Translucent.NoTitleBar">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="io.github.rimaturus.photovault" android:host="auth" />
+                <data android:scheme="io.github.rimaturus.photovault" />
             </intent-filter>
         </activity>
         <service android:name="app.photovault.SyncService" android:exported="false"

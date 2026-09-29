@@ -37,6 +37,7 @@ public class SyncService extends Service {
     volatile boolean destroyed;
     volatile int cancelUpTo;
     long lastNote;
+    long jobTotal, jobDone; // upload job: bytes of all its files, and of the ones already uploaded (for the time left)
 
     /** Notification and status texts are words only (no symbols like check marks, which some phone fonts show as boxes). */
     static void start(Context c, String action, List<Uri> uris, String intoFolder) {
@@ -164,6 +165,8 @@ public class SyncService extends Service {
 
     void upload(byte[] k, byte[] salt, List<Uri> uris, String into, int id) throws Exception {
         int ok = 0, failed = 0;
+        jobTotal = jobDone = 0;
+        for (Uri u : uris) jobTotal += size(u);
         for (int n = 0; n < uris.size(); n++) {
             if (id <= cancelUpTo) break;
             Uri u = uris.get(n);
@@ -210,6 +213,7 @@ public class SyncService extends Service {
                 if (Store.isAuth(e)) { st.post(new Runnable() { public void run() { st.needLogin = true; st.changed(); } }); break; }
             }
         }
+        jobTotal = 0;
         int skipped = uris.size() - ok - failed;
         if (ok > 0 && !into.isEmpty()) st.backupFolders(k);
         done(plural(into.isEmpty() ? R.plurals.done_added : R.plurals.done_added_folder, ok)
@@ -218,6 +222,21 @@ public class SyncService extends Service {
     }
 
     String plural(int id, int n) { return getResources().getQuantityString(id, n, n); }
+
+    /** Size of a picked file, 0 if the gallery doesn't say. */
+    long size(Uri u) {
+        try (Cursor c = getContentResolver().query(u, new String[]{OpenableColumns.SIZE}, null, null, null)) {
+            if (c != null && c.moveToFirst() && !c.isNull(0)) return c.getLong(0);
+        } catch (Exception ignored) { }
+        return 0;
+    }
+
+    /** " · about 3 min left" for the rest of an upload job, from the measured speeds; "" if not known yet. */
+    String left(long uploadedNow) {
+        if (jobTotal <= 0) return "";
+        String t = st.eta(st.stats.seconds(Math.max(0, jobTotal - jobDone - uploadedNow), Stats.ENC, Stats.UP));
+        return t.isEmpty() ? "" : " · " + getString(R.string.eta_left, t);
+    }
 
     /** Reads until `buf` is full or the stream ends. */
     static int readUpTo(InputStream in, byte[] buf) throws IOException {
@@ -230,11 +249,15 @@ public class SyncService extends Service {
     String put(byte[] k, byte[] salt, byte[] plain, String name, final String label) throws Exception {
         File png = new File(getCacheDir(), "upload.png");
         try {
+            long t0 = SystemClock.elapsedRealtime();
             try (OutputStream o = new BufferedOutputStream(new FileOutputStream(png), 1 << 16)) { Vault.encryptToPng(k, salt, plain, o); }
+            st.stats.add(Stats.ENC, plain.length, SystemClock.elapsedRealtime() - t0);
             final long total = png.length();
-            return st.cloud().upload(png, name, st.folder(), new Cloud.Progress() {
-                public void on(long d, long t) { int pct = (int) (100 * d / Math.max(1, total)); show(label + " " + pct + "%", pct); }
+            String id = st.cloud().upload(png, name, st.folder(), new Cloud.Progress() {
+                public void on(long d, long t) { int pct = (int) (100 * d / Math.max(1, total)); show(label + " " + pct + "%" + left(d), pct); }
             }).getString("id");
+            jobDone += plain.length;
+            return id;
         } finally { png.delete(); }
     }
 
