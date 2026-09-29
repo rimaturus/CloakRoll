@@ -119,4 +119,25 @@ Every app that signs in with a Microsoft account must be registered with Microso
 - The consent screen shows Cloakroll as **unverified**. Publisher verification needs a Microsoft Cloud Partner Program account (a business), so a personal project stays unverified. Personal Microsoft accounts can still consent; some organisations block unverified apps for their work accounts.
 - The app asks only for `Files.ReadWrite.AppFolder`: it sees its own folder and nothing else in the user's OneDrive. If Microsoft refuses the app folder for a new registration (it happens), setup offers *full OneDrive access* instead; the vault then goes in a normal folder `PhotoVault`.
 - Refresh tokens of public clients last up to 90 days without use; after that the app asks to sign in again. Users can remove the app's access at [account.live.com/consent/Manage](https://account.live.com/consent/Manage).
-- Why not Google Photos: the Google Photos API allows uploading only real photos and videos, has no delete, and doesn't return bit-exact originals, which encrypted files need. Google Drive (`drive.file` scope) would work, but Google's sign-in for Android apps without Google Play services libraries needs extra work (custom URI schemes are disabled for new Android OAuth clients). Possible later.
+- Why not Google Photos: the Google Photos API allows uploading only real photos and videos, has no delete, and doesn't return bit-exact originals, which encrypted files need. Google Drive works: see the next section.
+
+## 5. Google Drive OAuth client
+
+Google Drive needs a Google Cloud project with an OAuth client. Free; the **Client ID** goes into the build. No secret: the app signs in with OAuth 2.0 + PKCE in the browser.
+
+Why the client type is **iOS**: for Android clients Google allows only its own sign-in libraries (Google Play services), and custom URI scheme redirects are disabled for new Android clients. The iOS client type still allows a browser sign-in whose redirect is the app's bundle id as a URI scheme (`io.github.rimaturus.photovault:/oauth2redirect`), which Android delivers to the app like the OneDrive redirect. Nothing iOS-specific is used.
+
+### Steps (about 10 minutes)
+
+1. At [console.cloud.google.com](https://console.cloud.google.com), create a project, e.g. `Cloakroll`.
+2. **APIs & Services > Library > Google Drive API > Enable.**
+3. **Google Auth Platform > Branding:** app name `Cloakroll`, user support email, developer contact email. **Audience:** *External*, then **Publish app** (while "Testing", only listed test users can sign in and their sign-in expires after 7 days).
+4. **Data access > Add or remove scopes:** only `https://www.googleapis.com/auth/drive.file`. It is a non-sensitive scope: no Google verification is needed (a logo on the consent screen would need brand verification, so leave it out).
+5. **Clients > Create client:** type **iOS**, name e.g. `Cloakroll (Android, browser sign-in)`, **Bundle ID** exactly `io.github.rimaturus.photovault`. Create, copy the **Client ID** (`....apps.googleusercontent.com`).
+6. Build with it:
+   `GOOGLE_CLIENT_ID='....apps.googleusercontent.com' KS_PASS='...' ./build.sh`
+
+### Good to know
+
+- `drive.file` means the app sees only the files it created (the folder `Cloakroll` and its contents), on any phone signed in to the same account, and nothing else in the user's Drive.
+- Users can remove the app's access at [myaccount.google.com/connections](https://myaccount.google.com/connections).

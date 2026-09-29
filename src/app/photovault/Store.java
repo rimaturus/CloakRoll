@@ -92,17 +92,49 @@ final class Store {
 
     private final Amazon amazon;
     private final OneDrive oneDrive;
+    private final GoogleDrive google;
+    final Local local;  // the phone folder: the vault itself ("local"), or where the copies go next to a cloud
+    final Stats stats;
+    private volatile Transfers transfers;
 
     private Store(Context app) {
         this.app = app;
         prefs = app.getSharedPreferences("vault", Context.MODE_PRIVATE);
         amazon = new Amazon(this);
         oneDrive = new OneDrive(this);
+        google = new GoogleDrive(this);
+        local = new Local(this);
+        stats = new Stats(this);
         deletePlayback(); // leftovers if the app was killed while a video was open
     }
 
-    /** Where this vault's files are, chosen at setup ("amazon" before v1.5). Any thread. */
-    Cloud cloud() { return "onedrive".equals(prefs.getString("backend", "")) ? oneDrive : amazon; }
+    /** Where this vault's files are, chosen at setup: "amazon" (also before v1.5), "onedrive", "google" or "local". */
+    String backend() {
+        String b = prefs.getString("backend", "");
+        return "onedrive".equals(b) || "google".equals(b) || "local".equals(b) ? b : "amazon";
+    }
+
+    /** The storage itself, without timing or phone copy: for sign-in, the self-test and texts. Any thread. */
+    Cloud base() {
+        switch (backend()) {
+            case "onedrive": return oneDrive;
+            case "google": return google;
+            case "local": return local;
+            default: return amazon;
+        }
+    }
+
+    /** A copy of every encrypted file is kept in a folder on the phone too (next to a cloud). */
+    boolean keepsCopy() { return !"local".equals(backend()) && prefs.getBoolean("local_copy", false) && local.tree() != null; }
+
+    /** The storage for reading and writing vault files: timed, and with the phone copy if it's on. Any thread. */
+    Cloud cloud() {
+        Cloud b = base();
+        Local copy = keepsCopy() ? local : null;
+        Transfers t = transfers;
+        if (t == null || t.c != b || t.copy != copy) transfers = t = new Transfers(b, copy, stats);
+        return t;
+    }
 
     /** Decrypted videos are written to disk only for playback; removed on lock, on close and at start. */
     void deletePlayback() {
@@ -335,8 +367,12 @@ final class Store {
         byte[] s;
         try (InputStream in = new FileInputStream(png)) { s = Vault.readSalt(in); }
         byte[] old = Arrays.equals(s, salt()) ? null : oldKey(k);
-        try (InputStream in = new FileInputStream(png)) { return Vault.decryptPng(in, old != null && hex(s).equals(prefs.getString("old_salt", "")) ? old : k); }
-        finally { if (old != null) Arrays.fill(old, (byte) 0); }
+        long t0 = android.os.SystemClock.elapsedRealtime();
+        try (InputStream in = new FileInputStream(png)) {
+            Vault.Opened o = Vault.decryptPng(in, old != null && hex(s).equals(prefs.getString("old_salt", "")) ? old : k);
+            stats.add(Stats.DEC, png.length(), android.os.SystemClock.elapsedRealtime() - t0);
+            return o;
+        } finally { if (old != null) Arrays.fill(old, (byte) 0); }
     }
 
     /** Items whose file in the cloud still uses an older key. */
@@ -536,6 +572,14 @@ final class Store {
     }
 
     // ---------------------------------------------------------------- small helpers
+
+    /** "about 40 s", "about 3 min", "about 2 h 10 min"; "" if unknown (negative). */
+    String eta(long secs) {
+        if (secs < 0) return "";
+        if (secs < 60) return app.getString(R.string.eta_s, Math.max(1, secs));
+        if (secs < 3600) return app.getString(R.string.eta_min, (secs + 59) / 60);
+        return app.getString(R.string.eta_h, secs / 3600, secs % 3600 / 60);
+    }
 
     static String human(long b) {
         if (b < 1024) return b + " B";

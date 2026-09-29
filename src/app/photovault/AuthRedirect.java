@@ -5,8 +5,8 @@ import android.content.Intent;
 import android.os.Bundle;
 
 /**
- * Receives the browser's return from the Microsoft sign-in (io.github.rimaturus.photovault://auth?...) and hands it to
- * the PhotoVault screen already open, instead of opening a second one. MainActivity checks the answer.
+ * Receives the browser's return from the Microsoft or Google sign-in (io.github.rimaturus.photovault:...) and hands it to
+ * the app screen already open, instead of opening a second one. MainActivity checks the answer.
  */
 public class AuthRedirect extends Activity {
     @Override protected void onCreate(Bundle b) {
