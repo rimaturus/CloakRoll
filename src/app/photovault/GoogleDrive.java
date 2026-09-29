@@ -73,7 +73,8 @@ final class GoogleDrive extends OAuthCloud {
                 Journal.add(method + " " + url.split("\\?")[0].replaceFirst("https://[^/]+", "") + " -> HTTP " + code + " (" + (System.currentTimeMillis() - t0) + " ms)");
                 if (code == 401 && attempt == 0) { dropToken(); continue; }
                 String reason = code >= 400 ? reason(t) : "";
-                if (retry(code, reason) && attempt < 4) { Thread.sleep(2000L << attempt); continue; }
+                // a POST that failed with a server error may still have been done: never repeated blindly
+                if (retry(code, reason) && attempt < 4 && (!"POST".equals(method) || code == 429 || code == 403)) { Thread.sleep(2000L << attempt); continue; }
                 if (code >= 400) throw error(code, reason);
                 return t.isEmpty() ? new JSONObject() : new JSONObject(t);
             } finally { c.disconnect(); }
@@ -99,6 +100,8 @@ final class GoogleDrive extends OAuthCloud {
     /** 403 is also "Drive full": not a sign-in problem, so it doesn't ask to sign in again. */
     private ApiError error(int code, String reason) {
         if ("storageQuotaExceeded".equals(reason)) return new ApiError(507, st.app.getString(R.string.e_full, name()));
+        // other 403s (daily limits, a disabled API...): signing in again wouldn't help, so not reported as a sign-in problem
+        if (code == 403 && !"insufficientPermissions".equals(reason) && !"authError".equals(reason)) code = 400;
         return new ApiError(code, "Google Drive answered HTTP " + code + (reason.isEmpty() ? "" : " (" + reason + ")"));
     }
 
@@ -107,13 +110,26 @@ final class GoogleDrive extends OAuthCloud {
     /** The folder "Cloakroll" at the top of My Drive (one the app made; drive.file shows no other). */
     @Override String vaultFolder() throws Exception { return folder("root", VAULT); }
 
-    @Override String folder(String parentId, String name) throws Exception {
+    /**
+     * Drive allows several folders with the same name. If two ever exist (created at the same time on two phones, or
+     * a create that failed but went through), every phone uses the oldest one.
+     */
+    @Override synchronized String folder(String parentId, String name) throws Exception {
+        String found = oldest(parentId, name);
+        if (found != null) return found;
+        JSONObject f = new JSONObject().put("name", name).put("mimeType", FOLDER_MIME).put("parents", new JSONArray().put(parentId));
+        String made;
+        try { made = call("POST", API + "/files?fields=id", json(f)).getString("id"); }
+        catch (ApiError e) { if ((found = oldest(parentId, name)) != null) return found; throw e; } // it may have been made anyway
+        found = oldest(parentId, name);
+        return found != null ? found : made;
+    }
+
+    private String oldest(String parentId, String name) throws Exception {
         String query = "name = '" + name.replace("\\", "\\\\").replace("'", "\\'") + "' and mimeType = '" + FOLDER_MIME
                 + "' and '" + parentId + "' in parents and trashed = false";
         JSONArray found = call("GET", API + "/files?q=" + q(query) + "&fields=files(id)&spaces=drive&orderBy=createdTime", null).optJSONArray("files");
-        if (found != null && found.length() > 0) return found.getJSONObject(0).getString("id");
-        JSONObject f = new JSONObject().put("name", name).put("mimeType", FOLDER_MIME).put("parents", new JSONArray().put(parentId));
-        return call("POST", API + "/files?fields=id", json(f)).getString("id");
+        return found != null && found.length() > 0 ? found.getJSONObject(0).getString("id") : null;
     }
 
     @Override Listing listFiles(String folderId, int max) throws Exception {

@@ -3,6 +3,7 @@ package app.photovault;
 import android.os.SystemClock;
 import java.io.File;
 import java.util.*;
+import java.util.concurrent.CancellationException;
 import org.json.JSONObject;
 
 /**
@@ -36,25 +37,32 @@ final class Transfers extends Cloud {
         JSONObject r = c.upload(png, name, parentId, p);
         stats.add(Stats.UP, png.length(), SystemClock.elapsedRealtime() - t0);
         if (copy != null) try { copy.put(png, copyName(r.getString("id"))); }
-        catch (Exception e) { Journal.add("copy on the phone not saved: " + e); }
+        catch (Exception e) { Journal.add("copy on the phone not saved: " + e.getClass().getSimpleName()); }
         return r;
     }
 
     @Override void download(String id, File dst, Progress p) throws Exception {
         if (copy != null) try { if (copy.get(copyName(id), dst, p)) return; }
-        catch (Exception e) { Journal.add("copy on the phone not readable, downloading: " + e); }
+        catch (CancellationException e) { throw e; } // the viewer was closed: no download either
+        catch (Exception e) { Journal.add("copy on the phone not readable, downloading: " + e.getClass().getSimpleName()); }
         long t0 = SystemClock.elapsedRealtime();
         c.download(id, dst, p);
         stats.add(Stats.DOWN, dst.length(), SystemClock.elapsedRealtime() - t0);
         if (copy != null) try { copy.put(dst, copyName(id)); }
-        catch (Exception e) { Journal.add("copy on the phone not saved: " + e); }
+        catch (Exception e) { Journal.add("copy on the phone not saved: " + e.getClass().getSimpleName()); }
     }
 
+    /** The phone copies go even if the cloud refuses some files: they were being deleted anyway. */
     @Override void trash(List<String> ids) throws Exception {
-        c.trash(ids);
-        if (copy == null) return;
+        try { c.trash(ids); }
+        finally { dropCopies(ids); }
+    }
+
+    /** Removes the phone copies of these cloud files (deleted, or gone from the cloud). Best effort. */
+    void dropCopies(List<String> ids) {
+        if (copy == null || ids.isEmpty()) return;
         List<String> names = new ArrayList<>();
         for (String id : ids) names.add(copyName(id));
-        try { copy.delete(names); } catch (Exception e) { Journal.add("copies on the phone not removed: " + e); }
+        try { copy.delete(names); } catch (Exception e) { Journal.add("copies on the phone not removed: " + e.getClass().getSimpleName()); }
     }
 }

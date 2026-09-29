@@ -53,7 +53,7 @@ final class Local extends Cloud {
         catch (Exception ignored) { } // already gone
     }
 
-    private void forget() { byName.clear(); scanned = false; home = null; }
+    private synchronized void forget() { byName.clear(); scanned = false; home = null; }
 
     /** The picked folder is still there and the app may still write to it. */
     @Override boolean hasSession() {
@@ -92,14 +92,30 @@ final class Local extends Cloud {
 
     private static boolean isDir(String[] ch) { return Document.MIME_TYPE_DIR.equals(ch[2]); }
 
-    /** The folder "Cloakroll" inside the picked folder, created if missing. */
-    String home() throws Exception {
-        String h = home;
-        if (h == null) {
-            if (!hasSession()) throw lost();
-            h = home = folder(DocumentsContract.getTreeDocumentId(tree()), VAULT);
-        }
-        return h;
+    /** Only the vault's own files count: finished PNGs (not ".part" files being written, not other files). */
+    private static boolean isVaultFile(String[] ch) { return !isDir(ch) && ch[1] != null && ch[1].endsWith(".png"); }
+
+    /**
+     * The folder "Cloakroll" inside the picked folder, created if missing. If the picked folder is itself a vault folder
+     * (named Cloakroll, or holding the "index" subfolder, e.g. copied from a PC), that one. It gets a ".nomedia" file
+     * so gallery apps don't show (or back up) the noise images.
+     */
+    synchronized String home() throws Exception {
+        if (home != null) return home;
+        if (!hasSession()) throw lost();
+        String root = DocumentsContract.getTreeDocumentId(tree()), h = null, rootName = null;
+        try (Cursor c = cr.query(doc(root), new String[]{Document.COLUMN_DISPLAY_NAME}, null, null, null)) {
+            if (c != null && c.moveToFirst()) rootName = c.getString(0);
+        } catch (SecurityException e) { throw lost(); }
+        List<String[]> top = children(root);
+        if (VAULT.equalsIgnoreCase(rootName)) h = root;
+        else for (String[] ch : top) if (isDir(ch) && "index".equals(ch[1])) h = root;
+        if (h == null) h = folder(root, VAULT);
+        boolean media = true;
+        for (String[] ch : h.equals(root) ? top : children(h)) if (".nomedia".equals(ch[1])) media = false;
+        if (media) try { DocumentsContract.createDocument(cr, doc(h), "application/octet-stream", ".nomedia"); }
+        catch (Exception e) { Journal.add("phone folder: .nomedia not created (" + e.getClass().getSimpleName() + ")"); }
+        return home = h;
     }
 
     @Override String vaultFolder() throws Exception { return home(); }
@@ -119,7 +135,7 @@ final class Local extends Cloud {
         iso.setTimeZone(TimeZone.getTimeZone("UTC"));
         res.complete = true;
         for (String[] ch : children(folderId)) {
-            if (isDir(ch)) continue;
+            if (!isVaultFile(ch)) continue;
             byName.put(ch[1], new String[]{ch[0], folderId});
             if (res.files.size() < max) res.files.add(node(ch[1], ch[1], iso.format(new Date(Long.parseLong(ch[3])))));
             else res.complete = false;
@@ -135,8 +151,8 @@ final class Local extends Cloud {
             if (!scanned) {
                 String h = home();
                 for (String[] ch : children(h)) {
-                    if (!isDir(ch)) byName.put(ch[1], new String[]{ch[0], h});
-                    else if (!TRASH.equals(ch[1])) for (String[] f : children(ch[0])) if (!isDir(f)) byName.put(f[1], new String[]{f[0], ch[0]});
+                    if (isVaultFile(ch)) byName.put(ch[1], new String[]{ch[0], h});
+                    else if (isDir(ch) && !TRASH.equals(ch[1])) for (String[] f : children(ch[0])) if (isVaultFile(f)) byName.put(f[1], new String[]{f[0], ch[0]});
                 }
                 scanned = true;
             }
@@ -144,10 +160,33 @@ final class Local extends Cloud {
         return byName.get(name);
     }
 
-    /** Writes `src` as file `name` in folder `dir`. Returns the name the phone gave it (normally the same). */
+    /**
+     * Writes `src` as file `name` in folder `dir`: first as "name.part", renamed when complete, so a copy cut short
+     * (app killed, phone off) is never taken for a real file. Returns the name the phone gave it (normally the same).
+     */
     private String write(File src, String name, String dir, Progress p) throws Exception {
+        Uri u = create(dir, name + ".part", src, p);
+        try {
+            Uri r = DocumentsContract.renameDocument(cr, u, name);
+            if (r == null) throw new IOException("rename failed");
+            u = r;
+        } catch (Exception e) { // some storage can't rename: written again under the final name
+            try { DocumentsContract.deleteDocument(cr, u); } catch (Exception ignored) { }
+            Journal.add("phone folder: rename not possible (" + e.getClass().getSimpleName() + "), writing directly");
+            u = create(dir, name, src, p);
+        }
+        String got = name;
+        try (Cursor c = cr.query(u, new String[]{Document.COLUMN_DISPLAY_NAME}, null, null, null)) {
+            if (c != null && c.moveToFirst() && !c.isNull(0)) got = c.getString(0);
+        }
+        byName.put(got, new String[]{DocumentsContract.getDocumentId(u), dir});
+        return got;
+    }
+
+    /** A new file with these bytes; nothing is left behind if writing fails. */
+    private Uri create(String dir, String name, File src, Progress p) throws Exception {
         Uri u;
-        try { u = DocumentsContract.createDocument(cr, doc(dir), "image/png", name); }
+        try { u = DocumentsContract.createDocument(cr, doc(dir), name.endsWith(".png") ? "image/png" : "application/octet-stream", name); }
         catch (SecurityException e) { throw lost(); }
         if (u == null) throw new IOException("can't write to the folder on this phone");
         boolean ok = false;
@@ -160,12 +199,7 @@ final class Local extends Cloud {
         } finally {
             if (!ok) try { DocumentsContract.deleteDocument(cr, u); } catch (Exception ignored) { }
         }
-        String got = name;
-        try (Cursor c = cr.query(u, new String[]{Document.COLUMN_DISPLAY_NAME}, null, null, null)) {
-            if (c != null && c.moveToFirst() && !c.isNull(0)) got = c.getString(0);
-        }
-        byName.put(got, new String[]{DocumentsContract.getDocumentId(u), dir});
-        return got;
+        return u;
     }
 
     @Override JSONObject upload(File png, String name, String parentId, Progress p) throws Exception {
