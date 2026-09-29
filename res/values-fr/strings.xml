@@ -195,7 +195,7 @@
     <string name="off">Désactivé</string>
     <string name="screenshots_t">Autoriser les captures d\'écran</string>
     <string name="screenshots_d">Jusqu\'à la fermeture de l\'app. Désactivé : l\'app est aussi vide dans les apps récentes</string>
-    <string name="sync_d">Restaure éléments et dossiers, retire ceux supprimés là-bas</string>
+    <string name="sync_d">Restaure éléments et dossiers depuis la liste enregistrée là-bas, retire ceux supprimés là-bas</string>
     <string name="selftest_t">Lancer l\'autotest</string>
     <string name="selftest_d">Vérifie toute la chaîne avec une image de test</string>
     <string name="signout_t">Se déconnecter de %1$s</string>
@@ -214,7 +214,7 @@
     <string name="promise_d">• Pas de pub. Ni traceurs, ni statistiques, ni rapports de plantage.\n• Aucun serveur ni compte chez nous : l\'app ne parle qu\'à %1$s, et uniquement avec des fichiers chiffrés.\n• Rien n\'est collecté, donc rien ne peut être vendu ni divulgué par nous.\n• Gratuite et open source (GPL-3.0) : chacun peut vérifier ce que fait l\'app.\n• Financée uniquement par des dons volontaires. Donner ne débloque rien : toutes les fonctions sont gratuites pour tous.</string>
     <string name="where_t">Où sont vos données</string>
     <string name="where_cloud">• %1$s : %2$s, %3$s (les gros fichiers en font plusieurs). Ils apparaissent aussi dans l\'app %1$s comme des images de bruit : ce sont eux, ne les supprimez pas là-bas.</string>
-    <string name="where_folders">• Dossiers : leurs noms et quel élément est dans lequel sont enregistrés là-bas dans un PNG chiffré de plus (sous-dossier « index »), pour qu\'un nouveau téléphone les récupère avec la synchronisation. %1$s ne peut pas lire les noms des dossiers.</string>
+    <string name="where_folders">• Dossiers et liste : les noms des dossiers, quel élément est dans lequel et la liste de vos éléments (nom, date, taille) sont enregistrés là-bas dans un PNG chiffré de plus (sous-dossier « index »), pour qu\'un nouveau téléphone les récupère avec la synchronisation sans télécharger chaque fichier. %1$s ne peut rien en lire.</string>
     <string name="where_phone">• Ce téléphone : la liste des éléments et de petits aperçus, tous deux chiffrés avec la clé du coffre, dans le stockage privé de l\'app, exclus des sauvegardes et des transferts entre téléphones.</string>
     <string name="where_signin_od">• Connexion : un jeton Microsoft, stocké chiffré avec une clé dans le matériel sécurisé du téléphone.</string>
     <string name="where_signin_amazon">• Connexion : les cookies de session Amazon de la page de connexion, dans le stockage privé de l\'app.</string>
@@ -284,7 +284,7 @@
     <string name="sync_skipped">, %1$d ignorés (impossibles à ouvrir avec la clé de ce coffre, voir le journal)</string>
     <string name="sync_retry">, %1$d à réessayer : relancez la synchronisation</string>
     <string name="sync_failed">Échec de la synchronisation : %1$s</string>
-    <string name="reenc_progress">Changement de mot de passe : rechiffrement %1$d sur %2$d. Les nouveaux envois attendent la fin.</string>
+    <string name="reenc_progress">Changement de mot de passe : rechiffrement %1$d sur %2$d%3$s. Les nouveaux envois attendent la fin.</string>
     <string name="reenc_uploading">Changement de mot de passe : envoi</string>
     <string name="reenc_complete">Changement de mot de passe terminé : chaque fichier du coffre utilise désormais le nouveau mot de passe.</string>
     <string name="reenc_paused_err">Changement de mot de passe en pause : %1$s. Il reprend au prochain déverrouillage de Cloakroll.</string>
@@ -448,4 +448,8 @@
     <string name="est_line">• Fichier de %1$s : %2$s pour l\'ajouter, %3$s pour l\'ouvrir</string>
     <string name="est_note">« ? » tant que cette étape n\'a pas été mesurée : ajoutez ou ouvrez d\'abord un fichier. Les mêmes estimations s\'affichent comme temps restant pendant l\'ajout ou l\'ouverture.</string>
     <string name="stats_reset">Réinitialiser les statistiques</string>
+    <string name="previews_t">Télécharger les aperçus manquants</string>
+    <string name="previews_d">%1$d sans aperçu. Télécharge chacun une fois (%2$s) : mieux en Wi-Fi. Ouvrir un élément crée aussi son aperçu</string>
+    <string name="previews_progress">Aperçus : %1$d sur %2$d</string>
+    <string name="previews_done">Aperçus créés : %1$d</string>
 </resources>

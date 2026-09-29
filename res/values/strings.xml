@@ -195,7 +195,7 @@
     <string name="off">Off</string>
     <string name="screenshots_t">Allow screenshots</string>
     <string name="screenshots_d">Until the app is closed. Off: the app is also blank in recent apps</string>
-    <string name="sync_d">Restores items and folders, drops items deleted there</string>
+    <string name="sync_d">Restores items and folders from the list saved there, drops items deleted there</string>
     <string name="selftest_t">Run the self-test</string>
     <string name="selftest_d">Checks the whole chain with a test image</string>
     <string name="signout_t">Sign out of %1$s</string>
@@ -214,7 +214,7 @@
     <string name="promise_d">• No ads. No trackers, no analytics, no crash reporting.\n• No servers and no accounts of ours: the app talks only to %1$s, only with encrypted files.\n• Nothing is collected, so nothing can be sold or leaked by us.\n• Free and open source (GPL-3.0): anyone can check what the app does.\n• Funded only by voluntary donations. Donating unlocks nothing: every feature is free for everyone.</string>
     <string name="where_t">Where your data is</string>
     <string name="where_cloud">• %1$s: %2$s, %3$s (big files are several). They also show up in the %1$s app as images of static: that\'s them, don\'t delete them there.</string>
-    <string name="where_folders">• Folders: their names and which item is in which are saved there as one more encrypted PNG (subfolder \"index\"), so a new phone gets them back with Sync. %1$s can\'t read the folder names.</string>
+    <string name="where_folders">• Folders and list: the folder names, which item is in which, and the list of your items (name, date, size) are saved there as one more encrypted PNG (subfolder \"index\"), so a new phone gets them back with Sync without downloading every file. %1$s can\'t read any of it.</string>
     <string name="where_phone">• This phone: the list of items and small previews, both encrypted with your vault key, in app-private storage, excluded from backups and phone-to-phone transfers.</string>
     <string name="where_signin_od">• Sign-in: a Microsoft token, stored encrypted with a key in this phone\'s secure hardware.</string>
     <string name="where_signin_amazon">• Sign-in: the Amazon session cookies of the sign-in page, in app-private storage.</string>
@@ -284,7 +284,7 @@
     <string name="sync_skipped">, %1$d skipped (not openable with this vault\'s key, see Log)</string>
     <string name="sync_retry">, %1$d to retry: run Sync again</string>
     <string name="sync_failed">Sync failed: %1$s</string>
-    <string name="reenc_progress">Password change: re-encrypting %1$d of %2$d. New uploads wait until it\'s done.</string>
+    <string name="reenc_progress">Password change: re-encrypting %1$d of %2$d%3$s. New uploads wait until it\'s done.</string>
     <string name="reenc_uploading">Password change: uploading</string>
     <string name="reenc_complete">Password change complete: every file in your vault now uses the new password.</string>
     <string name="reenc_paused_err">Password change paused: %1$s. It continues the next time you unlock Cloakroll.</string>
@@ -448,4 +448,8 @@
     <string name="est_line">• %1$s file: %2$s to add, %3$s to open</string>
     <string name="est_note">\"?\" until that step has been measured: add or open a file first. The same estimates show up as time left while files are added or opened.</string>
     <string name="stats_reset">Reset statistics</string>
+    <string name="previews_t">Download the missing previews</string>
+    <string name="previews_d">%1$d without a preview. Downloads each of them once (%2$s): better on Wi-Fi. Opening an item makes its preview too</string>
+    <string name="previews_progress">Previews: %1$d of %2$d</string>
+    <string name="previews_done">Previews made: %1$d</string>
 </resources>

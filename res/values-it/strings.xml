@@ -195,7 +195,7 @@
     <string name="off">Disattivo</string>
     <string name="screenshots_t">Consenti gli screenshot</string>
     <string name="screenshots_d">Fino alla chiusura dell\'app. Se disattivo, l\'app appare vuota anche nelle app recenti</string>
-    <string name="sync_d">Ripristina elementi e cartelle, toglie quelli eliminati lì</string>
+    <string name="sync_d">Ripristina elementi e cartelle dall\'elenco salvato lì, toglie quelli eliminati lì</string>
     <string name="selftest_t">Esegui l\'autotest</string>
     <string name="selftest_d">Controlla tutta la catena con un\'immagine di prova</string>
     <string name="signout_t">Esci da %1$s</string>
@@ -214,7 +214,7 @@
     <string name="promise_d">• Niente pubblicità. Niente tracker, analisi o segnalazioni di crash.\n• Nessun nostro server o account: l\'app comunica solo con %1$s, e solo con file cifrati.\n• Non raccogliamo nulla, quindi non possiamo vendere né perdere nulla.\n• Gratuita e open source (GPL-3.0): chiunque può verificare cosa fa l\'app.\n• Finanziata solo da donazioni volontarie. Donare non sblocca nulla: ogni funzione è gratis per tutti.</string>
     <string name="where_t">Dove sono i tuoi dati</string>
     <string name="where_cloud">• %1$s: %2$s, %3$s (i file grandi ne occupano diversi). Compaiono anche nell\'app %1$s come immagini di rumore: sono loro, non eliminarle lì.</string>
-    <string name="where_folders">• Cartelle: i nomi e quale elemento sta in quale sono salvati lì in un altro PNG cifrato (sottocartella \"index\"), così un telefono nuovo li recupera con la sincronizzazione. %1$s non può leggere i nomi delle cartelle.</string>
+    <string name="where_folders">• Cartelle ed elenco: i nomi delle cartelle, quale elemento sta in quale e l\'elenco dei tuoi elementi (nome, data, dimensione) sono salvati lì in un altro PNG cifrato (sottocartella \"index\"), così un telefono nuovo li recupera con la sincronizzazione senza scaricare ogni file. %1$s non può leggere niente di tutto questo.</string>
     <string name="where_phone">• Questo telefono: l\'elenco degli elementi e le piccole anteprime, entrambi cifrati con la chiave della cassaforte, nella memoria privata dell\'app, esclusi da backup e trasferimenti tra telefoni.</string>
     <string name="where_signin_od">• Accesso: un token Microsoft, salvato cifrato con una chiave nell\'hardware sicuro del telefono.</string>
     <string name="where_signin_amazon">• Accesso: i cookie di sessione di Amazon della pagina di accesso, nella memoria privata dell\'app.</string>
@@ -284,7 +284,7 @@
     <string name="sync_skipped">, %1$d saltati (non apribili con la chiave di questa cassaforte, vedi registro)</string>
     <string name="sync_retry">, %1$d da riprovare: sincronizza di nuovo</string>
     <string name="sync_failed">Sincronizzazione non riuscita: %1$s</string>
-    <string name="reenc_progress">Cambio password: cifro di nuovo %1$d di %2$d. I nuovi caricamenti aspettano la fine.</string>
+    <string name="reenc_progress">Cambio password: cifro di nuovo %1$d di %2$d%3$s. I nuovi caricamenti aspettano la fine.</string>
     <string name="reenc_uploading">Cambio password: caricamento</string>
     <string name="reenc_complete">Cambio password completato: ora ogni file della cassaforte usa la nuova password.</string>
     <string name="reenc_paused_err">Cambio password in pausa: %1$s. Riprende la prossima volta che sblocchi Cloakroll.</string>
@@ -448,4 +448,8 @@
     <string name="est_line">• File da %1$s: %2$s per aggiungerlo, %3$s per aprirlo</string>
     <string name="est_note">\"?\" finché quel passaggio non è stato misurato: prima aggiungi o apri un file. Le stesse stime compaiono come tempo alla fine mentre aggiungi o apri i file.</string>
     <string name="stats_reset">Azzera le statistiche</string>
+    <string name="previews_t">Scarica le anteprime mancanti</string>
+    <string name="previews_d">%1$d senza anteprima. Li scarica una volta ciascuno (%2$s): meglio con il Wi-Fi. Anche aprire un elemento crea la sua anteprima</string>
+    <string name="previews_progress">Anteprime: %1$d di %2$d</string>
+    <string name="previews_done">Anteprime create: %1$d</string>
 </resources>

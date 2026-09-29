@@ -195,7 +195,7 @@
     <string name="off">Aus</string>
     <string name="screenshots_t">Screenshots erlauben</string>
     <string name="screenshots_d">Bis die App geschlossen wird. Aus: Die App ist auch in den letzten Apps leer</string>
-    <string name="sync_d">Stellt Elemente und Ordner wieder her, entfernt dort gelöschte</string>
+    <string name="sync_d">Stellt Elemente und Ordner aus der dort gespeicherten Liste wieder her, entfernt dort gelöschte</string>
     <string name="selftest_t">Selbsttest ausführen</string>
     <string name="selftest_d">Prüft die ganze Kette mit einem Testbild</string>
     <string name="signout_t">Von %1$s abmelden</string>
@@ -214,7 +214,7 @@
     <string name="promise_d">• Keine Werbung. Keine Tracker, keine Analysen, keine Absturzberichte.\n• Keine eigenen Server und Konten: Die App spricht nur mit %1$s, und nur mit verschlüsselten Dateien.\n• Wir sammeln nichts, also können wir nichts verkaufen oder verlieren.\n• Kostenlos und Open Source (GPL-3.0): Jeder kann prüfen, was die App tut.\n• Nur durch freiwillige Spenden finanziert. Spenden schaltet nichts frei: Jede Funktion ist für alle kostenlos.</string>
     <string name="where_t">Wo deine Daten liegen</string>
     <string name="where_cloud">• %1$s: %2$s, %3$s (große Dateien sind mehrere). Sie erscheinen auch in der %1$s-App als Rauschbilder: Das sind sie, lösche sie dort nicht.</string>
-    <string name="where_folders">• Ordner: Ihre Namen und welches Element in welchem liegt, werden dort als weiteres verschlüsseltes PNG gespeichert (Unterordner \"index\"), damit ein neues Handy sie per Synchronisierung zurückbekommt. %1$s kann die Ordnernamen nicht lesen.</string>
+    <string name="where_folders">• Ordner und Liste: Die Ordnernamen, welches Element in welchem liegt, und die Liste deiner Elemente (Name, Datum, Größe) werden dort als weiteres verschlüsseltes PNG gespeichert (Unterordner \"index\"), damit ein neues Handy sie per Synchronisierung zurückbekommt, ohne jede Datei herunterzuladen. %1$s kann nichts davon lesen.</string>
     <string name="where_phone">• Dieses Handy: die Liste der Elemente und kleine Vorschauen, beide mit deinem Tresor-Schlüssel verschlüsselt, im privaten Speicher der App, ausgenommen von Backups und Übertragungen zwischen Handys.</string>
     <string name="where_signin_od">• Anmeldung: ein Microsoft-Token, verschlüsselt gespeichert mit einem Schlüssel in der sicheren Hardware des Handys.</string>
     <string name="where_signin_amazon">• Anmeldung: die Amazon-Sitzungscookies der Anmeldeseite, im privaten Speicher der App.</string>
@@ -284,7 +284,7 @@
     <string name="sync_skipped">, %1$d übersprungen (mit dem Schlüssel dieses Tresors nicht zu öffnen, siehe Protokoll)</string>
     <string name="sync_retry">, %1$d erneut zu versuchen: synchronisiere noch einmal</string>
     <string name="sync_failed">Synchronisierung fehlgeschlagen: %1$s</string>
-    <string name="reenc_progress">Passwortänderung: verschlüssele %1$d von %2$d neu. Neue Uploads warten, bis es fertig ist.</string>
+    <string name="reenc_progress">Passwortänderung: verschlüssele %1$d von %2$d neu%3$s. Neue Uploads warten, bis es fertig ist.</string>
     <string name="reenc_uploading">Passwortänderung: lädt hoch</string>
     <string name="reenc_complete">Passwortänderung abgeschlossen: Jede Datei in deinem Tresor nutzt jetzt das neue Passwort.</string>
     <string name="reenc_paused_err">Passwortänderung pausiert: %1$s. Es geht weiter, wenn du Cloakroll das nächste Mal entsperrst.</string>
@@ -448,4 +448,8 @@
     <string name="est_line">• Datei mit %1$s: %2$s zum Hinzufügen, %3$s zum Öffnen</string>
     <string name="est_note">\"?\" bis dieser Schritt gemessen wurde: zuerst eine Datei hinzufügen oder öffnen. Dieselben Schätzungen erscheinen als Restzeit beim Hinzufügen oder Öffnen.</string>
     <string name="stats_reset">Statistik zurücksetzen</string>
+    <string name="previews_t">Fehlende Vorschauen herunterladen</string>
+    <string name="previews_d">%1$d ohne Vorschau. Lädt jedes einmal herunter (%2$s): besser im WLAN. Auch das Öffnen eines Elements erstellt seine Vorschau</string>
+    <string name="previews_progress">Vorschauen: %1$d von %2$d</string>
+    <string name="previews_done">Vorschauen erstellt: %1$d</string>
 </resources>

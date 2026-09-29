@@ -40,6 +40,9 @@ final class Stats {
     /** Recent speed in bytes per second, 0 if never measured. */
     double speed(String kind) { return get(kind)[3]; }
 
+    /** Speed of a transfer under way, from its own bytes and time once they say something; until then the remembered one. */
+    double speed(String kind, long bytes, long ms) { return ms >= 2000 && bytes >= (1 << 20) ? bytes * 1000.0 / ms : speed(kind); }
+
     long count(String kind) { return (long) get(kind)[0]; }
 
     long bytes(String kind) { return (long) get(kind)[1]; }
@@ -55,6 +58,12 @@ final class Stats {
             s += bytes / r;
         }
         return Math.round(Math.ceil(s));
+    }
+
+    /** Same, for a transfer running at `rate` bytes per second, followed by the given steps. */
+    long seconds(long bytes, double rate, String... kinds) {
+        long more = seconds(bytes, kinds);
+        return rate <= 0 || more < 0 ? -1 : Math.round(Math.ceil(bytes / rate)) + more;
     }
 
     synchronized void reset() {

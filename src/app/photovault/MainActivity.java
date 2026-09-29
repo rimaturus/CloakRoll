@@ -374,10 +374,7 @@ public class MainActivity extends Activity {
     }
 
     /** " · about 40 s left" to move `bytes` through these steps, from the measured speeds; "" until they are known. */
-    String left(long bytes, String... kinds) {
-        String t = st.eta(st.stats.seconds(bytes, kinds));
-        return t.isEmpty() ? "" : " · " + s(R.string.eta_left, t);
-    }
+    String left(long bytes, String... kinds) { return st.left(st.stats.seconds(bytes, kinds)); }
 
     void askRelogin() {
         if (st.base() instanceof Local) {
@@ -780,7 +777,8 @@ public class MainActivity extends Activity {
                 try {
                     final byte[] salt = Vault.random(16), k = Vault.deriveKey(a, salt);
                     prefs.edit().putString("salt", hex(salt))
-                            .putString("verifier", Base64.encodeToString(Vault.seal(k, VERIFY.getBytes("UTF-8")), Base64.NO_WRAP)).apply();
+                            .putString("verifier", Base64.encodeToString(Vault.seal(k, VERIFY.getBytes("UTF-8")), Base64.NO_WRAP))
+                            .remove("unopenable").remove("suspect").apply();
                     st.writeIndex(k, new Store.Index());
                     Journal.add("new vault created");
                     post(new Runnable() { public void run() { st.key = k; st.items = new ArrayList<>(); st.folders = new ArrayList<>(); showSelfTest(); } });
@@ -829,7 +827,8 @@ public class MainActivity extends Activity {
                     if (key == null) throw wrong;
                     final byte[] k = key;
                     prefs.edit().putString("salt", hex(salt))
-                            .putString("verifier", Base64.encodeToString(Vault.seal(k, VERIFY.getBytes("UTF-8")), Base64.NO_WRAP)).apply();
+                            .putString("verifier", Base64.encodeToString(Vault.seal(k, VERIFY.getBytes("UTF-8")), Base64.NO_WRAP))
+                            .remove("unopenable").remove("suspect").apply();
                     st.writeIndex(k, new Store.Index());
                     prefs.edit().putBoolean("restore_pending", true).putBoolean("folders_dirty", false).commit();
                     Journal.add("existing vault unlocked");
@@ -1390,7 +1389,7 @@ public class MainActivity extends Activity {
         iv.setPadding(0, 0, 0, 0);
         Bitmap bm = st.thumbs.get(id);
         iv.setImageBitmap(bm);
-        if (bm == null) loadThumb(id, iv);
+        if (bm == null) loadThumb(id, iv, o instanceof String ? null : label, it.name);
         return f;
     }
 
@@ -1595,6 +1594,7 @@ public class MainActivity extends Activity {
                     while (i.hasNext()) if (gone.contains(i.next().id)) i.remove();
                 }});
                 for (String id : gone) { st.thumbFile(id).delete(); st.blobFile(id).delete(); }
+                if (!gone.isEmpty()) st.backupFolders(k); // their names leave the list in the cloud too
             } catch (final Exception e) {
                 Journal.add("delete: list not updated, Sync fixes it: " + e);
             } finally { Arrays.fill(k, (byte) 0); }
@@ -1612,16 +1612,20 @@ public class MainActivity extends Activity {
 
     // ---------------------------------------------------------------- previews, adding, sync
 
-    void loadThumb(final String id, final ImageView iv) {
+    /** `label`: where the item's name goes if it has no preview (restored from the list in the cloud, not opened yet); may be null. */
+    void loadThumb(final String id, final ImageView iv, final TextView label, final String name) {
         final byte[] k = keyCopy();
         if (k == null) return;
         thumbIo.execute(new Runnable() { public void run() {
             final Bitmap b = st.thumb(id, k);
             Arrays.fill(k, (byte) 0);
-            if (b != null) post(new Runnable() { public void run() {
-                if (st.key == null) return;
-                st.thumbs.put(id, b);
-                if (id.equals(iv.getTag())) iv.setImageBitmap(b);
+            post(new Runnable() { public void run() {
+                if (st.key == null || !id.equals(iv.getTag())) return;
+                if (b != null) { st.thumbs.put(id, b); iv.setImageBitmap(b); }
+                else if (label != null) {
+                    label.setText(name);
+                    label.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0, 0x22000000, 0xB0000000}));
+                }
             }});
         }});
     }
@@ -1709,9 +1713,9 @@ public class MainActivity extends Activity {
                 + date(it.taken) + " • " + human(it.size), Ui.BACK, l);
         lastViewedId = it.id;
         Bitmap pre = st.thumbs.get(it.id);
-        if (pre != null) iv.setImageBitmap(pre);
-        else loadThumb(it.id, iv);
         iv.setTag(it.id);
+        if (pre != null) iv.setImageBitmap(pre);
+        else loadThumb(it.id, iv, null, null);
         new Viewer(it, box, iv, info, original, cloudView, save).start();
     }
 
@@ -1762,11 +1766,13 @@ public class MainActivity extends Activity {
 
         /** Download progress; stops the download if the viewer was left. Any thread. */
         Cloud.Progress progress(final ImageView owner) {
+            final long began = SystemClock.elapsedRealtime();
             return new Cloud.Progress() { public void on(final long d, final long total) {
                 if (!open()) throw new CancellationException();
+                final double rate = st.stats.speed(Stats.DOWN, d, SystemClock.elapsedRealtime() - began); // of this download, once it has one
                 post(new Runnable() { public void run() {
                     if (open()) say(owner, s(R.string.v_downloading, total > 0 ? 100 * d / total + "%" : human(d))
-                            + (total > 0 ? left(total - d, Stats.DOWN) : ""), false);
+                            + (total > 0 ? st.left(st.stats.seconds(total - d, rate)) : ""), false);
                 }});
             }};
         }
@@ -1822,7 +1828,7 @@ public class MainActivity extends Activity {
                             st.trimBlobCache();
                         } else png.setLastModified(System.currentTimeMillis());
                         if (!open()) return;
-                        post(new Runnable() { public void run() { if (open()) say(null, s(R.string.v_decrypting), false); } });
+                        post(new Runnable() { public void run() { if (open()) say(null, s(R.string.v_decrypting) + left(png.length(), Stats.DEC), false); } });
                         oo = st.decrypt(png, k);
                         line = s(R.string.v_done, SystemClock.elapsedRealtime() - t, human(oo.dataLen()), cloud.name(), human(png.length()));
                         if (it.video()) {
@@ -1832,6 +1838,10 @@ public class MainActivity extends Activity {
                         w = f;
                     }
                     if (!open()) { if (w != null) w.delete(); return; } // closed meanwhile
+                    if (!st.thumbFile(it.id).exists()) try { // came from the list in the cloud: its preview is made now
+                        st.saveThumb(it.id, k, w != null ? Store.makeThumb(MainActivity.this, null, w, it.video())
+                                : Store.makeThumb(oo.plain, oo.dataOff, oo.dataLen(), false));
+                    } catch (Exception e) { Journal.add("preview not saved: " + e.getClass().getSimpleName()); }
                     if (it.video()) {
                         post(new Runnable() { public void run() {
                             if (!open()) { w.delete(); return; }
@@ -2008,6 +2018,13 @@ public class MainActivity extends Activity {
                 new View.OnClickListener() { public void onClick(View v) { showSelfTest(); } });
         u.row(sto, Ui.CHART, s(R.string.stats_t), s(R.string.stats_d), null,
                 new View.OnClickListener() { public void onClick(View v) { showStats(); } });
+        List<Store.Item> bare = st.withoutPreview(st.items);
+        if (!bare.isEmpty()) {
+            long bytes = 0;
+            for (Store.Item it : bare) bytes += Math.min(it.size, Store.CHUNK);
+            u.row(sto, Ui.IMAGE, s(R.string.previews_t), s(R.string.previews_d, bare.size(), human(bytes)), null,
+                    new View.OnClickListener() { public void onClick(View v) { startJob(SyncService.PREVIEWS); showGallery(); } });
+        }
         if (st.base() instanceof Local) {
             u.row(sto, Ui.FOLDER, s(R.string.local_change_t), s(R.string.local_change_d), null,
                     new View.OnClickListener() { public void onClick(View v) { pickFolder("vault"); } });
@@ -2117,7 +2134,9 @@ public class MainActivity extends Activity {
         int n = st.items.size();
         if (n == 0) u.note(l, s(R.string.changepw_empty));
         else {
-            long secs = 2 * bytes * 8 / 50_000_000L + n * 3L / 2; // 50 Mbit/s both ways + about 1.5 s of requests per file
+            long secs = st.stats.seconds(bytes, Stats.DOWN, Stats.DEC, Stats.ENC, Stats.UP); // as measured on this phone
+            if (secs < 0) secs = 2 * bytes * 8 / 50_000_000L; // nothing measured yet: 50 Mbit/s both ways
+            secs += n * 3L / 2; // about 1.5 s of requests per file
             LinearLayout w = u.notice(l, u.warnSoft);
             LinearLayout head = u.hbox();
             ImageView ic = new ImageView(this);

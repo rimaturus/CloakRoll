@@ -33,5 +33,13 @@ public class PartsTest {
             Vault.Opened o = Vault.decryptPng(new FileInputStream(new File(out, "p" + p + ".png")), key);
             System.out.println("java part " + p + " meta " + (o.meta.length() > 90 ? o.meta.substring(0, 90) + "..." : o.meta) + " data " + o.dataLen());
         }
+        // a header that claims more than any file holds (here: over 2 GB, in a 65536 x 65536 image) is refused
+        // before memory is set aside for it. The pixels start at byte 49 of our PNGs; the length is at 32 of the header.
+        byte[] png = Files.readAllBytes(new File(out, "p0.png").toPath());
+        if (png[49] != 'P' || png[52] != '2') throw new IllegalStateException("vault header not where the test expects it");
+        for (int i = 16; i < 24; i++) png[i] = (byte) (i % 4 == 1 ? 1 : 0);
+        png[49 + 32 + 4] = (byte) 0x80;
+        try { Vault.decryptPng(new ByteArrayInputStream(png), key); System.out.println("HUGE LENGTH ACCEPTED"); System.exit(1); }
+        catch (IOException e) { System.out.println("huge length refused: " + e.getMessage()); }
     }
 }

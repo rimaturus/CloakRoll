@@ -189,19 +189,28 @@ final class Store {
         JSONArray a, fs = null, rs = null;
         if (json.trim().startsWith("[")) a = new JSONArray(json); // v1.0 / v1.1: just the items
         else { JSONObject o = new JSONObject(json); a = o.getJSONArray("items"); fs = o.optJSONArray("folders"); rs = o.optJSONArray("retire"); }
-        for (int i = 0; i < a.length(); i++) {
-            JSONObject o = a.getJSONObject(i);
-            Item it = new Item();
-            it.id = o.getString("id"); it.name = o.optString("name"); it.mime = o.optString("mime");
-            it.taken = o.optLong("taken"); it.size = o.optLong("size"); it.folder = o.optString("folder", "");
-            it.salt = o.optString("salt", "");
-            JSONArray ps = o.optJSONArray("parts");
-            if (ps != null) for (int j = 0; j < ps.length(); j++) it.parts.add(ps.getString(j));
-            ix.items.add(it);
-        }
+        for (int i = 0; i < a.length(); i++) ix.items.add(item(a.getJSONObject(i)));
         if (fs != null) for (int i = 0; i < fs.length(); i++) ix.folders.add(fs.getString(i));
         if (rs != null) for (int i = 0; i < rs.length(); i++) ix.retire.add(rs.getString(i));
         return ix;
+    }
+
+    /** An item as it is written in the list, on the phone and in the copy of the list in the cloud. */
+    static JSONObject json(Item it) throws org.json.JSONException {
+        JSONObject o = new JSONObject().put("id", it.id).put("name", it.name).put("mime", it.mime).put("taken", it.taken)
+                .put("size", it.size).put("folder", it.folder).put("salt", it.salt);
+        if (!it.parts.isEmpty()) o.put("parts", new JSONArray(it.parts));
+        return o;
+    }
+
+    static Item item(JSONObject o) throws org.json.JSONException {
+        Item it = new Item();
+        it.id = o.getString("id"); it.name = o.optString("name"); it.mime = o.optString("mime");
+        it.taken = o.optLong("taken"); it.size = o.optLong("size"); it.folder = o.optString("folder", "");
+        it.salt = o.optString("salt", "");
+        JSONArray ps = o.optJSONArray("parts");
+        if (ps != null) for (int j = 0; j < ps.length(); j++) it.parts.add(ps.getString(j));
+        return it;
     }
 
     synchronized void writeIndex(byte[] k, Index ix) throws Exception {
@@ -216,12 +225,7 @@ final class Store {
         Collections.sort(ix.folders, String.CASE_INSENSITIVE_ORDER);
         for (Item it : ix.items) if (!it.folder.isEmpty()) it.folder = ix.canonical(it.folder); // one spelling per folder
         JSONArray a = new JSONArray();
-        for (Item it : ix.items) {
-            JSONObject o = new JSONObject().put("id", it.id).put("name", it.name).put("mime", it.mime).put("taken", it.taken)
-                    .put("size", it.size).put("folder", it.folder).put("salt", it.salt);
-            if (!it.parts.isEmpty()) o.put("parts", new JSONArray(it.parts));
-            a.put(o);
-        }
+        for (Item it : ix.items) a.put(json(it));
         return new JSONObject().put("items", a).put("folders", new JSONArray(ix.folders)).put("retire", new JSONArray(ix.retire))
                 .toString().getBytes("UTF-8");
     }
@@ -284,8 +288,9 @@ final class Store {
     private final Object indexLock = new Object();
 
     /**
-     * Saves the folders (names and which item is in which) to the cloud as one more encrypted PNG, so a new phone
-     * gets them back with Sync. Any thread; runs in the background; calls made while one is waiting merge into it.
+     * Saves the folders (names and which item is in which) and the list of items (name, date, size, parts: what the
+     * phone's own list holds) to the cloud as one more encrypted PNG, so a new phone gets them back with Sync
+     * without downloading every file. Any thread; runs in the background; calls made while one is waiting merge into it.
      */
     void backupFolders(byte[] jobKey) {
         synchronized (this) {
@@ -306,8 +311,17 @@ final class Store {
             try {
                 Index ix = readIndex(k);
                 JSONObject map = new JSONObject();
-                for (Item it : ix.items) if (!it.folder.isEmpty()) map.put(it.id, it.folder);
-                byte[] data = new JSONObject().put("folders", new JSONArray(ix.folders)).put("map", map).toString().getBytes("UTF-8");
+                JSONArray list = new JSONArray();
+                String cur = prefs.getString("salt", "");
+                for (Item it : ix.items) {
+                    if (!it.folder.isEmpty()) map.put(it.id, it.folder);
+                    JSONObject o = json(it);
+                    o.remove("folder"); // in the map
+                    if (cur.equals(it.salt)) o.remove("salt"); // said once for all
+                    list.put(o);
+                }
+                byte[] data = new JSONObject().put("folders", new JSONArray(ix.folders)).put("map", map).put("salt", cur).put("items", list)
+                        .toString().getBytes("UTF-8");
                 String meta = new JSONObject().put("name", "folders.json").put("taken", System.currentTimeMillis()).put("mime", "application/json").toString();
                 byte[] plain = Vault.plainBuffer(meta, data.length);
                 System.arraycopy(data, 0, plain, plain.length - data.length, data.length);
@@ -412,7 +426,7 @@ final class Store {
         // the switch: one atomic commit; if the app dies right after it, openSealed() still reads the old files
         boolean saved = prefs.edit().putString("salt", hex(newSalt)).putString("verifier", verifier)
                 .putString("old_salt", oldSalt).putString("old_key", Base64.encodeToString(Vault.seal(newK, oldK), Base64.NO_WRAP))
-                .remove("bio_iv").remove("bio_ct").commit();
+                .remove("bio_iv").remove("bio_ct").remove("unopenable").remove("suspect").commit();
         final byte[] k = newK.clone();
         try {
             if (!saved) throw new IOException("settings not saved");
@@ -524,6 +538,20 @@ final class Store {
         return o.toByteArray();
     }
 
+    /** Saves an item's preview, encrypted. `jpeg` null: none can be made of this file; an empty one says so, and nobody tries again. */
+    void saveThumb(String id, byte[] k, byte[] jpeg) throws Exception {
+        writeFile(thumbFile(id), Vault.seal(k, jpeg == null ? new byte[0] : jpeg));
+    }
+
+    /** Items without a preview on this phone (restored from the list in the cloud, not opened yet). */
+    List<Item> withoutPreview(List<Item> all) {
+        String[] have = new File(app.getFilesDir(), "thumbs").list();
+        Set<String> names = new HashSet<>(Arrays.asList(have == null ? new String[0] : have));
+        List<Item> l = new ArrayList<>();
+        for (Item it : all) if (!names.contains(it.id)) l.add(it);
+        return l;
+    }
+
     /** A smaller copy of a preview, stored inside part 0 of a big file so a new phone gets it without the whole file. */
     static String embeddedThumb(byte[] thumb) {
         if (thumb == null) return null;
@@ -583,6 +611,12 @@ final class Store {
         if (secs < 60) return app.getString(R.string.eta_s, Math.max(1, secs));
         if (secs < 3600) return app.getString(R.string.eta_min, (secs + 59) / 60);
         return app.getString(R.string.eta_h, secs / 3600, secs % 3600 / 60);
+    }
+
+    /** " · about 3 min left" to put after a progress text; "" if unknown (negative). */
+    String left(long secs) {
+        String t = eta(secs);
+        return t.isEmpty() ? "" : " · " + app.getString(R.string.eta_left, t);
     }
 
     static String human(long b) {

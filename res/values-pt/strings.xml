@@ -195,7 +195,7 @@
     <string name="off">Desativado</string>
     <string name="screenshots_t">Permitir capturas de tela</string>
     <string name="screenshots_d">Até fechar o app. Desativado: o app também fica em branco nos apps recentes</string>
-    <string name="sync_d">Restaura itens e pastas, tira os que foram excluídos lá</string>
+    <string name="sync_d">Restaura itens e pastas pela lista salva lá, tira os que foram excluídos lá</string>
     <string name="selftest_t">Executar o autoteste</string>
     <string name="selftest_d">Verifica toda a cadeia com uma imagem de teste</string>
     <string name="signout_t">Sair do %1$s</string>
@@ -214,7 +214,7 @@
     <string name="promise_d">• Sem anúncios. Sem rastreadores, sem estatísticas, sem relatórios de falhas.\n• Nenhum servidor ou conta nossa: o app só fala com o %1$s, e só com arquivos criptografados.\n• Não coletamos nada, então não há nada para vender ou vazar.\n• Gratuito e de código aberto (GPL-3.0): qualquer pessoa pode conferir o que o app faz.\n• Mantido só por doações voluntárias. Doar não libera nada: todos os recursos são grátis para todos.</string>
     <string name="where_t">Onde estão seus dados</string>
     <string name="where_cloud">• %1$s: %2$s, %3$s (arquivos grandes viram vários). Eles também aparecem no app do %1$s como imagens de chuvisco: são eles, não os exclua lá.</string>
-    <string name="where_folders">• Pastas: os nomes e qual item está em qual ficam lá em mais um PNG criptografado (subpasta \"index\"), para que um celular novo as recupere com a sincronização. O %1$s não consegue ler os nomes das pastas.</string>
+    <string name="where_folders">• Pastas e lista: os nomes das pastas, qual item está em qual e a lista dos seus itens (nome, data, tamanho) ficam lá em mais um PNG criptografado (subpasta \"index\"), para que um celular novo os recupere com a sincronização sem baixar cada arquivo. O %1$s não consegue ler nada disso.</string>
     <string name="where_phone">• Este celular: a lista de itens e pequenas prévias, ambas criptografadas com a chave do cofre, no armazenamento privado do app, fora de backups e transferências entre celulares.</string>
     <string name="where_signin_od">• Login: um token da Microsoft, guardado criptografado com uma chave no hardware seguro do celular.</string>
     <string name="where_signin_amazon">• Login: os cookies de sessão da Amazon da página de login, no armazenamento privado do app.</string>
@@ -284,7 +284,7 @@
     <string name="sync_skipped">, %1$d ignorados (não abrem com a chave deste cofre, veja o registro)</string>
     <string name="sync_retry">, %1$d para tentar de novo: sincronize outra vez</string>
     <string name="sync_failed">Falha na sincronização: %1$s</string>
-    <string name="reenc_progress">Troca de senha: recriptografando %1$d de %2$d. Novos envios esperam terminar.</string>
+    <string name="reenc_progress">Troca de senha: recriptografando %1$d de %2$d%3$s. Novos envios esperam terminar.</string>
     <string name="reenc_uploading">Troca de senha: enviando</string>
     <string name="reenc_complete">Troca de senha concluída: agora cada arquivo do cofre usa a nova senha.</string>
     <string name="reenc_paused_err">Troca de senha pausada: %1$s. Continua na próxima vez que você desbloquear o Cloakroll.</string>
@@ -448,4 +448,8 @@
     <string name="est_line">• Arquivo de %1$s: %2$s para adicionar, %3$s para abrir</string>
     <string name="est_note">\"?\" até essa etapa ser medida: primeiro adicione ou abra um arquivo. As mesmas estimativas aparecem como tempo restante ao adicionar ou abrir arquivos.</string>
     <string name="stats_reset">Zerar estatísticas</string>
+    <string name="previews_t">Baixar as prévias que faltam</string>
+    <string name="previews_d">%1$d sem prévia. Baixa cada um uma vez (%2$s): melhor no Wi-Fi. Abrir um item também cria a prévia dele</string>
+    <string name="previews_progress">Prévias: %1$d de %2$d</string>
+    <string name="previews_done">Prévias criadas: %1$d</string>
 </resources>
