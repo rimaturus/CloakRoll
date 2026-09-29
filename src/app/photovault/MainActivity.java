@@ -407,7 +407,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(u.dp(88), u.dp(88));
         hp.topMargin = u.dp(16);
         l.addView(hero, hp);
-        u.title(l, "PhotoVault").setGravity(Gravity.CENTER);
+        u.title(l, "Cloakroll").setGravity(Gravity.CENTER);
         u.note(l, s(R.string.welcome_tagline)).setGravity(Gravity.CENTER);
         LinearLayout k = u.card(l);
         u.feature(k, Ui.LOCK, s(R.string.f_encrypt_t), s(R.string.f_encrypt_d));
@@ -949,7 +949,7 @@ public class MainActivity extends Activity {
         p.setColor(Color.WHITE);
         p.setTextSize(44);
         p.setTypeface(Typeface.DEFAULT_BOLD);
-        c.drawText("PhotoVault self-test", 40, 190, p);
+        c.drawText("Cloakroll self-test", 40, 190, p);
         p.setTextSize(28);
         p.setTypeface(Typeface.DEFAULT);
         c.drawText(date(System.currentTimeMillis()), 40, 240, p);
@@ -1207,7 +1207,7 @@ public class MainActivity extends Activity {
         if (selecting) setScreen("gallery", q(R.plurals.selected, selected.size()), s(R.string.tap_more), Ui.CLOSE, frame,
                 u.iconButton(Ui.MOVE, u.text, s(R.string.move_to_folder), new View.OnClickListener() { public void onClick(View v) { moveSelected(); } }),
                 u.iconButton(Ui.TRASH, u.text, s(R.string.delete), new View.OnClickListener() { public void onClick(View v) { confirmDeleteSelected(); } }));
-        else setScreen("gallery", openFolder.isEmpty() ? "PhotoVault" : openFolder, gallerySubtitle(), openFolder.isEmpty() ? 0 : Ui.BACK, frame,
+        else setScreen("gallery", openFolder.isEmpty() ? "Cloakroll" : openFolder, gallerySubtitle(), openFolder.isEmpty() ? 0 : Ui.BACK, frame,
                 u.iconButton(Ui.LOCK, u.text, s(R.string.lock_now), new View.OnClickListener() { public void onClick(View v) { st.lock(); st.changed(); } }),
                 menuButton());
         banner = b;
@@ -1838,7 +1838,7 @@ public class MainActivity extends Activity {
                 ContentValues v = new ContentValues();
                 v.put(MediaStore.MediaColumns.DISPLAY_NAME, it.name);
                 v.put(MediaStore.MediaColumns.MIME_TYPE, it.mime);
-                v.put(MediaStore.MediaColumns.RELATIVE_PATH, (it.video() ? Environment.DIRECTORY_MOVIES : Environment.DIRECTORY_PICTURES) + "/PhotoVault");
+                v.put(MediaStore.MediaColumns.RELATIVE_PATH, (it.video() ? Environment.DIRECTORY_MOVIES : Environment.DIRECTORY_PICTURES) + "/Cloakroll");
                 v.put(MediaStore.MediaColumns.DATE_TAKEN, it.taken);
                 Uri x = getContentResolver().insert(it.video() ? MediaStore.Video.Media.EXTERNAL_CONTENT_URI : MediaStore.Images.Media.EXTERNAL_CONTENT_URI, v);
                 if (x == null) throw new IOException("gallery refused the file");
@@ -2057,7 +2057,7 @@ public class MainActivity extends Activity {
         t.setTypeface(Typeface.MONOSPACE);
         t.setTextIsSelectable(true);
         u.button(l, s(R.string.copy_log), Ui.TONAL, new View.OnClickListener() { public void onClick(View v) {
-            ((ClipboardManager) getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("PhotoVault log", Journal.text()));
+            ((ClipboardManager) getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("Cloakroll log", Journal.text()));
             toast(s(R.string.log_copied));
         }});
         setScreen("log", s(R.string.log), null, Ui.BACK, u.scroll(l));

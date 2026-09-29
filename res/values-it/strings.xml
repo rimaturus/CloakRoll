@@ -25,7 +25,7 @@
     <string name="menu_delete_folder">Elimina cartella</string>
     <string name="menu_sync">Sincronizza da %1$s</string>
     <string name="settings">Impostazioni</string>
-    <string name="menu_support">Sostieni PhotoVault</string>
+    <string name="menu_support">Sostieni Cloakroll</string>
     <string name="welcome_tagline">Le tue foto e i tuoi video, cifrati prima di lasciare il telefono.</string>
     <string name="f_encrypt_t">Cifrate sul telefono</string>
     <string name="f_encrypt_d">Ogni foto o video viene cifrato qui con AES-256, con una chiave ricavata dalla tua password.</string>
@@ -42,9 +42,9 @@
     <string name="choose_note">Lì vengono salvati solo PNG cifrati. Per passare a un altro servizio in futuro dovresti creare una nuova cassaforte.</string>
     <string name="storage_title">Archiviazione</string>
     <string name="amazon_tag">Illimitato con Prime</string>
-    <string name="amazon_detail">Con Prime le foto a piena risoluzione non consumano spazio. Non ufficiale: PhotoVault usa la stessa interfaccia web del sito di Amazon Photos, quindi può smettere di funzionare se Amazon la cambia (i tuoi file restano decifrabili). Salvare video come foto va contro lo spirito dei termini di Prime, che includono solo 5 GB per i video.</string>
+    <string name="amazon_detail">Con Prime le foto a piena risoluzione non consumano spazio. Non ufficiale: Cloakroll usa la stessa interfaccia web del sito di Amazon Photos, quindi può smettere di funzionare se Amazon la cambia (i tuoi file restano decifrabili). Salvare video come foto va contro lo spirito dei termini di Prime, che includono solo 5 GB per i video.</string>
     <string name="od_tag">API ufficiale Microsoft</string>
-    <string name="od_detail">Usa lo spazio del tuo OneDrive: 5 GB gratis, 1 TB con Microsoft 365. PhotoVault ha accesso solo alla sua cartella, Apps/PhotoVault, non agli altri tuoi file.</string>
+    <string name="od_detail">Usa lo spazio del tuo OneDrive: 5 GB gratis, 1 TB con Microsoft 365. Cloakroll ha accesso solo alla sua cartella, Apps/PhotoVault, non agli altri tuoi file.</string>
     <string name="od_unavailable">Non disponibile in questa versione: serve una registrazione dell\'app presso Microsoft (vedi PUBLISHING.md).</string>
     <string name="google_t">Perché non Google Foto?</string>
     <string name="google_d">Le regole di Google non lo permettono: le app possono caricare solo foto e video veri, non possono eliminare ciò che caricano e i download non sono identici bit per bit, cosa necessaria per i file cifrati.</string>
@@ -54,7 +54,7 @@
     <string name="use_this_account">Usa questo account</string>
     <string name="signed_in_to">Accesso a %1$s eseguito</string>
     <string name="signed_out">Disconnesso da %1$s. La cassaforte non è stata toccata; accedi di nuovo per continuare a usarla.</string>
-    <string name="amazon_login_note">Accedi ad Amazon come al solito. PhotoVault non legge né salva la tua password di Amazon: riusa la sessione creata da questa pagina, come una scheda del browser. I link ad altri siti si aprono nel tuo browser.</string>
+    <string name="amazon_login_note">Accedi ad Amazon come al solito. Cloakroll non legge né salva la tua password di Amazon: riusa la sessione creata da questa pagina, come una scheda del browser. I link ad altri siti si aprono nel tuo browser.</string>
     <string name="waiting_sign_in">In attesa dell\'accesso...</string>
     <string name="amazon_login_title">Accedi ad Amazon</string>
     <string name="refresh_session">Rinnova la sessione</string>
@@ -64,13 +64,13 @@
     <string name="amazon_not_yet">Accesso eseguito, ma Amazon Photos non ha ancora accettato la sessione (%1$s). Lascia finire di caricare la pagina Photos; riprovo ogni 15 s. I dettagli sono nel registro (in alto a destra).</string>
     <string name="od_title">Accedi a OneDrive</string>
     <string name="od_pw_t">La password resta a Microsoft</string>
-    <string name="od_pw_d_all">Accedi sulla pagina di Microsoft, nel tuo browser. PhotoVault riceve un token per il tuo OneDrive e usa solo la cartella PhotoVault.</string>
-    <string name="od_pw_d_app">Accedi sulla pagina di Microsoft, nel tuo browser. PhotoVault riceve un token che apre solo la sua cartella, Apps/PhotoVault, non gli altri tuoi file.</string>
+    <string name="od_pw_d_all">Accedi sulla pagina di Microsoft, nel tuo browser. Cloakroll riceve un token per il tuo OneDrive e usa solo la cartella PhotoVault.</string>
+    <string name="od_pw_d_app">Accedi sulla pagina di Microsoft, nel tuo browser. Cloakroll riceve un token che apre solo la sua cartella, Apps/PhotoVault, non gli altri tuoi file.</string>
     <string name="od_token_t">Il token è conservato cifrato</string>
     <string name="od_token_d">Con una chiave nell\'hardware sicuro del telefono. Puoi uscire quando vuoi dalle Impostazioni.</string>
     <string name="od_sign_in">Accedi con Microsoft</string>
     <string name="od_refused_t">Microsoft ha rifiutato la cartella dell\'app</string>
-    <string name="od_refused_d">Succede con alcune registrazioni di app nuove. Puoi invece dare a PhotoVault accesso ai file del tuo OneDrive: la cassaforte andrà in una normale cartella chiamata PhotoVault, e l\'app userà comunque solo quella cartella.</string>
+    <string name="od_refused_d">Succede con alcune registrazioni di app nuove. Puoi invece dare a Cloakroll accesso ai file del tuo OneDrive: la cassaforte andrà in una normale cartella chiamata PhotoVault, e l\'app userà comunque solo quella cartella.</string>
     <string name="od_full">Usa l\'accesso completo a OneDrive</string>
     <string name="sign_in_again">Accedi di nuovo</string>
     <string name="od_waiting">In attesa dell\'accesso nel browser. Quando hai finito, torni qui.</string>
@@ -97,7 +97,7 @@
     <string name="wrong_password">Password errata.</string>
     <string name="existing_vault">Cassaforte esistente</string>
     <string name="selftest_title">Autotest</string>
-    <string name="selftest_note">Prima di affidargli foto vere, PhotoVault prova tutta la catena una volta con un\'immagine di prova sul tuo %1$s, poi la rimuove.</string>
+    <string name="selftest_note">Prima di affidargli foto vere, Cloakroll prova tutta la catena una volta con un\'immagine di prova sul tuo %1$s, poi la rimuove.</string>
     <string name="cap_mine">Ciò che vedi tu</string>
     <string name="cap_theirs">Ciò che salva %1$s</string>
     <string name="st1">Cifra un\'immagine di prova sul telefono</string>
@@ -135,7 +135,7 @@
     <string name="bio_enable_title">Attiva lo sblocco con impronta</string>
     <string name="bio_enabled">Sblocco con impronta attivo</string>
     <string name="bio_enable_failed">Impossibile attivare lo sblocco con impronta: %1$s</string>
-    <string name="bio_unlock_title">Sblocca PhotoVault</string>
+    <string name="bio_unlock_title">Sblocca Cloakroll</string>
     <string name="bio_mismatch">La chiave dell\'impronta non corrisponde a questa cassaforte: usa la password</string>
     <string name="bio_reset">Le impronte sono cambiate, quindi lo sblocco con impronta è stato azzerato. Usa la password, poi riattivalo dalle Impostazioni.</string>
     <string name="tap_more">Tocca per selezionarne altri</string>
@@ -177,9 +177,9 @@
     <string name="v_decrypting">Decifro...</string>
     <string name="v_done">Decifrato e verificato in %1$d ms (AES-GCM: nemmeno un bit cambiato). Originale da %2$s, salvato su %3$s come PNG di rumore da %4$s.</string>
     <string name="v_done_parts">Decifrato e verificato: %1$d parti, ognuna controllata da AES-GCM. Originale da %2$s, salvato su %3$s come %1$d PNG di rumore.</string>
-    <string name="v_cloud_shown">Questo è il file salvato su %1$s: %2$s di rumore. Solo PhotoVault, con la tua password, può leggerlo.</string>
+    <string name="v_cloud_shown">Questo è il file salvato su %1$s: %2$s di rumore. Solo Cloakroll, con la tua password, può leggerlo.</string>
     <string name="v_error">Errore: %1$s</string>
-    <string name="saved">Salvato (non cifrato) in %1$s/PhotoVault</string>
+    <string name="saved">Salvato (non cifrato) in %1$s/Cloakroll</string>
     <string name="save_failed">Salvataggio non riuscito: %1$s</string>
     <string name="delete_one_q">Eliminare dalla cassaforte?</string>
     <string name="delete_one_msg">Il file cifrato finisce nel tuo %1$s e sparisce da questa app.</string>
@@ -209,7 +209,7 @@
     <string name="support_d">Niente pubblicità né tracciamento: finanziata da donazioni volontarie</string>
     <string name="source_t">Codice sorgente</string>
     <string name="source_d">Gratuita e open source, GPL-3.0</string>
-    <string name="footer">PhotoVault %1$s. Non affiliata ad Amazon o Microsoft; Amazon Photos e OneDrive sono marchi dei rispettivi proprietari.</string>
+    <string name="footer">Cloakroll %1$s. Non affiliata ad Amazon o Microsoft; Amazon Photos e OneDrive sono marchi dei rispettivi proprietari.</string>
     <string name="about_title">Come è protetta</string>
     <string name="promise_t">La nostra promessa</string>
     <string name="promise_d">• Niente pubblicità. Niente tracker, analisi o segnalazioni di crash.\n• Nessun nostro server o account: l\'app comunica solo con %1$s, e solo con file cifrati.\n• Non raccogliamo nulla, quindi non possiamo vendere né perdere nulla.\n• Gratuita e open source (GPL-3.0): chiunque può verificare cosa fa l\'app.\n• Finanziata solo da donazioni volontarie. Donare non sblocca nulla: ogni funzione è gratis per tutti.</string>
@@ -224,16 +224,16 @@
     <string name="crypto_t">Crittografia</string>
     <string name="crypto_d">• Chiave = PBKDF2-HMAC-SHA256(password, salt casuale di 16 byte, 600 000 iterazioni).\n• Ogni file: AES-256-GCM con un nonce casuale sempre nuovo. Il tag GCM rifiuta qualsiasi bit modificato.\n• Nome, data ed EXIF sono dentro la parte cifrata.\n• Solo algoritmi standard della libreria crittografica integrata in Android, e nessuna libreria di terze parti.\n• Salt della cassaforte: %1$s</string>
     <string name="recovery_t">Recupero senza questa app</string>
-    <string name="recovery_d">Scarica i PNG della cartella della cassaforte dal sito di %1$s, poi su un PC:\npython photovault.py dec &lt;cartella&gt; -o out\n(photovault.py fa parte del codice open source di PhotoVault su GitHub.) Se perdi il telefono: installa l\'app, accedi allo stesso account, inserisci la stessa password; l\'app ripristina la cassaforte.</string>
+    <string name="recovery_d">Scarica i PNG della cartella della cassaforte dal sito di %1$s, poi su un PC:\npython photovault.py dec &lt;cartella&gt; -o out\n(photovault.py fa parte del codice open source di Cloakroll su GitHub.) Se perdi il telefono: installa l\'app, accedi allo stesso account, inserisci la stessa password; l\'app ripristina la cassaforte.</string>
     <string name="limits_t">Limiti di questa versione</string>
     <string name="limits_d">• I file oltre 32 MB sono salvati in più parti cifrate; un video grande viene scaricato tutto prima di partire.\n• Android limita i lavori in background a 6 ore al giorno.</string>
-    <string name="limits_amazon">• Amazon non ha un\'API pubblica: PhotoVault usa la stessa interfaccia web del sito di Amazon Photos. Se Amazon la cambia, i caricamenti possono fermarsi finché l\'app non viene aggiornata; i file salvati restano decifrabili, anche con photovault.py.</string>
+    <string name="limits_amazon">• Amazon non ha un\'API pubblica: Cloakroll usa la stessa interfaccia web del sito di Amazon Photos. Se Amazon la cambia, i caricamenti possono fermarsi finché l\'app non viene aggiornata; i file salvati restano decifrabili, anche con photovault.py.</string>
     <string name="limits_od">• La cassaforte occupa spazio del tuo OneDrive: ogni PNG è grande più o meno quanto il file originale.</string>
     <string name="changepw_screen">Password</string>
     <string name="changepw_empty">La cassaforte è vuota, quindi il cambio è immediato.</string>
     <string name="cost_t">Prima di iniziare: quanto costa</string>
     <string name="cost_intro">La chiave deriva dalla password, quindi ogni file va cifrato di nuovo con la nuova chiave:</string>
-    <string name="cost_rest">• Avviene in background con una notifica. Android consente trasferimenti in background fino a 6 ore al giorno, quindi una cassaforte grande può richiedere più di un giorno: riprende da sola ogni volta che sblocchi PhotoVault.\n• Finché non ha finito, i file non ancora cifrati di nuovo si aprono ancora con la VECCHIA password. Alla fine la vecchia password non apre più nulla nella tua cassaforte, tranne eventuali copie già scaricate da qualcuno.\n• Le vecchie copie finiscono nel %1$s. %2$s\n• I nuovi caricamenti aspettano la fine della nuova cifratura (oppure tocca Ferma nella sua notifica).\n• Lo sblocco con impronta viene disattivato; puoi riattivarlo subito dopo.\n• Non configurare PhotoVault su un altro telefono finché non ha finito.</string>
+    <string name="cost_rest">• Avviene in background con una notifica. Android consente trasferimenti in background fino a 6 ore al giorno, quindi una cassaforte grande può richiedere più di un giorno: riprende da sola ogni volta che sblocchi Cloakroll.\n• Finché non ha finito, i file non ancora cifrati di nuovo si aprono ancora con la VECCHIA password. Alla fine la vecchia password non apre più nulla nella tua cassaforte, tranne eventuali copie già scaricate da qualcuno.\n• Le vecchie copie finiscono nel %1$s. %2$s\n• I nuovi caricamenti aspettano la fine della nuova cifratura (oppure tocca Ferma nella sua notifica).\n• Lo sblocco con impronta viene disattivato; puoi riattivarlo subito dopo.\n• Non configurare Cloakroll su un altro telefono finché non ha finito.</string>
     <string name="cost_trash_amazon">Le foto non consumano spazio; i video sì, e possono continuare a contare finché Amazon non svuota il cestino.</string>
     <string name="cost_trash_od">Continuano a occupare spazio su OneDrive finché il cestino non viene svuotato, quindi su OneDrive serve circa tanto spazio libero quanto ne occupa la cassaforte.</string>
     <string name="dur_min">circa un minuto</string>
@@ -271,7 +271,7 @@
     <string name="channel">Caricamenti e sincronizzazione</string>
     <string name="preparing">Preparazione...</string>
     <string name="stopping">Mi fermo dopo il file in corso...</string>
-    <string name="n_working">PhotoVault è al lavoro</string>
+    <string name="n_working">Cloakroll è al lavoro</string>
     <string name="not_added_pw">Non aggiunti: nel frattempo la password della cassaforte è cambiata. Aggiungi di nuovo questi elementi.</string>
     <string name="stopped_pw">Fermato: la password della cassaforte è cambiata.</string>
     <string name="stopped">Fermato</string>
@@ -288,7 +288,7 @@
     <string name="reenc_progress">Cambio password: cifro di nuovo %1$d di %2$d. I nuovi caricamenti aspettano la fine.</string>
     <string name="reenc_uploading">Cambio password: caricamento</string>
     <string name="reenc_complete">Cambio password completato: ora ogni file della cassaforte usa la nuova password.</string>
-    <string name="reenc_paused_err">Cambio password in pausa: %1$s. Riprende la prossima volta che sblocchi PhotoVault.</string>
+    <string name="reenc_paused_err">Cambio password in pausa: %1$s. Riprende la prossima volta che sblocchi Cloakroll.</string>
     <string name="stor_amz_none">Amazon non ha indicato lo spazio delle foto</string>
     <string name="stor_amz_ok">Foto salvate: %1$s, conteggiate: 0 B (foto illimitate di Prime attive)</string>
     <string name="stor_amz_warn">Foto conteggiate: %1$s su %2$s. Le foto illimitate di Prime potrebbero non essere attive su questo account</string>
@@ -385,8 +385,8 @@
         <item quantity="other">Cambio password: %1$d file cifrati di nuovo. %2$s non elenca per intero cassaforti così grandi, quindi la vecchia chiave viene conservata perché nessun file diventi illeggibile.</item>
     </plurals>
     <plurals name="reenc_paused">
-        <item quantity="one">Cambio password in pausa: manca %1$d file%2$s. Riprende la prossima volta che sblocchi PhotoVault.</item>
-        <item quantity="other">Cambio password in pausa: mancano %1$d file%2$s. Riprende la prossima volta che sblocchi PhotoVault.</item>
+        <item quantity="one">Cambio password in pausa: manca %1$d file%2$s. Riprende la prossima volta che sblocchi Cloakroll.</item>
+        <item quantity="other">Cambio password in pausa: mancano %1$d file%2$s. Riprende la prossima volta che sblocchi Cloakroll.</item>
     </plurals>
     <plurals name="reenc_failed_part">
         <item quantity="one">(%1$d non riuscito, vedi registro)</item>

@@ -25,7 +25,7 @@
     <string name="menu_delete_folder">Supprimer le dossier</string>
     <string name="menu_sync">Synchroniser depuis %1$s</string>
     <string name="settings">Paramètres</string>
-    <string name="menu_support">Soutenir PhotoVault</string>
+    <string name="menu_support">Soutenir Cloakroll</string>
     <string name="welcome_tagline">Vos photos et vidéos, chiffrées avant de quitter ce téléphone.</string>
     <string name="f_encrypt_t">Chiffrées sur votre téléphone</string>
     <string name="f_encrypt_d">Chaque photo ou vidéo est chiffrée ici avec AES-256, avec une clé tirée de votre mot de passe.</string>
@@ -42,9 +42,9 @@
     <string name="choose_note">Seuls des PNG chiffrés y sont stockés. Pour changer de service plus tard, il faudrait créer un nouveau coffre.</string>
     <string name="storage_title">Stockage</string>
     <string name="amazon_tag">Illimité avec Prime</string>
-    <string name="amazon_detail">Avec Prime, les photos en pleine résolution ne comptent pas dans votre stockage. Non officiel : PhotoVault utilise la même interface web que le site Amazon Photos, il peut donc cesser de fonctionner si Amazon la modifie (vos fichiers restent déchiffrables). Stocker des vidéos comme photos va contre l\'esprit des conditions de Prime, qui n\'incluent que 5 Go pour la vidéo.</string>
+    <string name="amazon_detail">Avec Prime, les photos en pleine résolution ne comptent pas dans votre stockage. Non officiel : Cloakroll utilise la même interface web que le site Amazon Photos, il peut donc cesser de fonctionner si Amazon la modifie (vos fichiers restent déchiffrables). Stocker des vidéos comme photos va contre l\'esprit des conditions de Prime, qui n\'incluent que 5 Go pour la vidéo.</string>
     <string name="od_tag">API officielle de Microsoft</string>
-    <string name="od_detail">Utilise votre stockage OneDrive : 5 Go gratuits, 1 To avec Microsoft 365. PhotoVault n\'a accès qu\'à son propre dossier, Apps/PhotoVault, pas à vos autres fichiers.</string>
+    <string name="od_detail">Utilise votre stockage OneDrive : 5 Go gratuits, 1 To avec Microsoft 365. Cloakroll n\'a accès qu\'à son propre dossier, Apps/PhotoVault, pas à vos autres fichiers.</string>
     <string name="od_unavailable">Non disponible dans cette version : il faut un enregistrement de l\'app chez Microsoft (voir PUBLISHING.md).</string>
     <string name="google_t">Pourquoi pas Google Photos ?</string>
     <string name="google_d">Les règles de Google ne le permettent pas : les apps ne peuvent envoyer que de vraies photos et vidéos, ne peuvent pas supprimer ce qu\'elles envoient, et les téléchargements ne sont pas identiques au bit près, ce dont les fichiers chiffrés ont besoin.</string>
@@ -54,7 +54,7 @@
     <string name="use_this_account">Utiliser ce compte</string>
     <string name="signed_in_to">Connecté à %1$s</string>
     <string name="signed_out">Déconnecté de %1$s. Votre coffre n\'est pas touché ; reconnectez-vous pour continuer à l\'utiliser.</string>
-    <string name="amazon_login_note">Connectez-vous à Amazon comme d\'habitude. PhotoVault ne lit ni n\'enregistre votre mot de passe Amazon : il réutilise la session créée par cette page, comme un onglet de navigateur. Les liens vers d\'autres sites s\'ouvrent dans votre navigateur habituel.</string>
+    <string name="amazon_login_note">Connectez-vous à Amazon comme d\'habitude. Cloakroll ne lit ni n\'enregistre votre mot de passe Amazon : il réutilise la session créée par cette page, comme un onglet de navigateur. Les liens vers d\'autres sites s\'ouvrent dans votre navigateur habituel.</string>
     <string name="waiting_sign_in">En attente de connexion...</string>
     <string name="amazon_login_title">Connexion à Amazon</string>
     <string name="refresh_session">Renouveler la session</string>
@@ -64,13 +64,13 @@
     <string name="amazon_not_yet">Connecté, mais Amazon Photos n\'a pas encore accepté la session (%1$s). Laissez la page Photos finir de charger ; je réessaie toutes les 15 s. Détails dans le journal (en haut à droite).</string>
     <string name="od_title">Connexion à OneDrive</string>
     <string name="od_pw_t">Votre mot de passe reste chez Microsoft</string>
-    <string name="od_pw_d_all">Vous vous connectez sur la page de Microsoft, dans votre navigateur. PhotoVault reçoit un jeton pour votre OneDrive et n\'utilise que le dossier PhotoVault.</string>
-    <string name="od_pw_d_app">Vous vous connectez sur la page de Microsoft, dans votre navigateur. PhotoVault reçoit un jeton qui n\'ouvre que son propre dossier, Apps/PhotoVault, pas vos autres fichiers.</string>
+    <string name="od_pw_d_all">Vous vous connectez sur la page de Microsoft, dans votre navigateur. Cloakroll reçoit un jeton pour votre OneDrive et n\'utilise que le dossier PhotoVault.</string>
+    <string name="od_pw_d_app">Vous vous connectez sur la page de Microsoft, dans votre navigateur. Cloakroll reçoit un jeton qui n\'ouvre que son propre dossier, Apps/PhotoVault, pas vos autres fichiers.</string>
     <string name="od_token_t">Le jeton est conservé chiffré</string>
     <string name="od_token_d">Avec une clé dans le matériel sécurisé du téléphone. Vous pouvez vous déconnecter à tout moment dans les Paramètres.</string>
     <string name="od_sign_in">Se connecter avec Microsoft</string>
     <string name="od_refused_t">Microsoft a refusé le dossier de l\'app</string>
-    <string name="od_refused_d">Cela arrive avec certains enregistrements d\'apps récents. Vous pouvez plutôt donner à PhotoVault l\'accès à vos fichiers OneDrive : le coffre ira dans un dossier normal nommé PhotoVault, et l\'app ne touchera toujours que ce dossier.</string>
+    <string name="od_refused_d">Cela arrive avec certains enregistrements d\'apps récents. Vous pouvez plutôt donner à Cloakroll l\'accès à vos fichiers OneDrive : le coffre ira dans un dossier normal nommé PhotoVault, et l\'app ne touchera toujours que ce dossier.</string>
     <string name="od_full">Utiliser l\'accès complet à OneDrive</string>
     <string name="sign_in_again">Se reconnecter</string>
     <string name="od_waiting">En attente de la connexion dans votre navigateur. Une fois terminée, vous revenez ici.</string>
@@ -97,7 +97,7 @@
     <string name="wrong_password">Mot de passe incorrect.</string>
     <string name="existing_vault">Coffre existant</string>
     <string name="selftest_title">Autotest</string>
-    <string name="selftest_note">Avant de lui confier de vraies photos, PhotoVault teste toute la chaîne une fois avec une image de test sur votre %1$s, puis la retire.</string>
+    <string name="selftest_note">Avant de lui confier de vraies photos, Cloakroll teste toute la chaîne une fois avec une image de test sur votre %1$s, puis la retire.</string>
     <string name="cap_mine">Ce que vous voyez</string>
     <string name="cap_theirs">Ce que %1$s stocke</string>
     <string name="st1">Chiffrer une image de test sur ce téléphone</string>
@@ -135,7 +135,7 @@
     <string name="bio_enable_title">Activer le déverrouillage par empreinte</string>
     <string name="bio_enabled">Déverrouillage par empreinte activé</string>
     <string name="bio_enable_failed">Impossible d\'activer le déverrouillage par empreinte : %1$s</string>
-    <string name="bio_unlock_title">Déverrouiller PhotoVault</string>
+    <string name="bio_unlock_title">Déverrouiller Cloakroll</string>
     <string name="bio_mismatch">La clé de l\'empreinte ne correspond pas à ce coffre : utilisez votre mot de passe</string>
     <string name="bio_reset">Vos empreintes ont changé, le déverrouillage par empreinte a donc été réinitialisé. Utilisez votre mot de passe, puis réactivez-le dans les Paramètres.</string>
     <string name="tap_more">Touchez pour en sélectionner d\'autres</string>
@@ -177,9 +177,9 @@
     <string name="v_decrypting">Déchiffrement...</string>
     <string name="v_done">Déchiffré et vérifié en %1$d ms (AES-GCM : pas un seul bit modifié). Original de %2$s, stocké sur %3$s comme un PNG de bruit de %4$s.</string>
     <string name="v_done_parts">Déchiffré et vérifié : %1$d parties, chacune contrôlée par AES-GCM. Original de %2$s, stocké sur %3$s comme %1$d PNG de bruit.</string>
-    <string name="v_cloud_shown">Voici le fichier que %1$s stocke : %2$s de bruit. Seul PhotoVault, avec votre mot de passe, peut le lire.</string>
+    <string name="v_cloud_shown">Voici le fichier que %1$s stocke : %2$s de bruit. Seul Cloakroll, avec votre mot de passe, peut le lire.</string>
     <string name="v_error">Erreur : %1$s</string>
-    <string name="saved">Enregistré (non chiffré) dans %1$s/PhotoVault</string>
+    <string name="saved">Enregistré (non chiffré) dans %1$s/Cloakroll</string>
     <string name="save_failed">Échec de l\'enregistrement : %1$s</string>
     <string name="delete_one_q">Supprimer du coffre ?</string>
     <string name="delete_one_msg">Le fichier chiffré va dans votre %1$s et disparaît de cette app.</string>
@@ -209,7 +209,7 @@
     <string name="support_d">Ni pub ni pistage : financée par des dons volontaires</string>
     <string name="source_t">Code source</string>
     <string name="source_d">Gratuite et open source, GPL-3.0</string>
-    <string name="footer">PhotoVault %1$s. Non affilié à Amazon ni à Microsoft ; Amazon Photos et OneDrive sont des marques de leurs propriétaires.</string>
+    <string name="footer">Cloakroll %1$s. Non affilié à Amazon ni à Microsoft ; Amazon Photos et OneDrive sont des marques de leurs propriétaires.</string>
     <string name="about_title">Comment c\'est protégé</string>
     <string name="promise_t">Notre promesse</string>
     <string name="promise_d">• Pas de pub. Ni traceurs, ni statistiques, ni rapports de plantage.\n• Aucun serveur ni compte chez nous : l\'app ne parle qu\'à %1$s, et uniquement avec des fichiers chiffrés.\n• Rien n\'est collecté, donc rien ne peut être vendu ni divulgué par nous.\n• Gratuite et open source (GPL-3.0) : chacun peut vérifier ce que fait l\'app.\n• Financée uniquement par des dons volontaires. Donner ne débloque rien : toutes les fonctions sont gratuites pour tous.</string>
@@ -224,16 +224,16 @@
     <string name="crypto_t">Cryptographie</string>
     <string name="crypto_d">• Clé = PBKDF2-HMAC-SHA256(mot de passe, sel aléatoire de 16 octets, 600 000 itérations).\n• Chaque fichier : AES-256-GCM avec un nonce aléatoire toujours neuf. L\'étiquette GCM rejette tout bit modifié.\n• Le nom, la date et l\'EXIF sont dans la partie chiffrée.\n• Uniquement des algorithmes standard de la bibliothèque cryptographique intégrée à Android, et aucune bibliothèque tierce.\n• Sel du coffre : %1$s</string>
     <string name="recovery_t">Récupération sans cette app</string>
-    <string name="recovery_d">Téléchargez les PNG du dossier du coffre depuis le site de %1$s, puis sur un PC :\npython photovault.py dec &lt;dossier&gt; -o out\n(photovault.py fait partie du code open source de PhotoVault sur GitHub.) Si vous perdez le téléphone : installez l\'app, connectez-vous au même compte, saisissez le même mot de passe ; l\'app restaure votre coffre.</string>
+    <string name="recovery_d">Téléchargez les PNG du dossier du coffre depuis le site de %1$s, puis sur un PC :\npython photovault.py dec &lt;dossier&gt; -o out\n(photovault.py fait partie du code open source de Cloakroll sur GitHub.) Si vous perdez le téléphone : installez l\'app, connectez-vous au même compte, saisissez le même mot de passe ; l\'app restaure votre coffre.</string>
     <string name="limits_t">Limites de cette version</string>
     <string name="limits_d">• Les fichiers de plus de 32 Mo sont stockés en plusieurs parties chiffrées ; une grosse vidéo est téléchargée entièrement avant d\'être lue.\n• Android limite les tâches en arrière-plan à 6 heures par jour.</string>
-    <string name="limits_amazon">• Amazon n\'a pas d\'API publique : PhotoVault utilise la même interface web que le site Amazon Photos. Si Amazon la modifie, les envois peuvent s\'arrêter jusqu\'à une mise à jour de l\'app ; les fichiers stockés restent déchiffrables, aussi avec photovault.py.</string>
+    <string name="limits_amazon">• Amazon n\'a pas d\'API publique : Cloakroll utilise la même interface web que le site Amazon Photos. Si Amazon la modifie, les envois peuvent s\'arrêter jusqu\'à une mise à jour de l\'app ; les fichiers stockés restent déchiffrables, aussi avec photovault.py.</string>
     <string name="limits_od">• Le coffre compte dans votre stockage OneDrive : chaque PNG fait à peu près la taille du fichier d\'origine.</string>
     <string name="changepw_screen">Mot de passe</string>
     <string name="changepw_empty">Votre coffre est vide, le changement est donc immédiat.</string>
     <string name="cost_t">Avant de commencer : ce que ça coûte</string>
     <string name="cost_intro">La clé vient du mot de passe, donc chaque fichier doit être rechiffré avec la nouvelle clé :</string>
-    <string name="cost_rest">• Cela se fait en arrière-plan avec une notification. Android autorise les transferts en arrière-plan jusqu\'à 6 heures par jour, un gros coffre peut donc prendre plus d\'une journée : cela reprend tout seul chaque fois que vous déverrouillez PhotoVault.\n• Tant que ce n\'est pas fini, les fichiers pas encore rechiffrés s\'ouvrent toujours avec l\'ANCIEN mot de passe. À la fin, l\'ancien mot de passe n\'ouvre plus rien dans votre coffre, sauf des copies que quelqu\'un aurait déjà téléchargées.\n• Les anciennes copies vont dans la %1$s. %2$s\n• Les nouveaux envois attendent la fin du rechiffrement (ou touchez Arrêter dans sa notification).\n• Le déverrouillage par empreinte est désactivé ; vous pouvez le réactiver juste après.\n• Ne configurez pas PhotoVault sur un autre téléphone avant la fin.</string>
+    <string name="cost_rest">• Cela se fait en arrière-plan avec une notification. Android autorise les transferts en arrière-plan jusqu\'à 6 heures par jour, un gros coffre peut donc prendre plus d\'une journée : cela reprend tout seul chaque fois que vous déverrouillez Cloakroll.\n• Tant que ce n\'est pas fini, les fichiers pas encore rechiffrés s\'ouvrent toujours avec l\'ANCIEN mot de passe. À la fin, l\'ancien mot de passe n\'ouvre plus rien dans votre coffre, sauf des copies que quelqu\'un aurait déjà téléchargées.\n• Les anciennes copies vont dans la %1$s. %2$s\n• Les nouveaux envois attendent la fin du rechiffrement (ou touchez Arrêter dans sa notification).\n• Le déverrouillage par empreinte est désactivé ; vous pouvez le réactiver juste après.\n• Ne configurez pas Cloakroll sur un autre téléphone avant la fin.</string>
     <string name="cost_trash_amazon">Les photos n\'utilisent pas votre stockage ; les vidéos si, et peuvent continuer à compter jusqu\'à ce qu\'Amazon vide la corbeille.</string>
     <string name="cost_trash_od">Elles continuent à compter dans votre stockage OneDrive jusqu\'à ce que la corbeille soit vidée, donc OneDrive a besoin d\'environ autant d\'espace libre que le coffre en occupe.</string>
     <string name="dur_min">environ une minute</string>
@@ -271,7 +271,7 @@
     <string name="channel">Envois et synchronisation</string>
     <string name="preparing">Préparation...</string>
     <string name="stopping">Arrêt après le fichier en cours...</string>
-    <string name="n_working">PhotoVault travaille</string>
+    <string name="n_working">Cloakroll travaille</string>
     <string name="not_added_pw">Non ajoutés : le mot de passe du coffre a changé entre-temps. Ajoutez à nouveau ces éléments.</string>
     <string name="stopped_pw">Arrêté : le mot de passe du coffre a changé.</string>
     <string name="stopped">Arrêté</string>
@@ -288,7 +288,7 @@
     <string name="reenc_progress">Changement de mot de passe : rechiffrement %1$d sur %2$d. Les nouveaux envois attendent la fin.</string>
     <string name="reenc_uploading">Changement de mot de passe : envoi</string>
     <string name="reenc_complete">Changement de mot de passe terminé : chaque fichier du coffre utilise désormais le nouveau mot de passe.</string>
-    <string name="reenc_paused_err">Changement de mot de passe en pause : %1$s. Il reprend au prochain déverrouillage de PhotoVault.</string>
+    <string name="reenc_paused_err">Changement de mot de passe en pause : %1$s. Il reprend au prochain déverrouillage de Cloakroll.</string>
     <string name="stor_amz_none">Amazon n\'a pas indiqué le stockage photo</string>
     <string name="stor_amz_ok">Photos stockées : %1$s, facturées : 0 B (photos illimitées Prime actives)</string>
     <string name="stor_amz_warn">Photos facturées : %1$s sur %2$s. Les photos illimitées Prime ne sont peut-être pas actives sur ce compte</string>
@@ -385,8 +385,8 @@
         <item quantity="other">Changement de mot de passe : %1$d fichiers rechiffrés. %2$s ne liste pas entièrement des coffres aussi gros, l\'ancienne clé est donc conservée pour qu\'aucun fichier ne devienne illisible.</item>
     </plurals>
     <plurals name="reenc_paused">
-        <item quantity="one">Changement de mot de passe en pause : %1$d fichier restant%2$s. Il reprend au prochain déverrouillage de PhotoVault.</item>
-        <item quantity="other">Changement de mot de passe en pause : %1$d fichiers restants%2$s. Il reprend au prochain déverrouillage de PhotoVault.</item>
+        <item quantity="one">Changement de mot de passe en pause : %1$d fichier restant%2$s. Il reprend au prochain déverrouillage de Cloakroll.</item>
+        <item quantity="other">Changement de mot de passe en pause : %1$d fichiers restants%2$s. Il reprend au prochain déverrouillage de Cloakroll.</item>
     </plurals>
     <plurals name="reenc_failed_part">
         <item quantity="one">(%1$d en échec, voir le journal)</item>

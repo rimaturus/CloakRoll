@@ -1,10 +1,12 @@
-<img src="res/mipmap-xxxhdpi/ic_launcher.png" width="96" alt="PhotoVault icon">
+<img src="res/mipmap-xxxhdpi/ic_launcher.png" width="96" alt="Cloakroll icon">
 
-# PhotoVault
+# Cloakroll
 
 **Private photo backup on Amazon Photos or OneDrive. Everything is encrypted on your phone, so the cloud only ever stores noise.**
 
-Amazon Prime includes unlimited full-resolution photo storage, and OneDrive comes with many Microsoft accounts. PhotoVault uses that space without handing over your pictures: each photo or video is encrypted on the phone with AES-256 and uploaded as a PNG image of random pixels. Only PhotoVault, with your password, can turn it back into your photo.
+*Formerly PhotoVault. The vault folder in the cloud keeps the name `PhotoVault`, so existing vaults keep working.*
+
+Amazon Prime includes unlimited full-resolution photo storage, and OneDrive comes with many Microsoft accounts. Cloakroll uses that space without handing over your pictures: each photo or video is encrypted on the phone with AES-256 and uploaded as a PNG image of random pixels. Only Cloakroll, with your password, can turn it back into your photo.
 
 ![What you see vs. what the cloud stores](docs/comparison.png)
 
@@ -18,13 +20,13 @@ Amazon Prime includes unlimited full-resolution photo storage, and OneDrive come
 |---|---|
 | **No ads** | Not now, not later. |
 | **No tracking** | No analytics, no crash reporting, no third-party SDKs. The app has **zero** third-party libraries. |
-| **No data collection, no data selling** | There are no PhotoVault servers and no PhotoVault accounts. The app talks only to the cloud storage you choose (Amazon Photos or OneDrive), and only sends it encrypted files. We never receive anything, so there is nothing to sell or to leak. |
+| **No data collection, no data selling** | There are no Cloakroll servers and no Cloakroll accounts. The app talks only to the cloud storage you choose (Amazon Photos or OneDrive), and only sends it encrypted files. We never receive anything, so there is nothing to sell or to leak. |
 | **Open source** | GPL-3.0. About 4,000 lines of plain Java and Python that anyone can read. The whole cryptography is in one file, [`Vault.java`](src/app/photovault/Vault.java) (280 lines). |
-| **Donation-funded** | PhotoVault is free. Donations are voluntary and unlock nothing: every feature is free for everyone. [Support the project](#support-the-project). |
+| **Donation-funded** | Cloakroll is free. Donations are voluntary and unlock nothing: every feature is free for everyone. [Support the project](#support-the-project). |
 
 ## Why
 
-Cloud photo services scan what you upload: faces, places, objects, text. That data can feed search, advertising and model training, and it can leak in a breach or through a compromised account. PhotoVault keeps the storage and removes the content: whoever gets into the cloud copy finds only random pixels.
+Cloud photo services scan what you upload: faces, places, objects, text. That data can feed search, advertising and model training, and it can leak in a breach or through a compromised account. Cloakroll keeps the storage and removes the content: whoever gets into the cloud copy finds only random pixels.
 
 ## How it works
 
@@ -37,7 +39,7 @@ flowchart LR
     E -->|decrypt + verify<br/>on the phone| F[Your photo]
 ```
 
-1. You pick photos in Android's photo picker. PhotoVault never gets access to the rest of your gallery.
+1. You pick photos in Android's photo picker. Cloakroll never gets access to the rest of your gallery.
 2. Each file (with its name, date and EXIF metadata) is encrypted on the phone.
 3. The ciphertext becomes the pixels of a valid PNG with a random file name. That PNG is all the cloud receives.
 4. To view, the app downloads the PNG, checks it has not been modified by a single bit, and decrypts it in memory.
@@ -80,12 +82,12 @@ The key is derived from your password and never stored in plain form. Nobody can
 
 ### Threat model
 
-**PhotoVault protects your photos against:**
+**Cloakroll protects your photos against:**
 - The cloud provider scanning, analysing or training AI on them
 - A breach of the cloud storage, or someone who gets into your Amazon or Microsoft account
 - Anyone who modifies the stored files (detected, never silently accepted)
 
-**PhotoVault does not protect against:**
+**Cloakroll does not protect against:**
 - A weak password. The ciphertext can be attacked offline; PBKDF2 slows each guess down, but only a strong password makes guessing hopeless.
 - Malware or someone with access to your phone while the vault is unlocked
 - The metadata listed above (number, size, timing of uploads)
@@ -210,7 +212,7 @@ Source layout:
 
 ## Limits and honest risks
 
-- **Amazon: unofficial API.** Amazon has no public Photos API. PhotoVault uses the same private web requests as the Amazon Photos website (the endpoints documented by the open-source [amazon_photos](https://github.com/trevorhobenshield/amazon_photos) project). If Amazon changes them, uploads stop until the app is updated. Your stored files stay decryptable with `photovault.py`.
+- **Amazon: unofficial API.** Amazon has no public Photos API. Cloakroll uses the same private web requests as the Amazon Photos website (the endpoints documented by the open-source [amazon_photos](https://github.com/trevorhobenshield/amazon_photos) project). If Amazon changes them, uploads stop until the app is updated. Your stored files stay decryptable with `photovault.py`.
 - **Amazon: terms.** Prime includes unlimited *photos* and 5 GB for *videos*. Storing encrypted videos as PNG images goes against the spirit of that offer, and the more video you store, the more it stands out. Amazon could restrict or close the account. Photos are the intended use; keep another backup of any video you care about.
 - **Size.** No limit per item: files over 32 MB are stored as several encrypted parts. A big video is downloaded completely before it plays, so opening a 2 GB video takes a few minutes on Wi-Fi.
 - **Password.** It can't be recovered. Changing it re-encrypts the whole vault: every file is downloaded and uploaded again, and until that finishes the old password still opens the files not done yet.
@@ -221,9 +223,9 @@ Source layout:
 
 ## Support the project
 
-PhotoVault has no ads, no tracking and no paid tier, and never will. If it is useful to you, you can support its development with a voluntary donation:
+Cloakroll has no ads, no tracking and no paid tier, and never will. If it is useful to you, you can support its development with a voluntary donation:
 
-**[Buy me a coffee](https://buymeacoffee.com/rimaturus)**, also in the app (*Settings > Support PhotoVault*) and behind the **Sponsor** button at the top of this page.
+**[Buy me a coffee](https://buymeacoffee.com/rimaturus)**, also in the app (*Settings > Support Cloakroll*) and behind the **Sponsor** button at the top of this page.
 
 Donations pay for development time and, hopefully one day, an independent security audit. They don't buy features or priority: everything is free for everyone. Starring the repo, reporting bugs and reviewing the code help just as much.
 
@@ -233,6 +235,6 @@ Please don't open a public issue for vulnerabilities. Use GitHub's *Report a vul
 
 ## License
 
-[GPL-3.0](LICENSE). You may use, study, share and modify PhotoVault; modified versions you distribute must stay open source under the same license.
+[GPL-3.0](LICENSE). You may use, study, share and modify Cloakroll; modified versions you distribute must stay open source under the same license.
 
-*Amazon, Amazon Photos and Prime are trademarks of Amazon.com, Inc. or its affiliates. Microsoft and OneDrive are trademarks of the Microsoft group of companies. PhotoVault is an independent project and is not affiliated with or endorsed by Amazon or Microsoft.*
+*Amazon, Amazon Photos and Prime are trademarks of Amazon.com, Inc. or its affiliates. Microsoft and OneDrive are trademarks of the Microsoft group of companies. Cloakroll is an independent project and is not affiliated with or endorsed by Amazon or Microsoft.*

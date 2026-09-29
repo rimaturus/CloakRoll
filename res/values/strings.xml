@@ -25,7 +25,7 @@
     <string name="menu_delete_folder">Delete folder</string>
     <string name="menu_sync">Sync from %1$s</string>
     <string name="settings">Settings</string>
-    <string name="menu_support">Support PhotoVault</string>
+    <string name="menu_support">Support Cloakroll</string>
     <string name="welcome_tagline">Your photos and videos, encrypted before they leave this phone.</string>
     <string name="f_encrypt_t">Encrypted on your phone</string>
     <string name="f_encrypt_d">Each photo or video is encrypted here with AES-256, with a key made from your password.</string>
@@ -42,9 +42,9 @@
     <string name="choose_note">Only encrypted PNGs are stored there. To move to another service later you would start a new vault.</string>
     <string name="storage_title">Storage</string>
     <string name="amazon_tag">Unlimited with Prime</string>
-    <string name="amazon_detail">Full-resolution photos don\'t count against your storage with Prime. Unofficial: PhotoVault uses the same web interface as the Amazon Photos website, so it can stop working if Amazon changes it (your files stay decryptable). Videos stored as photos go against the spirit of Prime\'s terms, which include only 5 GB for video.</string>
+    <string name="amazon_detail">Full-resolution photos don\'t count against your storage with Prime. Unofficial: Cloakroll uses the same web interface as the Amazon Photos website, so it can stop working if Amazon changes it (your files stay decryptable). Videos stored as photos go against the spirit of Prime\'s terms, which include only 5 GB for video.</string>
     <string name="od_tag">Official Microsoft API</string>
-    <string name="od_detail">Uses your OneDrive storage: 5 GB free, 1 TB with Microsoft 365. PhotoVault gets access only to its own folder, Apps/PhotoVault, not to your other files.</string>
+    <string name="od_detail">Uses your OneDrive storage: 5 GB free, 1 TB with Microsoft 365. Cloakroll gets access only to its own folder, Apps/PhotoVault, not to your other files.</string>
     <string name="od_unavailable">Not available in this build: it needs a Microsoft app registration (see PUBLISHING.md).</string>
     <string name="google_t">Why not Google Photos?</string>
     <string name="google_d">Google\'s rules don\'t allow it: apps may upload only real photos and videos, can\'t delete what they upload, and downloads aren\'t bit-exact, which encrypted files need.</string>
@@ -54,7 +54,7 @@
     <string name="use_this_account">Use this account</string>
     <string name="signed_in_to">Signed in to %1$s</string>
     <string name="signed_out">Signed out of %1$s. Your vault is untouched; sign in again to keep using it.</string>
-    <string name="amazon_login_note">Sign in to Amazon as usual. PhotoVault doesn\'t read or store your Amazon password: it reuses the session this page creates, like a browser tab. Links to other sites open in your normal browser.</string>
+    <string name="amazon_login_note">Sign in to Amazon as usual. Cloakroll doesn\'t read or store your Amazon password: it reuses the session this page creates, like a browser tab. Links to other sites open in your normal browser.</string>
     <string name="waiting_sign_in">Waiting for sign-in...</string>
     <string name="amazon_login_title">Sign in to Amazon</string>
     <string name="refresh_session">Refresh the session</string>
@@ -64,13 +64,13 @@
     <string name="amazon_not_yet">Signed in, but Amazon Photos didn\'t accept the session yet (%1$s). Let the Photos page finish loading; I retry every 15 s. Log (top right) has the details.</string>
     <string name="od_title">Sign in to OneDrive</string>
     <string name="od_pw_t">Your password stays with Microsoft</string>
-    <string name="od_pw_d_all">You sign in on Microsoft\'s own page, in your browser. PhotoVault gets a token for your OneDrive and uses only the folder PhotoVault.</string>
-    <string name="od_pw_d_app">You sign in on Microsoft\'s own page, in your browser. PhotoVault gets a token that opens only its own folder, Apps/PhotoVault, not your other files.</string>
+    <string name="od_pw_d_all">You sign in on Microsoft\'s own page, in your browser. Cloakroll gets a token for your OneDrive and uses only the folder PhotoVault.</string>
+    <string name="od_pw_d_app">You sign in on Microsoft\'s own page, in your browser. Cloakroll gets a token that opens only its own folder, Apps/PhotoVault, not your other files.</string>
     <string name="od_token_t">The token is kept encrypted</string>
     <string name="od_token_d">With a key in this phone\'s secure hardware. You can sign out any time in Settings.</string>
     <string name="od_sign_in">Sign in with Microsoft</string>
     <string name="od_refused_t">Microsoft refused the app folder</string>
-    <string name="od_refused_d">This happens with some new app registrations. You can give PhotoVault access to your OneDrive files instead: the vault then goes in a normal folder called PhotoVault, and the app still touches only that folder.</string>
+    <string name="od_refused_d">This happens with some new app registrations. You can give Cloakroll access to your OneDrive files instead: the vault then goes in a normal folder called PhotoVault, and the app still touches only that folder.</string>
     <string name="od_full">Use full OneDrive access</string>
     <string name="sign_in_again">Sign in again</string>
     <string name="od_waiting">Waiting for the sign-in in your browser. When it\'s done, you come back here.</string>
@@ -97,7 +97,7 @@
     <string name="wrong_password">Wrong password.</string>
     <string name="existing_vault">Existing vault</string>
     <string name="selftest_title">Self-test</string>
-    <string name="selftest_note">Before you trust it with real photos, PhotoVault runs the whole chain once with a test image on your %1$s and removes it afterwards.</string>
+    <string name="selftest_note">Before you trust it with real photos, Cloakroll runs the whole chain once with a test image on your %1$s and removes it afterwards.</string>
     <string name="cap_mine">What you see</string>
     <string name="cap_theirs">What %1$s stores</string>
     <string name="st1">Encrypt a test image on this phone</string>
@@ -135,7 +135,7 @@
     <string name="bio_enable_title">Turn on fingerprint unlock</string>
     <string name="bio_enabled">Fingerprint unlock is on</string>
     <string name="bio_enable_failed">Could not turn on fingerprint unlock: %1$s</string>
-    <string name="bio_unlock_title">Unlock PhotoVault</string>
+    <string name="bio_unlock_title">Unlock Cloakroll</string>
     <string name="bio_mismatch">Fingerprint key doesn\'t match this vault: use your password</string>
     <string name="bio_reset">Your fingerprints changed, so fingerprint unlock was reset. Use your password, then turn it on again in Settings.</string>
     <string name="tap_more">Tap to select more</string>
@@ -177,9 +177,9 @@
     <string name="v_decrypting">Decrypting...</string>
     <string name="v_done">Decrypted and verified in %1$d ms (AES-GCM: not a single bit changed). %2$s original, stored on %3$s as a %4$s PNG of noise.</string>
     <string name="v_done_parts">Decrypted and verified: %1$d parts, each checked by AES-GCM. %2$s original, stored on %3$s as %1$d PNGs of noise.</string>
-    <string name="v_cloud_shown">This is the file %1$s stores: %2$s of noise. Only PhotoVault, with your password, can read it.</string>
+    <string name="v_cloud_shown">This is the file %1$s stores: %2$s of noise. Only Cloakroll, with your password, can read it.</string>
     <string name="v_error">Error: %1$s</string>
-    <string name="saved">Saved (unencrypted) to %1$s/PhotoVault</string>
+    <string name="saved">Saved (unencrypted) to %1$s/Cloakroll</string>
     <string name="save_failed">Save failed: %1$s</string>
     <string name="delete_one_q">Delete from the vault?</string>
     <string name="delete_one_msg">The encrypted file goes to your %1$s and disappears from this app.</string>
@@ -209,7 +209,7 @@
     <string name="support_d">No ads, no tracking: funded by voluntary donations</string>
     <string name="source_t">Source code</string>
     <string name="source_d">Free and open source, GPL-3.0</string>
-    <string name="footer">PhotoVault %1$s. Not affiliated with Amazon or Microsoft; Amazon Photos and OneDrive are trademarks of their owners.</string>
+    <string name="footer">Cloakroll %1$s. Not affiliated with Amazon or Microsoft; Amazon Photos and OneDrive are trademarks of their owners.</string>
     <string name="about_title">How it\'s protected</string>
     <string name="promise_t">Our promise</string>
     <string name="promise_d">• No ads. No trackers, no analytics, no crash reporting.\n• No servers and no accounts of ours: the app talks only to %1$s, only with encrypted files.\n• Nothing is collected, so nothing can be sold or leaked by us.\n• Free and open source (GPL-3.0): anyone can check what the app does.\n• Funded only by voluntary donations. Donating unlocks nothing: every feature is free for everyone.</string>
@@ -224,16 +224,16 @@
     <string name="crypto_t">Cryptography</string>
     <string name="crypto_d">• Key = PBKDF2-HMAC-SHA256(password, random 16-byte salt, 600 000 iterations).\n• Each file: AES-256-GCM with a fresh random nonce. The GCM tag rejects any modified bit.\n• Name, date and EXIF are inside the encrypted part.\n• Only standard algorithms from Android\'s built-in crypto library, and no third-party libraries at all.\n• Vault salt: %1$s</string>
     <string name="recovery_t">Recovery without this app</string>
-    <string name="recovery_d">Download the PNGs of the vault folder from the %1$s website, then on a PC:\npython photovault.py dec &lt;folder&gt; -o out\n(photovault.py is part of PhotoVault\'s open-source code on GitHub.) If you lose the phone: install the app, sign in to the same account, enter the same password; the app restores your vault.</string>
+    <string name="recovery_d">Download the PNGs of the vault folder from the %1$s website, then on a PC:\npython photovault.py dec &lt;folder&gt; -o out\n(photovault.py is part of Cloakroll\'s open-source code on GitHub.) If you lose the phone: install the app, sign in to the same account, enter the same password; the app restores your vault.</string>
     <string name="limits_t">Limits of this version</string>
     <string name="limits_d">• Files over 32 MB are stored as several encrypted parts; a big video is downloaded completely before it plays.\n• Background jobs are limited by Android to 6 hours per day.</string>
-    <string name="limits_amazon">• Amazon has no public API: PhotoVault uses the same web interface as the Amazon Photos website. If Amazon changes it, uploads can stop until the app is updated; stored files stay decryptable, also with photovault.py.</string>
+    <string name="limits_amazon">• Amazon has no public API: Cloakroll uses the same web interface as the Amazon Photos website. If Amazon changes it, uploads can stop until the app is updated; stored files stay decryptable, also with photovault.py.</string>
     <string name="limits_od">• The vault counts against your OneDrive storage: each PNG is about as big as the original file.</string>
     <string name="changepw_screen">Password</string>
     <string name="changepw_empty">Your vault is empty, so the change is instant.</string>
     <string name="cost_t">Before you start: what it costs</string>
     <string name="cost_intro">The key comes from the password, so every file has to be encrypted again with the new key:</string>
-    <string name="cost_rest">• It runs in the background with a notification. Android allows background transfers up to 6 hours a day, so a big vault may need more than one day: it resumes by itself every time you unlock PhotoVault.\n• Until it has finished, the files not re-encrypted yet still open with the OLD password. At the end the old password opens nothing in your vault, except copies someone may already have downloaded.\n• The old copies go to the %1$s. %2$s\n• New uploads wait until the re-encryption has finished (or tap Stop in its notification).\n• Fingerprint unlock is switched off; you can switch it on again right after.\n• Don\'t set up PhotoVault on another phone until it has finished.</string>
+    <string name="cost_rest">• It runs in the background with a notification. Android allows background transfers up to 6 hours a day, so a big vault may need more than one day: it resumes by itself every time you unlock Cloakroll.\n• Until it has finished, the files not re-encrypted yet still open with the OLD password. At the end the old password opens nothing in your vault, except copies someone may already have downloaded.\n• The old copies go to the %1$s. %2$s\n• New uploads wait until the re-encryption has finished (or tap Stop in its notification).\n• Fingerprint unlock is switched off; you can switch it on again right after.\n• Don\'t set up Cloakroll on another phone until it has finished.</string>
     <string name="cost_trash_amazon">Photos don\'t use your storage; videos do, and may keep counting until Amazon empties the trash.</string>
     <string name="cost_trash_od">They keep counting against your OneDrive storage until the recycle bin is emptied, so OneDrive needs about as much free space as the vault uses.</string>
     <string name="dur_min">about a minute</string>
@@ -271,7 +271,7 @@
     <string name="channel">Uploads and sync</string>
     <string name="preparing">Preparing...</string>
     <string name="stopping">Stopping after the current file...</string>
-    <string name="n_working">PhotoVault is working</string>
+    <string name="n_working">Cloakroll is working</string>
     <string name="not_added_pw">Not added: the vault password changed meanwhile. Add these items again.</string>
     <string name="stopped_pw">Stopped: the vault password changed.</string>
     <string name="stopped">Stopped</string>
@@ -288,7 +288,7 @@
     <string name="reenc_progress">Password change: re-encrypting %1$d of %2$d. New uploads wait until it\'s done.</string>
     <string name="reenc_uploading">Password change: uploading</string>
     <string name="reenc_complete">Password change complete: every file in your vault now uses the new password.</string>
-    <string name="reenc_paused_err">Password change paused: %1$s. It continues the next time you unlock PhotoVault.</string>
+    <string name="reenc_paused_err">Password change paused: %1$s. It continues the next time you unlock Cloakroll.</string>
     <string name="stor_amz_none">Amazon didn\'t report photo storage</string>
     <string name="stor_amz_ok">Photos stored: %1$s, billed: 0 B (Prime unlimited photos active)</string>
     <string name="stor_amz_warn">Photos billed: %1$s of %2$s. Prime unlimited photos may not be active on this account</string>
@@ -385,8 +385,8 @@
         <item quantity="other">Password change: %1$d files re-encrypted. %2$s doesn\'t list vaults this big completely, so the old key is kept to make sure no file becomes unreadable.</item>
     </plurals>
     <plurals name="reenc_paused">
-        <item quantity="one">Password change paused: %1$d file left%2$s. It continues the next time you unlock PhotoVault.</item>
-        <item quantity="other">Password change paused: %1$d files left%2$s. It continues the next time you unlock PhotoVault.</item>
+        <item quantity="one">Password change paused: %1$d file left%2$s. It continues the next time you unlock Cloakroll.</item>
+        <item quantity="other">Password change paused: %1$d files left%2$s. It continues the next time you unlock Cloakroll.</item>
     </plurals>
     <plurals name="reenc_failed_part">
         <item quantity="one">(%1$d failed, see Log)</item>
