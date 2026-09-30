@@ -107,16 +107,19 @@ The app has **not** had an independent security audit yet. Reviews and reports a
 | Biometric | Optional fingerprint unlock |
 | Foreground service (data sync) | Uploads and syncs keep running when you leave the app |
 | Notifications | Show upload progress (never file names) |
+| Photos and videos (optional) | Asked for only if you turn on **automatic backup**, so it can see new photos. Android 14+ lets you limit it to selected photos |
 
-No storage, contacts, location, camera or microphone permission. Photos are chosen through Android's photo picker, which grants access only to what you select; a folder on the phone, through Android's folder picker, the same way.
+No contacts, location, camera or microphone permission. Without automatic backup, photos are chosen through Android's photo picker, which grants access only to what you select; a folder on the phone, through Android's folder picker, the same way.
 
 ## Features
 
 - **Four storage options**, chosen at setup: Amazon Photos (unlimited photos with Prime, unofficial web interface), OneDrive (official Microsoft Graph API), Google Drive (official Drive API, `drive.file` access only), or **only on this phone**, in a folder you choose
+- **Automatic backup** (*Settings*): new photos and videos go to the vault by themselves, on Wi-Fi, even with the app closed, through Android's job scheduler. Choose everything on the phone or only what is added from now on. To encrypt while the vault is locked, a copy of the key stays on the phone, protected by its secure hardware; opening the vault still needs the password
+- **Free up space** (*Settings*): photos and videos already in the vault can be removed from the phone in one go; Android's own dialog asks first
 - **Encrypted copy on the phone** next to any cloud (setup or *Settings*): every encrypted PNG also goes in a folder you choose, so items open faster and offline, and you have one more backup
 - **Time estimates and statistics**: time left while adding or opening files, during *Sync* and a password change (from the speed of the transfer under way, or the measured ones until it has one), and *Settings > Transfer statistics* with the measured upload, download, encryption and decryption speeds of your phone and connection
 - Encrypt and upload many photos and videos at once, of any size; big files go up as 32 MB encrypted parts, and a part cut short by the network is sent again by itself instead of failing the whole file. The queue keeps running in the background with a progress notification and a *Stop* button
-- Gallery with instant previews. Opening an item shows its small preview (kept encrypted on the phone) and downloads nothing: the full-quality original is fetched only when you tap *Original* or *Save to phone*, so browsing costs no data. Swipe left and right to move between items
+- Gallery with instant previews. Opening an item shows its small preview (kept encrypted on the phone) and downloads nothing: the full-quality original is fetched only when you tap *Original* or *Save to phone*, so browsing costs no data. Swipe left and right to move between items; pinch or double-tap to zoom
 - **Folders**: create folders, long-press photos to select several and *Move* or *Delete* them, rename or delete folders (their photos are kept). Folder names and contents are saved in the cloud in one more encrypted file, together with the list of your items (name, date, size), so the provider can't read them and a new phone gets them back
 - *Cloud view* button: see the exact file the cloud stores
 - Fingerprint unlock, auto-lock, no screenshots
@@ -196,6 +199,8 @@ KS_PASS='a-strong-password' PLAY=1 ./build.sh     # Google Play variant: no dona
 KS_PASS='a-strong-password' PLAY=1 AAB=1 ./build.sh   # the same as an App Bundle (.aab) for Google Play, with code transparency
 ONEDRIVE_CLIENT_ID='your-app-id' GOOGLE_CLIENT_ID='your-client-id' KS_PASS='...' ./build.sh   # with OneDrive and Google Drive (PUBLISHING.md)
 ```
+
+On Windows, with Android Studio installed (its JDK and the SDK build-tools), `build-win.sh` takes the same options from Git Bash.
 
 Without `ONEDRIVE_CLIENT_ID` or `GOOGLE_CLIENT_ID` the app builds fine and shows that option as not available. `build.sh` downloads the Android API jars, compiles, and signs. **Keep `photovault.jks` private and out of git** (it is in `.gitignore`): anyone who has it can sign "updates" that install over your users' copies.
 

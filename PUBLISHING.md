@@ -66,6 +66,7 @@ Switching from the test key to the release key means uninstalling the test build
    - Data safety: *no data collected, no data shared*. Say that user files are sent, encrypted, to the user's own Amazon or Microsoft account at the user's request.
    - Ads: no. Content rating questionnaire. Target audience: 18+.
    - **Foreground service (dataSync):** description ("uploads and downloads of the user's encrypted photos that the user started"), what happens if interrupted, and a **video** of an upload continuing in the background. Use case *Network transfer: upload or download*. [Foreground service requirements](https://support.google.com/googleplay/android-developer/answer/13392821?hl=en)
+   - **Photo and video permissions** (`READ_MEDIA_IMAGES`/`READ_MEDIA_VIDEO`, since v1.8 for automatic backup): Play requires a declaration form for broad access. Use case *backup and cloud storage*; say the permission is asked only when the user turns on automatic backup, and that the photo picker is used otherwise. [Photo and video permissions policy](https://support.google.com/googleplay/android-developer/answer/14115180)
    - **App access:** reviewers need a login. Create a separate **test Microsoft account** (free, 5 GB of OneDrive: the easiest for reviewers) and/or a **test Amazon account**, a test vault password, and step-by-step instructions. [App access](https://support.google.com/googleplay/android-developer/answer/9859455)
 7. **"Create app" form:**
    - App, free (this can't be changed to paid later).

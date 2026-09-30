@@ -452,4 +452,16 @@
     <string name="previews_d">%1$d ohne Vorschau. Lädt jedes einmal herunter (%2$s): besser im WLAN. Auch das Öffnen eines Elements erstellt seine Vorschau</string>
     <string name="previews_progress">Vorschauen: %1$d von %2$d</string>
     <string name="previews_done">Vorschauen erstellt: %1$d</string>
+    <string name="auto_t">Automatische Sicherung</string>
+    <string name="auto_off_d">Aus. Neue Fotos und Videos kämen von selbst in den Tresor, im WLAN, auch bei geschlossener App</string>
+    <string name="auto_on_d">An: Neue Fotos und Videos kommen von selbst in den Tresor, im WLAN, auch bei geschlossener App</string>
+    <string name="auto_scope_t">Was sichern?</string>
+    <string name="auto_scope_d">Um bei gesperrtem Tresor zu verschlüsseln, behält Cloakroll eine Kopie des Schlüssels auf diesem Handy, geschützt durch seine sichere Hardware. Zum Öffnen des Tresors braucht es weiterhin Passwort oder Fingerabdruck.</string>
+    <string name="auto_all">Alles (%1$d, %2$s)</string>
+    <string name="auto_new">Nur neue</string>
+    <string name="auto_no_perm">Ohne Zugriff auf deine Fotos kann die automatische Sicherung neue nicht sehen</string>
+    <string name="free_t">Speicherplatz freigeben</string>
+    <string name="free_d">%1$d Fotos und Videos, die schon im Tresor sind, belegen %2$s auf diesem Handy. Entfernt sie vom Handy; Android fragt vorher</string>
+    <string name="free_done">Vom Handy entfernt</string>
+    <string name="where_key_auto">• Automatische Sicherung: Eine Kopie des Schlüssels bleibt auf diesem Handy, geschützt durch seine sichere Hardware, damit neue Fotos bei gesperrtem Tresor verschlüsselt werden. Zum Öffnen des Tresors braucht es weiterhin dein Passwort.</string>
 </resources>

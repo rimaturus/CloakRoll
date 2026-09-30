@@ -54,7 +54,8 @@ import org.json.JSONObject;
 
 public class MainActivity extends Activity {
     static final String VERIFY = Store.VERIFY, BIO_ALIAS = "photovault_fingerprint", REDIRECT_SCHEME = "io.github.rimaturus.photovault";
-    static final int REQ_PICK = 1, REQ_NOTIF = 2, REQ_TREE = 10, RUN = 1, OK = 2, WARN = 3, BAD = 4, INFO_TEXT = 0xB3FFFFFF, INFO_ERROR = 0xFFFF9A93;
+    static final int BIO_NEGATIVE_BUTTON = 13; // BiometricPrompt.BIOMETRIC_ERROR_NEGATIVE_BUTTON, which the SDK jar hides
+    static final int REQ_PICK = 1, REQ_NOTIF = 2, REQ_MEDIA = 3, REQ_FREE = 4, REQ_TREE = 10, RUN = 1, OK = 2, WARN = 3, BAD = 4, INFO_TEXT = 0xB3FFFFFF, INFO_ERROR = 0xFFFF9A93;
     static final int MATCH = ViewGroup.LayoutParams.MATCH_PARENT, WRAP = ViewGroup.LayoutParams.WRAP_CONTENT;
     static final List<String> VAULT_SCREENS = Arrays.asList("gallery", "viewer", "settings", "about", "changepw", "stats");
     /** App languages ("" = the phone's). Also in res/xml/locales_config.xml. */
@@ -73,7 +74,8 @@ public class MainActivity extends Activity {
     /** What the folder picker is open for; its index is added to REQ_TREE, so the answer survives a restart of the screen. */
     static final String[] TREE_FOR = {"vault", "copy", "copy_settings"};
     boolean picking, connecting, testing, started;
-    long nextLoginTry;
+    long nextLoginTry, nextAutoBackup; // the automatic backup looks for new files at most every 30 s
+    volatile List<Uri> lastBatch;      // what it queued last: files still pending after that failed
     volatile int viewToken;
     WebView web;
     TextView titleView, subtitleView, loginStatus, loginHost, odStatus;
@@ -99,6 +101,7 @@ public class MainActivity extends Activity {
     int viewIndex;
     String lastViewedId;
     GestureDetector swipe;
+    Zoom zoom; // the viewer's photo: while zoomed in, swipes pan it instead of changing the item
     File playing;
 
     // ================================================================ lifecycle
@@ -117,7 +120,7 @@ public class MainActivity extends Activity {
         st.onChange = onChange; // also while stopped: an auto-lock must clear decrypted content from the screen
         swipe = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
             @Override public boolean onFling(MotionEvent a, MotionEvent b, float vx, float vy) {
-                if (a == null || !"viewer".equals(screen)) return false;
+                if (a == null || !"viewer".equals(screen) || (zoom != null && zoom.busy())) return false;
                 float dx = b.getX() - a.getX(), dy = b.getY() - a.getY();
                 if (Math.abs(dx) < u.dp(60) || Math.abs(dx) < 1.5f * Math.abs(dy) || Math.abs(vx) < u.dp(250)) return false;
                 swipeTo(dx < 0 ? 1 : -1);
@@ -154,6 +157,34 @@ public class MainActivity extends Activity {
         st.onChange = onChange;
         refresh();
         if ("unlock".equals(screen) && bioEnabled()) { ui.removeCallbacks(autoBio); ui.postDelayed(autoBio, 400); }
+        autoBackup();
+    }
+
+    /** Automatic backup while the app is open and unlocked: new photos and videos go to the upload service now. */
+    void autoBackup() {
+        if (st.key == null || !Backup.on(st) || !Backup.allowed(this) || st.busyJobs > 0 || st.backupRunning
+                || SystemClock.elapsedRealtime() < nextAutoBackup) return;
+        nextAutoBackup = SystemClock.elapsedRealtime() + 30_000;
+        final List<Store.Item> items = new ArrayList<>(st.items);
+        io.execute(new Runnable() { public void run() {
+            List<Uri> before = lastBatch, now = Backup.pending(MainActivity.this, st, items, new long[1]);
+            lastBatch = null;
+            if (before != null) { Backup.noteFailed(st, before, now); now.removeAll(before); } // left for tomorrow
+            final List<Uri> todo = now.subList(0, Math.min(now.size(), Backup.BATCH));
+            if (todo.isEmpty()) return;
+            post(new Runnable() { public void run() {
+                if (st.key == null || st.busyJobs > 0 || st.backupRunning) return;
+                Journal.add("automatic backup: " + todo.size() + " new files");
+                lastBatch = todo;
+                startUploads(todo, "");
+            }});
+        }});
+    }
+
+    /** Queues files for the upload service; the automatic backup takes the next batch when the job has ended. */
+    void startUploads(List<Uri> uris, String into) {
+        try { SyncService.start(this, SyncService.UPLOAD, uris, into); }
+        catch (Exception e) { toast(s(R.string.upload_start_failed, explain(e))); }
     }
 
     @Override protected void onStop() {
@@ -200,6 +231,7 @@ public class MainActivity extends Activity {
         }
         if (st.key == null && VAULT_SCREENS.contains(screen)) { closeViewer(); showUnlock(); return; }
         if (st.needLogin && started) { st.needLogin = false; askRelogin(); }
+        if (started && st.status != null && !st.jobRunning && st.busyJobs == 0) autoBackup(); // a job ended: the next batch, if any
         if ("gallery".equals(screen)) {
             if (shownItems != st.items || shownFolders != st.folders) {
                 String before = openFolder;
@@ -1115,7 +1147,7 @@ public class MainActivity extends Activity {
                     }
                     @Override public void onAuthenticationError(int code, CharSequence msg) {
                         if (code != BiometricPrompt.BIOMETRIC_ERROR_USER_CANCELED && code != BiometricPrompt.BIOMETRIC_ERROR_CANCELED
-                                && code != BiometricPrompt.BIOMETRIC_ERROR_NEGATIVE_BUTTON) toast(String.valueOf(msg));
+                                && code != BIO_NEGATIVE_BUTTON) toast(String.valueOf(msg));
                     }
                 });
     }
@@ -1234,7 +1266,7 @@ public class MainActivity extends Activity {
         bannerAction.setBackground(u.ripple(null, u.dp(12)));
         bannerAction.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
             if (st.jobRunning) new AlertDialog.Builder(MainActivity.this).setMessage(R.string.stop_job_q)
-                    .setPositiveButton(R.string.stop, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { SyncService.stop(MainActivity.this); } })
+                    .setPositiveButton(R.string.stop, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { SyncService.stop(MainActivity.this); Backup.stop(); } })
                     .setNegativeButton(R.string.continue_, null).show();
             else { st.status = null; refresh(); }
         }});
@@ -1642,6 +1674,51 @@ public class MainActivity extends Activity {
 
     @Override public void onRequestPermissionsResult(int req, String[] perms, int[] res) {
         if (req == REQ_NOTIF) launchPicker();
+        if (req == REQ_MEDIA) { if (Backup.allowed(this)) askBackupScope(); else toast(s(R.string.auto_no_perm)); }
+    }
+
+    // ---------------------------------------------------------------- automatic backup, free up space
+
+    /** The toggle in Settings: asks for access to the phone's photos first, then what to back up. */
+    void enableBackup() {
+        if (Backup.allowed(this)) askBackupScope();
+        else requestPermissions(Backup.PERMISSIONS, REQ_MEDIA);
+    }
+
+    /** Everything on the phone, or only what is added from now on. Counts what is there first (background). */
+    void askBackupScope() {
+        final List<Store.Item> items = new ArrayList<>(st.items);
+        io.execute(new Runnable() { public void run() {
+            final long[] bytes = {0};
+            st.prefs.edit().putLong("auto_since", 0).apply(); // counted from the beginning
+            final int all = Backup.pending(MainActivity.this, st, items, bytes).size();
+            post(new Runnable() { public void run() {
+                if (st.key == null) return;
+                new AlertDialog.Builder(MainActivity.this).setTitle(R.string.auto_scope_t).setMessage(R.string.auto_scope_d)
+                        .setPositiveButton(s(R.string.auto_all, all, human(bytes[0])), new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { turnOnBackup(0); } })
+                        .setNeutralButton(R.string.auto_new, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { turnOnBackup(System.currentTimeMillis() / 1000); } })
+                        .setNegativeButton(R.string.cancel, null).show();
+            }});
+        }});
+    }
+
+    void turnOnBackup(long since) {
+        try {
+            Backup.turnOn(this, st, since);
+            Journal.add("automatic backup switched on");
+            nextAutoBackup = 0;
+            autoBackup();
+            showSettings();
+        } catch (Exception e) { toast(explain(e)); }
+    }
+
+    /** Free up space: Android's own dialog asks before the phone's copies of backed-up files are deleted. */
+    void freeUpSpace(List<Uri> uris) {
+        try {
+            startIntentSenderForResult(MediaStore.createDeleteRequest(getContentResolver(), uris.subList(0, Math.min(uris.size(), 500))).getIntentSender(),
+                    REQ_FREE, null, 0, 0, 0);
+            picking = true;
+        } catch (Exception e) { toast(explain(e)); }
     }
 
     void launchPicker() {
@@ -1653,6 +1730,7 @@ public class MainActivity extends Activity {
 
     @Override protected void onActivityResult(int req, int res, Intent data) {
         picking = false;
+        if (req == REQ_FREE) { if (res == RESULT_OK) { toast(s(R.string.free_done)); if (st.key != null) showSettings(); } return; }
         if (req >= REQ_TREE && req < REQ_TREE + TREE_FOR.length) {
             folderPicked(TREE_FOR[req - REQ_TREE], res == RESULT_OK && data != null ? data.getData() : null);
             return;
@@ -1664,10 +1742,8 @@ public class MainActivity extends Activity {
         if (c != null) for (int i = 0; i < c.getItemCount(); i++) uris.add(c.getItemAt(i).getUri());
         else if (data.getData() != null) uris.add(data.getData());
         if (uris.isEmpty()) return;
-        try {
-            SyncService.start(this, SyncService.UPLOAD, uris, openFolder);
-            toast(openFolder.isEmpty() ? q(R.plurals.queued, uris.size()) : q(R.plurals.queued_for, uris.size(), openFolder));
-        } catch (Exception e) { toast(s(R.string.upload_start_failed, explain(e))); }
+        startUploads(uris, openFolder);
+        toast(openFolder.isEmpty() ? q(R.plurals.queued, uris.size()) : q(R.plurals.queued_for, uris.size(), openFolder));
     }
 
     void startSync() { startJob(SyncService.SYNC); }
@@ -1696,8 +1772,7 @@ public class MainActivity extends Activity {
     void showViewer(final Store.Item it) {
         LinearLayout l = u.vbox();
         FrameLayout box = new FrameLayout(this);
-        ImageView iv = new ImageView(this);
-        iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        ImageView iv = zoom = new Zoom(this);
         box.addView(iv, new FrameLayout.LayoutParams(MATCH, MATCH));
         l.addView(box, new LinearLayout.LayoutParams(MATCH, 0, 1f));
         TextView info = u.label(l, "", 13, INFO_TEXT, false);
@@ -2014,6 +2089,16 @@ public class MainActivity extends Activity {
         sto.setPadding(u.dp(6), u.dp(4), u.dp(6), u.dp(4));
         u.row(sto, Ui.SYNC, s(R.string.menu_sync, cloudName()), s(R.string.sync_d), null,
                 new View.OnClickListener() { public void onClick(View v) { startSync(); showGallery(); } });
+        final boolean auto = Backup.on(st);
+        u.row(sto, Ui.IMAGE, s(R.string.auto_t), s(auto ? R.string.auto_on_d : R.string.auto_off_d), u.toggle(auto), new View.OnClickListener() { public void onClick(View v) {
+            if (auto) { Backup.turnOff(MainActivity.this, st); showSettings(); } else enableBackup();
+        }});
+        if (Backup.allowed(this)) {
+            long[] bytes = {0};
+            final List<Uri> held = Backup.backedUp(this, st.items, bytes);
+            if (!held.isEmpty()) u.row(sto, Ui.TRASH, s(R.string.free_t), s(R.string.free_d, held.size(), human(bytes[0])), null,
+                    new View.OnClickListener() { public void onClick(View v) { freeUpSpace(held); } });
+        }
         u.row(sto, Ui.CHECK, s(R.string.selftest_t), s(R.string.selftest_d), null,
                 new View.OnClickListener() { public void onClick(View v) { showSelfTest(); } });
         u.row(sto, Ui.CHART, s(R.string.stats_t), s(R.string.stats_d), null,
@@ -2104,7 +2189,7 @@ public class MainActivity extends Activity {
                 + (st.keepsCopy() ? s(R.string.where_copy) + "\n" : "")
                 + s(R.string.where_folders, c.name()) + "\n" + s(R.string.where_phone) + "\n"
                 + s(by(R.string.where_signin_amazon, R.string.where_signin_od, R.string.where_signin_google, R.string.where_signin_local)) + "\n"
-                + s(bioEnabled() ? R.string.where_key_bio : R.string.where_key));
+                + s(bioEnabled() ? R.string.where_key_bio : R.string.where_key) + (Backup.on(st) ? "\n" + s(R.string.where_key_auto) : ""));
         about(l, s(R.string.crypto_t), s(R.string.crypto_d, prefs.getString("salt", "")));
         about(l, s(R.string.recovery_t), s(R.string.recovery_d, c.name()));
         about(l, s(R.string.limits_t), s(R.string.limits_d) + "\n" + s(by(R.string.limits_amazon, R.string.limits_od, R.string.limits_google, R.string.limits_local)));
@@ -2181,6 +2266,7 @@ public class MainActivity extends Activity {
                     k = Vault.deriveKey(a, salt);
                     st.changePassword(old, k, salt, Base64.encodeToString(Vault.seal(k, VERIFY.getBytes("UTF-8")), Base64.NO_WRAP));
                     st.backupFolders(k); // the folders file in the cloud is the first thing another phone opens: new key right away
+                    Backup.rekey(st, k);
                     Journal.add("password changed; re-encrypting the files in the cloud");
                     post(new Runnable() { public void run() { // Store has already switched the open vault to the new key
                         disableBio();

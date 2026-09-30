@@ -1,18 +1,11 @@
 package app.photovault;
 
 import android.net.Uri;
-import android.security.keystore.KeyGenParameterSpec;
-import android.security.keystore.KeyProperties;
 import android.util.Base64;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.security.KeyStore;
 import java.security.MessageDigest;
-import javax.crypto.Cipher;
-import javax.crypto.KeyGenerator;
-import javax.crypto.SecretKey;
-import javax.crypto.spec.GCMParameterSpec;
 import org.json.JSONObject;
 
 /**
@@ -119,32 +112,13 @@ abstract class OAuthCloud extends Cloud {
         } finally { c.disconnect(); }
     }
 
-    // refresh token: AES-GCM with a key that never leaves the phone's secure hardware (no fingerprint needed)
-    private SecretKey tokenKey() throws Exception {
-        KeyStore ks = KeyStore.getInstance("AndroidKeyStore");
-        ks.load(null);
-        SecretKey k = (SecretKey) ks.getKey(alias, null);
-        if (k != null) return k;
-        KeyGenerator g = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
-        g.init(new KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
-                .setBlockModes(KeyProperties.BLOCK_MODE_GCM).setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE).setKeySize(256).build());
-        return g.generateKey();
-    }
-
-    private String seal(String s) throws Exception {
-        Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
-        c.init(Cipher.ENCRYPT_MODE, tokenKey());
-        return Base64.encodeToString(c.getIV(), Base64.NO_WRAP) + ":" + Base64.encodeToString(c.doFinal(s.getBytes("UTF-8")), Base64.NO_WRAP);
-    }
+    // refresh token: sealed under a key that never leaves the phone's secure hardware (no fingerprint needed)
+    private String seal(String s) throws Exception { return Hw.seal(alias, s.getBytes("UTF-8")); }
 
     private String refreshToken() {
-        String s = st.prefs.getString(pre + "_refresh", "");
-        int i = s.indexOf(':');
-        if (i < 0) return null;
         try {
-            Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
-            c.init(Cipher.DECRYPT_MODE, tokenKey(), new GCMParameterSpec(128, Base64.decode(s.substring(0, i), Base64.NO_WRAP)));
-            return new String(c.doFinal(Base64.decode(s.substring(i + 1), Base64.NO_WRAP)), "UTF-8");
+            byte[] b = Hw.open(alias, st.prefs.getString(pre + "_refresh", ""));
+            return b == null ? null : new String(b, "UTF-8");
         } catch (Exception e) { Journal.add(name() + ": stored sign-in unreadable: " + e); return null; }
     }
 
