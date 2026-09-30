@@ -83,6 +83,7 @@ final class Store {
     List<String> folders = new ArrayList<>();
     String status;                        // last background-job line shown in the gallery
     boolean jobRunning, statusBad, needLogin, allowScreenshots;
+    volatile boolean backupRunning;       // the scheduled automatic backup (Backup) is uploading
     String reopen;                        // screen to show again after the language changed (the activity restarts)
     long backgroundSince;
     Runnable onChange;                    // set by the visible screen

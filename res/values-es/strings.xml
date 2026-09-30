@@ -452,4 +452,16 @@
     <string name="previews_d">%1$d sin vista previa. Descarga cada uno una vez (%2$s): mejor con Wi-Fi. Abrir un elemento también crea su vista previa</string>
     <string name="previews_progress">Vistas previas: %1$d de %2$d</string>
     <string name="previews_done">Vistas previas creadas: %1$d</string>
+    <string name="auto_t">Copia automática</string>
+    <string name="auto_off_d">Desactivada. Las fotos y vídeos nuevos irían solos a la bóveda, con Wi-Fi, incluso con la app cerrada</string>
+    <string name="auto_on_d">Activada: las fotos y vídeos nuevos van solos a la bóveda, con Wi-Fi, incluso con la app cerrada</string>
+    <string name="auto_scope_t">¿Qué copiar?</string>
+    <string name="auto_scope_d">Para cifrar mientras la bóveda está bloqueada, Cloakroll guarda una copia de la clave en este teléfono, protegida por su hardware seguro. Abrir la bóveda sigue necesitando tu contraseña o huella.</string>
+    <string name="auto_all">Todo (%1$d, %2$s)</string>
+    <string name="auto_new">Solo lo nuevo</string>
+    <string name="auto_no_perm">Sin acceso a tus fotos, la copia automática no puede ver las nuevas</string>
+    <string name="free_t">Liberar espacio</string>
+    <string name="free_d">%1$d fotos y vídeos ya en la bóveda ocupan %2$s en este teléfono. Los quita del teléfono; Android pregunta antes</string>
+    <string name="free_done">Quitados del teléfono</string>
+    <string name="where_key_auto">• Copia automática: una copia de la clave queda en este teléfono, protegida por su hardware seguro, para cifrar las fotos nuevas mientras la bóveda está bloqueada. Abrir la bóveda sigue necesitando tu contraseña.</string>
 </resources>

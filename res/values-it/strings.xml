@@ -452,4 +452,16 @@
     <string name="previews_d">%1$d senza anteprima. Li scarica una volta ciascuno (%2$s): meglio con il Wi-Fi. Anche aprire un elemento crea la sua anteprima</string>
     <string name="previews_progress">Anteprime: %1$d di %2$d</string>
     <string name="previews_done">Anteprime create: %1$d</string>
+    <string name="auto_t">Backup automatico</string>
+    <string name="auto_off_d">Disattivo. Le nuove foto e i nuovi video andrebbero da soli nella cassaforte, con il Wi-Fi, anche ad app chiusa</string>
+    <string name="auto_on_d">Attivo: le nuove foto e i nuovi video vanno da soli nella cassaforte, con il Wi-Fi, anche ad app chiusa</string>
+    <string name="auto_scope_t">Cosa salvare?</string>
+    <string name="auto_scope_d">Per cifrare mentre la cassaforte è bloccata, Cloakroll tiene una copia della chiave su questo telefono, protetta dal suo hardware sicuro. Per aprire la cassaforte servono sempre la password o l\'impronta.</string>
+    <string name="auto_all">Tutto (%1$d, %2$s)</string>
+    <string name="auto_new">Solo le nuove</string>
+    <string name="auto_no_perm">Senza accesso alle foto, il backup automatico non può vedere quelle nuove</string>
+    <string name="free_t">Libera spazio</string>
+    <string name="free_d">%1$d foto e video già nella cassaforte occupano %2$s su questo telefono. Li rimuove dal telefono; Android chiede prima conferma</string>
+    <string name="free_done">Rimossi dal telefono</string>
+    <string name="where_key_auto">• Backup automatico: una copia della chiave resta su questo telefono, protetta dal suo hardware sicuro, così le nuove foto vengono cifrate mentre la cassaforte è bloccata. Per aprire la cassaforte serve sempre la password.</string>
 </resources>

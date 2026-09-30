@@ -452,4 +452,16 @@
     <string name="previews_d">%1$d sans aperçu. Télécharge chacun une fois (%2$s) : mieux en Wi-Fi. Ouvrir un élément crée aussi son aperçu</string>
     <string name="previews_progress">Aperçus : %1$d sur %2$d</string>
     <string name="previews_done">Aperçus créés : %1$d</string>
+    <string name="auto_t">Sauvegarde automatique</string>
+    <string name="auto_off_d">Désactivée. Les nouvelles photos et vidéos iraient d\'elles-mêmes dans le coffre, en Wi-Fi, même l\'app fermée</string>
+    <string name="auto_on_d">Activée : les nouvelles photos et vidéos vont d\'elles-mêmes dans le coffre, en Wi-Fi, même l\'app fermée</string>
+    <string name="auto_scope_t">Que sauvegarder ?</string>
+    <string name="auto_scope_d">Pour chiffrer quand le coffre est verrouillé, Cloakroll garde une copie de la clé sur ce téléphone, protégée par son matériel sécurisé. Ouvrir le coffre demande toujours votre mot de passe ou votre empreinte.</string>
+    <string name="auto_all">Tout (%1$d, %2$s)</string>
+    <string name="auto_new">Seulement les nouvelles</string>
+    <string name="auto_no_perm">Sans accès à vos photos, la sauvegarde automatique ne peut pas voir les nouvelles</string>
+    <string name="free_t">Libérer de l\'espace</string>
+    <string name="free_d">%1$d photos et vidéos déjà dans le coffre occupent %2$s sur ce téléphone. Les retire du téléphone ; Android demande d\'abord</string>
+    <string name="free_done">Retirés du téléphone</string>
+    <string name="where_key_auto">• Sauvegarde automatique : une copie de la clé reste sur ce téléphone, protégée par son matériel sécurisé, pour chiffrer les nouvelles photos quand le coffre est verrouillé. Ouvrir le coffre demande toujours votre mot de passe.</string>
 </resources>

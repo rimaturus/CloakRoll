@@ -1,15 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="io.github.rimaturus.photovault" android:versionCode="9" android:versionName="1.8">
+    package="io.github.rimaturus.photovault" android:versionCode="10" android:versionName="1.9">
     <!-- Application id io.github.rimaturus.photovault (as on Google Play); the Java code lives in package app.photovault -->
     <uses-sdk android:minSdkVersion="33" android:targetSdkVersion="36" />
 
-    <!-- The complete list of permissions. No storage, contacts, location, camera or microphone access. -->
+    <!-- The complete list of permissions. No contacts, location, camera or microphone access. Photos are read only
+         if you turn on automatic backup (the permission is asked for then); otherwise only what you pick. -->
     <uses-permission android:name="android.permission.INTERNET" />                     <!-- talk to Amazon Photos, OneDrive or Google Drive -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />                <!-- optional fingerprint unlock -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />           <!-- uploads continue in background -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />           <!-- upload progress notification -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />            <!-- automatic backup only, optional -->
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" /> <!-- Android 14+: "only the selected photos" -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />       <!-- the automatic backup job survives a restart -->
 
     <application android:label="Cloakroll" android:icon="@mipmap/ic_launcher"
         android:allowBackup="false" android:dataExtractionRules="@xml/data_extraction_rules"
@@ -36,5 +41,8 @@
         </activity>
         <service android:name="app.photovault.SyncService" android:exported="false"
             android:foregroundServiceType="dataSync" />
+        <!-- automatic backup: run by Android's job scheduler about hourly on Wi-Fi -->
+        <service android:name="app.photovault.Backup" android:exported="true"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
     </application>
 </manifest>
