@@ -483,4 +483,9 @@
     <string name="whats_new_t">What\'s new in Cloakroll %1$s</string>
     <string name="whats_new_off">Don\'t show this after updates</string>
     <string name="whats_new">• Automatic backup: new photos and videos go to the vault by themselves, on Wi-Fi, even with the app closed (Settings).\n• Free up space: remove from the phone what the vault already holds.\n• Pinch to zoom in the viewer.\n• Restoring on a new phone no longer downloads every file: the list comes from the cloud, previews on demand.\n• Time left for every transfer.\n• Interrupted uploads are retried; a damaged file no longer blocks a restore.\n• Security hardening.</string>
+    <string name="auto_net_t">Which connection?</string>
+    <string name="auto_net_d">Photos and videos can be big: on mobile data they count against your plan.</string>
+    <string name="auto_net_wifi">Only Wi-Fi</string>
+    <string name="auto_net_any">Wi-Fi and mobile data</string>
+    <string name="auto_on_any_d">On: new photos and videos go to the vault by themselves, on Wi-Fi or mobile data, even with the app closed</string>
 </resources>

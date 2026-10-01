@@ -483,4 +483,9 @@
     <string name="whats_new_t">Nouveautés de Cloakroll %1$s</string>
     <string name="whats_new_off">Ne plus afficher après les mises à jour</string>
     <string name="whats_new">• Sauvegarde automatique : les nouvelles photos et vidéos vont d\'elles-mêmes dans le coffre, en Wi-Fi, même l\'app fermée (Réglages).\n• Libérer de l\'espace : retire du téléphone ce que le coffre a déjà.\n• Zoom à deux doigts dans la visionneuse.\n• Restaurer sur un nouveau téléphone ne télécharge plus chaque fichier : la liste vient du cloud, les aperçus à la demande.\n• Temps restant pour chaque transfert.\n• Les envois interrompus sont réessayés ; un fichier endommagé ne bloque plus la restauration.\n• Sécurité renforcée.</string>
+    <string name="auto_net_t">Avec quelle connexion ?</string>
+    <string name="auto_net_d">Les photos et vidéos peuvent être lourdes : en données mobiles, elles comptent dans votre forfait.</string>
+    <string name="auto_net_wifi">Wi-Fi seulement</string>
+    <string name="auto_net_any">Wi-Fi et données mobiles</string>
+    <string name="auto_on_any_d">Activée : les nouvelles photos et vidéos vont d\'elles-mêmes dans le coffre, en Wi-Fi ou en données mobiles, même l\'app fermée</string>
 </resources>

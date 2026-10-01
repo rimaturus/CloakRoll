@@ -483,4 +483,9 @@
     <string name="whats_new_t">Novità di Cloakroll %1$s</string>
     <string name="whats_new_off">Non mostrare dopo gli aggiornamenti</string>
     <string name="whats_new">• Backup automatico: le nuove foto e i nuovi video vanno da soli nella cassaforte, con il Wi-Fi, anche ad app chiusa (Impostazioni).\n• Libera spazio: rimuovi dal telefono ciò che la cassaforte ha già.\n• Zoom con due dita nel visualizzatore.\n• Il ripristino su un telefono nuovo non scarica più ogni file: l\'elenco arriva dal cloud, le anteprime a richiesta.\n• Tempo rimanente per ogni trasferimento.\n• I caricamenti interrotti vengono ritentati; un file danneggiato non blocca più il ripristino.\n• Sicurezza rafforzata.</string>
+    <string name="auto_net_t">Con quale connessione?</string>
+    <string name="auto_net_d">Foto e video possono essere grandi: con i dati mobili consumano il tuo piano.</string>
+    <string name="auto_net_wifi">Solo Wi-Fi</string>
+    <string name="auto_net_any">Wi-Fi e dati mobili</string>
+    <string name="auto_on_any_d">Attivo: le nuove foto e i nuovi video vanno da soli nella cassaforte, con Wi-Fi o dati mobili, anche ad app chiusa</string>
 </resources>

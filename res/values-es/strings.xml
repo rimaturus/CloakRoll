@@ -483,4 +483,9 @@
     <string name="whats_new_t">Novedades de Cloakroll %1$s</string>
     <string name="whats_new_off">No mostrar tras las actualizaciones</string>
     <string name="whats_new">• Copia automática: las fotos y vídeos nuevos van solos a la bóveda, con Wi-Fi, incluso con la app cerrada (Ajustes).\n• Liberar espacio: quita del teléfono lo que la bóveda ya tiene.\n• Zoom con dos dedos en el visor.\n• Restaurar en un teléfono nuevo ya no descarga cada archivo: la lista viene de la nube, las vistas previas bajo demanda.\n• Tiempo restante en cada transferencia.\n• Las subidas interrumpidas se reintentan; un archivo dañado ya no bloquea la restauración.\n• Seguridad reforzada.</string>
+    <string name="auto_net_t">¿Con qué conexión?</string>
+    <string name="auto_net_d">Las fotos y vídeos pueden ser grandes: con datos móviles consumen tu tarifa.</string>
+    <string name="auto_net_wifi">Solo Wi-Fi</string>
+    <string name="auto_net_any">Wi-Fi y datos móviles</string>
+    <string name="auto_on_any_d">Activada: las fotos y vídeos nuevos van solos a la bóveda, con Wi-Fi o datos móviles, incluso con la app cerrada</string>
 </resources>

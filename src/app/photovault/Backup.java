@@ -34,6 +34,16 @@ public final class Backup extends JobService {
 
     static boolean on(Store st) { return st.prefs.contains("auto_key"); }
 
+    /** Also on mobile data, not only Wi-Fi (the user's choice when switching it on). */
+    static boolean anyNetwork(Store st) { return st.prefs.getBoolean("auto_any_net", false); }
+
+    /** The connection in use is one the user allows for the backup: Wi-Fi, or anything if mobile data is allowed too. */
+    static boolean networkOk(Context c, Store st) {
+        if (anyNetwork(st)) return true;
+        android.net.ConnectivityManager cm = c.getSystemService(android.net.ConnectivityManager.class);
+        return cm != null && cm.getActiveNetwork() != null && !cm.isActiveNetworkMetered();
+    }
+
     /** The app may read the phone's photos (all of them, or the ones the user picked on Android 14+). */
     static boolean allowed(Context c) {
         for (String p : PERMISSIONS) if (c.checkSelfPermission(p) == PackageManager.PERMISSION_GRANTED) return true;
@@ -41,13 +51,14 @@ public final class Backup extends JobService {
     }
 
     /** Switches it on with the open vault's key: files added to the phone from `since` (seconds) are backed up. Main thread. */
-    static void turnOn(Context c, Store st, long since) throws Exception {
-        st.prefs.edit().putString("auto_key", Hw.seal(ALIAS, st.key)).putLong("auto_since", since).remove("auto_failed").apply();
-        schedule(c);
+    static void turnOn(Context c, Store st, long since, boolean anyNetwork) throws Exception {
+        st.prefs.edit().putString("auto_key", Hw.seal(ALIAS, st.key)).putLong("auto_since", since).putBoolean("auto_any_net", anyNetwork)
+                .remove("auto_failed").apply();
+        schedule(c, st);
     }
 
     static void turnOff(Context c, Store st) {
-        st.prefs.edit().remove("auto_key").remove("auto_since").remove("auto_failed").apply();
+        st.prefs.edit().remove("auto_key").remove("auto_since").remove("auto_any_net").remove("auto_failed").apply();
         Hw.delete(ALIAS);
         c.getSystemService(JobScheduler.class).cancel(JOB);
         Journal.add("automatic backup switched off");
@@ -60,9 +71,9 @@ public final class Backup extends JobService {
         catch (Exception e) { Journal.add("automatic backup: key copy not updated, switched off: " + e); st.prefs.edit().remove("auto_key").apply(); }
     }
 
-    static void schedule(Context c) {
+    static void schedule(Context c, Store st) {
         JobInfo j = new JobInfo.Builder(JOB, new ComponentName(c, Backup.class))
-                .setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED)
+                .setRequiredNetworkType(anyNetwork(st) ? JobInfo.NETWORK_TYPE_ANY : JobInfo.NETWORK_TYPE_UNMETERED)
                 .setRequiresBatteryNotLow(true)
                 .setPersisted(true)
                 .setPeriodic(60 * 60_000L, 20 * 60_000L)
