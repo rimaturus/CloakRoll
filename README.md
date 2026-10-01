@@ -136,14 +136,15 @@ No contacts, location, camera or microphone permission. Without automatic backup
 
 ## Install
 
-1. Download `PhotoVault.apk` from [Releases](https://github.com/rimaturus/CloakRoll/releases).
+1. Download `Cloakroll.apk` from [Releases](https://github.com/rimaturus/CloakRoll/releases).
 2. Samsung phones: turn off *Settings → Security and privacy → Auto Blocker* while installing.
 3. Open the APK and allow installing from that source. Play Protect warns about apps from unknown developers; choose *More details → Install anyway*.
 
-To check that an APK is an official build, compare its signing certificate with the fingerprint published in the release notes:
+To check that an APK is an official build, compare its signing certificate with this SHA-256 fingerprint (release key, from version 1.9.2; it is also the code transparency key of the Google Play bundle):
 
 ```
-apksigner verify --print-certs PhotoVault.apk
+33:A9:05:10:FE:68:A2:C3:B5:0C:DC:E3:39:AC:7E:20:98:DC:1C:A7:7E:72:D4:D3:68:07:CE:D5:C2:8B:71:7D
+apksigner verify --print-certs Cloakroll.apk
 ```
 
 ## First launch
