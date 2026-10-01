@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="io.github.rimaturus.photovault" android:versionCode="10" android:versionName="1.9">
+    package="io.github.rimaturus.photovault" android:versionCode="11" android:versionName="1.9.1">
     <!-- Application id io.github.rimaturus.photovault (as on Google Play); the Java code lives in package app.photovault -->
     <uses-sdk android:minSdkVersion="33" android:targetSdkVersion="36" />
 
@@ -15,6 +15,7 @@
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
     <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" /> <!-- Android 14+: "only the selected photos" -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />       <!-- the automatic backup job survives a restart -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />         <!-- the job scheduler needs it to wait for Wi-Fi -->
 
     <application android:label="Cloakroll" android:icon="@mipmap/ic_launcher"
         android:allowBackup="false" android:dataExtractionRules="@xml/data_extraction_rules"
