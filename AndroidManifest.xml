@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="io.github.rimaturus.photovault" android:versionCode="11" android:versionName="1.9.1">
+    package="io.github.rimaturus.photovault" android:versionCode="12" android:versionName="1.9.2">
     <!-- Application id io.github.rimaturus.photovault (as on Google Play); the Java code lives in package app.photovault -->
     <uses-sdk android:minSdkVersion="33" android:targetSdkVersion="36" />
 

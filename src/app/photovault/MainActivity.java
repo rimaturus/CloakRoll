@@ -269,6 +269,7 @@ public class MainActivity extends Activity {
             case "settings": showGallery(); break;
             case "about": case "changepw": case "stats": showSettings(); break;
             case "tour": if (tourPage > 0) { tourPage--; showTour(); } else endTour(); break;
+            case "privacy": if (st.key != null) showSettings(); else if (prefs.contains("verifier")) start(); else showWelcome(); break;
             case "log":
                 if (!prefs.contains("verifier")) showSignIn();
                 else if (st.key != null) showSettings();
@@ -474,6 +475,7 @@ public class MainActivity extends Activity {
         u.feature(k, Ui.KEY, s(R.string.f_key_t), s(R.string.f_key_d));
         u.button(l, s(R.string.get_started), Ui.PRIMARY, new View.OnClickListener() { public void onClick(View v) { showChoose(); } });
         u.note(l, s(R.string.welcome_steps)).setGravity(Gravity.CENTER);
+        u.button(l, s(R.string.privacy_t), Ui.TEXT, new View.OnClickListener() { public void onClick(View v) { showPrivacy(); } });
         setScreen("welcome", "", null, 0, u.scroll(l),
                 u.iconButton(Ui.GLOBE, u.text, s(R.string.language), new View.OnClickListener() { public void onClick(View v) { chooseLanguage(); } }));
     }
@@ -528,7 +530,26 @@ public class MainActivity extends Activity {
         Cloud c = st.base();
         if (c instanceof OAuthCloud) showOAuthLogin();
         else if (c instanceof Local) pickFolder("vault");
+        else if (!prefs.contains("amazon_site")) pickAmazonSite();
         else showLogin();
+    }
+
+    /** Amazon accounts belong to one site (amazon.com, amazon.it...): the sign-in page and the file servers follow it. */
+    void pickAmazonSite() {
+        String[] names = new String[Amazon.SITES.length];
+        int cur = 0;
+        for (int i = 0; i < names.length; i++) {
+            names[i] = "amazon." + Amazon.SITES[i][0] + "  ·  " + Amazon.SITES[i][2];
+            if (Amazon.SITES[i][0].equals(Amazon.tld)) cur = i;
+        }
+        new AlertDialog.Builder(this).setTitle(R.string.amazon_site_t)
+                .setSingleChoiceItems(names, cur, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                    d.dismiss();
+                    Amazon.tld = Amazon.SITES[w][0];
+                    prefs.edit().putString("amazon_site", Amazon.tld).apply();
+                    showLogin();
+                }})
+                .setNegativeButton(R.string.cancel, null).show();
     }
 
     /** Android's folder picker: the app gets access to the chosen folder only. The answer arrives in onActivityResult. */
@@ -603,6 +624,7 @@ public class MainActivity extends Activity {
         final Cloud c = st.base();
         c.signOut();
         if (!(c instanceof Local)) toast(s(R.string.signed_out, c.name()));
+        if (c instanceof Amazon) prefs.edit().remove("amazon_site").apply(); // the site is asked again: it may be another account
         if (c instanceof Amazon) // cookies are removed in the background: open the sign-in page after that
             CookieManager.getInstance().removeAllCookies(new ValueCallback<Boolean>() { public void onReceiveValue(Boolean b) { if (!isDestroyed()) showSignIn(); } });
         else showSignIn();
@@ -657,7 +679,7 @@ public class MainActivity extends Activity {
             @Override public void onPageFinished(WebView v, String url) { showHost(url); checkLogin(); }
         });
         l.addView(web, new LinearLayout.LayoutParams(MATCH, 0, 1f));
-        web.loadUrl(Amazon.WEB + "/photos");
+        web.loadUrl(Amazon.web() + "/photos");
         connecting = false;
         nextLoginTry = 0;
         ui.removeCallbacks(pollLogin);
@@ -2200,6 +2222,8 @@ public class MainActivity extends Activity {
                 new View.OnClickListener() { public void onClick(View v) { chooseLanguage(); } });
         u.row(ab, Ui.SHIELD, s(R.string.about_row_t), s(R.string.about_row_d), null,
                 new View.OnClickListener() { public void onClick(View v) { showAbout(); } });
+        u.row(ab, Ui.SHIELD, s(R.string.privacy_t), s(R.string.privacy_d), null,
+                new View.OnClickListener() { public void onClick(View v) { showPrivacy(); } });
         u.row(ab, Ui.IMAGE, s(R.string.tour_again), null, null,
                 new View.OnClickListener() { public void onClick(View v) { tourPage = 0; showTour(); } });
         u.row(ab, Ui.LIST, s(R.string.log), s(R.string.log_d), null,
@@ -2354,6 +2378,20 @@ public class MainActivity extends Activity {
             }});
         }});
         setScreen("changepw", s(R.string.changepw_screen), null, Ui.BACK, u.scroll(l));
+    }
+
+    // ================================================================ privacy policy
+
+    /** PRIVACY.md, put into the app by the build (res/raw/privacy.txt), shown as plain text. */
+    void showPrivacy() {
+        String text;
+        try (InputStream in = getResources().openRawResource(R.raw.privacy)) { text = new String(Cloud.readAll(in), "UTF-8"); }
+        catch (Exception e) { text = e.toString(); }
+        text = text.replaceAll("(?m)^#+ ", "").replace("**", "").replaceAll("(?m)^- ", "• ").replaceAll("^\\*|\\*$", "").replaceAll("(?m)^\\*(.*)\\*$", "$1");
+        LinearLayout l = u.page();
+        LinearLayout k = u.card(l);
+        u.body(k, text).setTextIsSelectable(true);
+        setScreen("privacy", s(R.string.privacy_t), null, Ui.BACK, u.scroll(l));
     }
 
     // ================================================================ log

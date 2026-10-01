@@ -114,7 +114,7 @@ No contacts, location, camera or microphone permission. Without automatic backup
 
 ## Features
 
-- **Four storage options**, chosen at setup: Amazon Photos (unlimited photos with Prime, unofficial web interface), OneDrive (official Microsoft Graph API), Google Drive (official Drive API, `drive.file` access only), or **only on this phone**, in a folder you choose
+- **Four storage options**, chosen at setup: Amazon Photos (unlimited photos with Prime, unofficial web interface, on the Amazon site of your account: .com, .co.uk, .de, .it, .co.jp...), OneDrive (official Microsoft Graph API), Google Drive (official Drive API, `drive.file` access only), or **only on this phone**, in a folder you choose
 - **Automatic backup** (*Settings*): new photos and videos go to the vault by themselves, on Wi-Fi, even with the app closed, through Android's job scheduler. Choose everything on the phone or only what is added from now on. To encrypt while the vault is locked, a copy of the key stays on the phone, protected by its secure hardware; opening the vault still needs the password
 - **Free up space** (*Settings*): photos and videos already in the vault can be removed from the phone in one go; Android's own dialog asks first
 - **Encrypted copy on the phone** next to any cloud (setup or *Settings*): every encrypted PNG also goes in a folder you choose, so items open faster and offline, and you have one more backup
@@ -123,6 +123,7 @@ No contacts, location, camera or microphone permission. Without automatic backup
 - Gallery with instant previews. Opening an item shows its small preview (kept encrypted on the phone) and downloads nothing: the full-quality original is fetched only when you tap *Original* or *Save to phone*, so browsing costs no data. Swipe left and right to move between items; pinch or double-tap to zoom
 - **Folders**: create folders, long-press photos to select several and *Move* or *Delete* them, rename or delete folders (their photos are kept). Folder names and contents are saved in the cloud in one more encrypted file, together with the list of your items (name, date, size), so the provider can't read them and a new phone gets them back
 - *Cloud view* button: see the exact file the cloud stores
+- *Privacy policy* readable inside the app (welcome screen and Settings), the same text as `PRIVACY.md`
 - A six-page tour at the first open (again from *Settings > About*), and a one-time "what's new" after each update, with a "don't show again"
 - Fingerprint unlock, auto-lock, no screenshots
 - **Change the vault password** (*Settings > Change vault password*): the app shows first what it costs (data, time), then re-encrypts every file in the cloud with the new key in the background, resuming by itself if interrupted

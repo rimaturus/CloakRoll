@@ -488,4 +488,7 @@
     <string name="auto_net_wifi">Wi-Fi seulement</string>
     <string name="auto_net_any">Wi-Fi et données mobiles</string>
     <string name="auto_on_any_d">Activée : les nouvelles photos et vidéos vont d\'elles-mêmes dans le coffre, en Wi-Fi ou en données mobiles, même l\'app fermée</string>
+    <string name="amazon_site_t">Sur quel site Amazon est votre compte ?</string>
+    <string name="privacy_t">Politique de confidentialité</string>
+    <string name="privacy_d">Ce que l\'app fait de vos données : rien ne quitte le téléphone en clair, rien ne nous parvient</string>
 </resources>

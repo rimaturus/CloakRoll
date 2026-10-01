@@ -7,5 +7,6 @@ sdk/
 *.aab
 __pycache__/
 out/
+res/raw/
 vault.salt
 *.idsig

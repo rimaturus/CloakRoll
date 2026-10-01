@@ -488,4 +488,7 @@
     <string name="auto_net_wifi">Nur WLAN</string>
     <string name="auto_net_any">WLAN und mobile Daten</string>
     <string name="auto_on_any_d">An: Neue Fotos und Videos kommen von selbst in den Tresor, über WLAN oder mobile Daten, auch bei geschlossener App</string>
+    <string name="amazon_site_t">Auf welcher Amazon-Seite ist dein Konto?</string>
+    <string name="privacy_t">Datenschutzerklärung</string>
+    <string name="privacy_d">Was die App mit deinen Daten macht: Nichts verlässt das Handy unverschlüsselt, nichts erreicht uns</string>
 </resources>

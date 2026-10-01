@@ -101,6 +101,7 @@ final class Store {
     private Store(Context app) {
         this.app = app;
         prefs = app.getSharedPreferences("vault", Context.MODE_PRIVATE);
+        Amazon.tld = prefs.getString("amazon_site", "it");
         amazon = new Amazon(this);
         oneDrive = new OneDrive(this);
         google = new GoogleDrive(this);
