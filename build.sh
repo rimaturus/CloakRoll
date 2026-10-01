@@ -9,7 +9,7 @@ set -e
 cd "$(dirname "$0")"
 # Donation link shown in the app (Settings > Support PhotoVault). Empty = no donation button.
 DONATE_URL="${DONATE_URL-https://buymeacoffee.com/rimaturus}"
-SOURCE_URL="${SOURCE_URL-https://github.com/rimaturus/PhotoVault}"
+SOURCE_URL="${SOURCE_URL-https://github.com/rimaturus/CloakRoll}"
 # OneDrive: the "Application (client) ID" of your Microsoft app registration (PUBLISHING.md). Empty = OneDrive not offered.
 ONEDRIVE_CLIENT_ID="${ONEDRIVE_CLIENT_ID-}"
 # Google Drive: the "Client ID" of your Google OAuth client, type iOS (PUBLISHING.md). Empty = Google Drive not offered.

@@ -18,7 +18,7 @@ pdfmetrics.registerFont(TTFont("M", D + "DejaVuSansMono.ttf"))
 BG, PANEL, EDGE = HexColor("#0B1220"), HexColor("#131D33"), HexColor("#243150")
 TEXT, MUTED = HexColor("#E8ECF3"), HexColor("#93A1B8")
 TEAL, GREEN, AMBER, RED = HexColor("#2DD4BF"), HexColor("#4ADE80"), HexColor("#FBBF24"), HexColor("#F87171")
-REPO = "github.com/rimaturus/PhotoVault"
+REPO = "github.com/rimaturus/CloakRoll"
 TMP = tempfile.mkdtemp()
 
 random.seed(3)

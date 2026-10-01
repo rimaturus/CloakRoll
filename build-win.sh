@@ -15,7 +15,7 @@ JAR="$SDK/platforms/android-36/android.jar"
 export JAVA_HOME="$(cygpath -w "$(dirname "$JBIN")")" # d8.bat and apksigner.bat look for it
 BUNDLETOOL=sdk/bundletool-all-1.18.3.jar
 DONATE_URL="${DONATE_URL-https://buymeacoffee.com/rimaturus}"
-SOURCE_URL="${SOURCE_URL-https://github.com/rimaturus/PhotoVault}"
+SOURCE_URL="${SOURCE_URL-https://github.com/rimaturus/CloakRoll}"
 ONEDRIVE_CLIENT_ID="${ONEDRIVE_CLIENT_ID-}"
 GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID-806356058259-0f19gg4o54pvvl0v2rkoo5tq91376g5h.apps.googleusercontent.com}"
 [ "$PLAY" = 1 ] && DONATE_URL="" && SOURCE_URL=""

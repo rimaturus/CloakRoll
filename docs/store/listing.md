@@ -1,7 +1,7 @@
 # Cloakroll: Google Play store listing (v1.9.2)
 
 Category: Apps > Tools. Contact email: rimaturus@gmail.com. Graphics: `icon-512.png`, `feature-it.png`, `feature-en.png`.
-Privacy policy URL: https://rimaturus.github.io/PhotoVault/PRIVACY.html
+Privacy policy URL: https://rimaturus.github.io/CloakRoll/PRIVACY.html
 Limits: name 30, short description 80, full description 4000 characters. This file is also the one to upload in Play Console > Store listings > "Import translations".
 
 ---

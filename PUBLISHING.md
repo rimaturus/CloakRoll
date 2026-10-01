@@ -180,4 +180,4 @@ Play defines "collected" as data transmitted off the device. Photos are transmit
 ### Privacy policy URL
 
 Use a page without donation links (the repository page shows a *Sponsor* button). GitHub Pages serves the repo root of `master`, so the policy is always the current `PRIVACY.md`:
-`https://rimaturus.github.io/PhotoVault/PRIVACY.html`. The same URL, the home page `https://rimaturus.github.io/PhotoVault/` and the authorized domain `rimaturus.github.io` go in the Google Auth Platform *Branding* page.
+`https://rimaturus.github.io/CloakRoll/PRIVACY.html`. The same URL, the home page `https://rimaturus.github.io/CloakRoll/` and the authorized domain `rimaturus.github.io` go in the Google Auth Platform *Branding* page.

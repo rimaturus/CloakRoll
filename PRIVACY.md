@@ -35,7 +35,7 @@ Cloakroll is not directed at children. It is intended for users aged 18 and over
 
 ## Security
 
-All content leaves the phone encrypted with AES-256-GCM, authenticated, so any change to a stored file is detected when it is opened. Connections use HTTPS only. Sign-in tokens and the optional key copy for automatic backup are sealed with keys held in the phone's secure hardware. The app blocks screenshots and hides its content in the recent-apps view unless you allow screenshots in Settings. The source code is public ([github.com/rimaturus/PhotoVault](https://github.com/rimaturus/PhotoVault), GPL-3.0), and the Google Play build carries code transparency, so anyone can verify that the installed code is the published one. The app has not had an independent security audit; reports are welcome through the repository.
+All content leaves the phone encrypted with AES-256-GCM, authenticated, so any change to a stored file is detected when it is opened. Connections use HTTPS only. Sign-in tokens and the optional key copy for automatic backup are sealed with keys held in the phone's secure hardware. The app blocks screenshots and hides its content in the recent-apps view unless you allow screenshots in Settings. The source code is public ([github.com/rimaturus/CloakRoll](https://github.com/rimaturus/CloakRoll), GPL-3.0), and the Google Play build carries code transparency, so anyone can verify that the installed code is the published one. The app has not had an independent security audit; reports are welcome through the repository.
 
 ## Your rights and data deletion
 
@@ -49,4 +49,4 @@ Changes are published with the app version that makes them, in this file in the 
 
 ## Contact
 
-Write to rimaturus@gmail.com or open an issue at https://github.com/rimaturus/PhotoVault
+Write to rimaturus@gmail.com or open an issue at https://github.com/rimaturus/CloakRoll

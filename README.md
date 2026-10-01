@@ -136,7 +136,7 @@ No contacts, location, camera or microphone permission. Without automatic backup
 
 ## Install
 
-1. Download `PhotoVault.apk` from [Releases](https://github.com/rimaturus/PhotoVault/releases).
+1. Download `PhotoVault.apk` from [Releases](https://github.com/rimaturus/CloakRoll/releases).
 2. Samsung phones: turn off *Settings → Security and privacy → Auto Blocker* while installing.
 3. Open the APK and allow installing from that source. Play Protect warns about apps from unknown developers; choose *More details → Install anyway*.
 
