@@ -464,4 +464,23 @@
     <string name="free_d">%1$d photos et vidéos déjà dans le coffre occupent %2$s sur ce téléphone. Les retire du téléphone ; Android demande d\'abord</string>
     <string name="free_done">Retirés du téléphone</string>
     <string name="where_key_auto">• Sauvegarde automatique : une copie de la clé reste sur ce téléphone, protégée par son matériel sécurisé, pour chiffrer les nouvelles photos quand le coffre est verrouillé. Ouvrir le coffre demande toujours votre mot de passe.</string>
+    <string name="tour_title">Bienvenue dans Cloakroll</string>
+    <string name="tour_next">Suivant</string>
+    <string name="tour_skip">Passer</string>
+    <string name="tour_again">Revoir la visite</string>
+    <string name="tour1_t">Ajoutez photos et vidéos</string>
+    <string name="tour1_d">Touchez Ajouter et choisissez dans votre galerie. Chaque fichier est chiffré sur votre téléphone et envoyé comme une image de pixels aléatoires : le cloud ne voit que du bruit. La file continue en arrière-plan, avec un bouton Arrêter.</string>
+    <string name="tour2_t">Parcourir</string>
+    <string name="tour2_d">La galerie montre de petits aperçus gardés seulement sur votre téléphone. Touchez-en un pour télécharger et ouvrir l\'original, glissez pour le suivant, pincez pour zoomer, Enregistrer sur le téléphone exporte une copie.</string>
+    <string name="tour3_t">Dossiers</string>
+    <string name="tour3_d">Appui long pour sélectionner, puis déplacez dans un dossier ou supprimez. Dossiers et liste sont aussi enregistrés dans votre espace, chiffrés, pour qu\'un autre téléphone les retrouve.</string>
+    <string name="tour4_t">Verrouillé quand vous partez</string>
+    <string name="tour4_d">Le coffre se verrouille seul 60 s après avoir quitté l\'app, et rien de déchiffré ne reste à l\'écran. Le déverrouillage par empreinte est optionnel, dans les Réglages.</string>
+    <string name="tour5_t">Sauvegarde automatique</string>
+    <string name="tour5_d">Dans les Réglages, la sauvegarde automatique envoie seule les nouvelles photos et vidéos en Wi-Fi, même l\'app fermée. Libérer de l\'espace retire du téléphone ce que le coffre a déjà.</string>
+    <string name="tour6_t">Votre mot de passe est la clé</string>
+    <string name="tour6_d">Sur un nouveau téléphone, connectez-vous au même espace, saisissez le même mot de passe et la synchronisation ramène tout en quelques secondes. Sans mot de passe, personne ne peut récupérer les photos, pas même nous : gardez-le bien.</string>
+    <string name="whats_new_t">Nouveautés de Cloakroll %1$s</string>
+    <string name="whats_new_off">Ne plus afficher après les mises à jour</string>
+    <string name="whats_new">• Sauvegarde automatique : les nouvelles photos et vidéos vont d\'elles-mêmes dans le coffre, en Wi-Fi, même l\'app fermée (Réglages).\n• Libérer de l\'espace : retire du téléphone ce que le coffre a déjà.\n• Zoom à deux doigts dans la visionneuse.\n• Restaurer sur un nouveau téléphone ne télécharge plus chaque fichier : la liste vient du cloud, les aperçus à la demande.\n• Temps restant pour chaque transfert.\n• Les envois interrompus sont réessayés ; un fichier endommagé ne bloque plus la restauration.\n• Sécurité renforcée.</string>
 </resources>

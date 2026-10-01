@@ -57,7 +57,8 @@ public class MainActivity extends Activity {
     static final int BIO_NEGATIVE_BUTTON = 13; // BiometricPrompt.BIOMETRIC_ERROR_NEGATIVE_BUTTON, which the SDK jar hides
     static final int REQ_PICK = 1, REQ_NOTIF = 2, REQ_MEDIA = 3, REQ_FREE = 4, REQ_TREE = 10, RUN = 1, OK = 2, WARN = 3, BAD = 4, INFO_TEXT = 0xB3FFFFFF, INFO_ERROR = 0xFFFF9A93;
     static final int MATCH = ViewGroup.LayoutParams.MATCH_PARENT, WRAP = ViewGroup.LayoutParams.WRAP_CONTENT;
-    static final List<String> VAULT_SCREENS = Arrays.asList("gallery", "viewer", "settings", "about", "changepw", "stats");
+    static final List<String> VAULT_SCREENS = Arrays.asList("gallery", "viewer", "settings", "about", "changepw", "stats", "tour");
+    static final int TOUR_PAGES = 6;
     /** App languages ("" = the phone's). Also in res/xml/locales_config.xml. */
     static final String[] LANGS = {"", "en", "it", "es", "de", "fr", "pt"};
 
@@ -71,6 +72,7 @@ public class MainActivity extends Activity {
     final Runnable onChange = new Runnable() { public void run() { refresh(); } };
     final Runnable autoBio = new Runnable() { public void run() { if (started && "unlock".equals(screen) && bioEnabled()) bioUnlock(); } };
     String screen = "";
+    int tourPage;
     /** What the folder picker is open for; its index is added to REQ_TREE, so the answer survives a restart of the screen. */
     static final String[] TREE_FOR = {"vault", "copy", "copy_settings"};
     boolean picking, connecting, testing, started;
@@ -141,6 +143,7 @@ public class MainActivity extends Activity {
         else if ("changepw".equals(again)) showChangePassword();
         else if ("log".equals(again)) showLog();
         else if ("stats".equals(again)) showStats();
+        else if ("tour".equals(again)) showTour();
         else showGallery();
     }
 
@@ -265,6 +268,7 @@ public class MainActivity extends Activity {
                 break;
             case "settings": showGallery(); break;
             case "about": case "changepw": case "stats": showSettings(); break;
+            case "tour": if (tourPage > 0) { tourPage--; showTour(); } else endTour(); break;
             case "log":
                 if (!prefs.contains("verifier")) showSignIn();
                 else if (st.key != null) showSettings();
@@ -1051,7 +1055,57 @@ public class MainActivity extends Activity {
     /** After setup: a vault restored on a new phone starts rebuilding its list from the cloud right away. */
     void openMyVault() {
         if (prefs.getBoolean("restore_pending", false) && st.items.isEmpty()) startSync();
+        prefs.edit().putLong("seen_version", versionCode()).apply(); // a fresh install: what's new is what the tour shows
+        if (prefs.getBoolean("tour_done", false)) showGallery();
+        else { tourPage = 0; showTour(); }
+    }
+
+    long versionCode() {
+        try { return getPackageManager().getPackageInfo(getPackageName(), 0).getLongVersionCode(); } catch (Exception e) { return 0; }
+    }
+
+    // ================================================================ tour (first open) and what's new (after an update)
+
+    /** Six pages on how the app works: at the first open of the vault, and from Settings > About. */
+    void showTour() {
+        final int[] icons = {Ui.PLUS, Ui.IMAGE, Ui.FOLDER, Ui.LOCK, Ui.CLOUD, Ui.KEY};
+        final int[] titles = {R.string.tour1_t, R.string.tour2_t, R.string.tour3_t, R.string.tour4_t, R.string.tour5_t, R.string.tour6_t};
+        final int[] texts = {R.string.tour1_d, R.string.tour2_d, R.string.tour3_d, R.string.tour4_d, R.string.tour5_d, R.string.tour6_d};
+        final boolean last = tourPage == TOUR_PAGES - 1;
+        LinearLayout l = u.page();
+        l.setGravity(Gravity.CENTER_HORIZONTAL);
+        u.steps(l, tourPage + 1, TOUR_PAGES);
+        LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(u.dp(88), u.dp(88));
+        hp.topMargin = u.dp(28);
+        l.addView(u.badge(icons[tourPage], u.accent, u.accentSoft, 88), hp);
+        u.title(l, s(titles[tourPage])).setGravity(Gravity.CENTER);
+        u.body(l, s(texts[tourPage])).setGravity(Gravity.CENTER);
+        u.button(l, s(last ? R.string.open_vault : R.string.tour_next), Ui.PRIMARY, new View.OnClickListener() { public void onClick(View v) {
+            if (last) endTour(); else { tourPage++; showTour(); }
+        }});
+        if (!last) u.button(l, s(R.string.tour_skip), Ui.TEXT, new View.OnClickListener() { public void onClick(View v) { endTour(); } });
+        setScreen("tour", s(R.string.tour_title), s(R.string.v_pos, tourPage + 1, TOUR_PAGES), tourPage > 0 ? Ui.BACK : 0, u.scroll(l));
+    }
+
+    void endTour() {
+        prefs.edit().putBoolean("tour_done", true).apply();
         showGallery();
+    }
+
+    /** After an update, once: what changed in this version. "Don't show after updates" keeps it quiet from then on. */
+    void whatsNew() {
+        long now = versionCode(), seen = prefs.getLong("seen_version", 0);
+        if (now == 0 || seen == now) return;
+        prefs.edit().putLong("seen_version", now).apply();
+        if (prefs.getBoolean("no_whats_new", false) || s(R.string.whats_new).isEmpty()) return;
+        LinearLayout box = u.vbox();
+        box.setPadding(u.dp(24), u.dp(8), u.dp(24), 0);
+        u.body(box, s(R.string.whats_new));
+        final CheckBox quiet = u.check(box, s(R.string.whats_new_off));
+        new AlertDialog.Builder(this).setTitle(s(R.string.whats_new_t, version())).setView(u.scroll(box))
+                .setPositiveButton(R.string.ok, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                    if (quiet.isChecked()) prefs.edit().putBoolean("no_whats_new", true).apply();
+                }}).show();
     }
 
     Bitmap testImage() {
@@ -1121,6 +1175,7 @@ public class MainActivity extends Activity {
                 st.items = ix.items;
                 st.folders = ix.folders;
                 showGallery();
+                whatsNew();
                 if (st.reencrypting()) startJob(SyncService.REENCRYPT); // a password change still being applied
             }});
         }
@@ -2137,6 +2192,8 @@ public class MainActivity extends Activity {
                 new View.OnClickListener() { public void onClick(View v) { chooseLanguage(); } });
         u.row(ab, Ui.SHIELD, s(R.string.about_row_t), s(R.string.about_row_d), null,
                 new View.OnClickListener() { public void onClick(View v) { showAbout(); } });
+        u.row(ab, Ui.IMAGE, s(R.string.tour_again), null, null,
+                new View.OnClickListener() { public void onClick(View v) { tourPage = 0; showTour(); } });
         u.row(ab, Ui.LIST, s(R.string.log), s(R.string.log_d), null,
                 new View.OnClickListener() { public void onClick(View v) { showLog(); } });
         if (!Config.DONATE_URL.isEmpty())
