@@ -13,7 +13,7 @@ SOURCE_URL="${SOURCE_URL-https://github.com/rimaturus/PhotoVault}"
 # OneDrive: the "Application (client) ID" of your Microsoft app registration (PUBLISHING.md). Empty = OneDrive not offered.
 ONEDRIVE_CLIENT_ID="${ONEDRIVE_CLIENT_ID-}"
 # Google Drive: the "Client ID" of your Google OAuth client, type iOS (PUBLISHING.md). Empty = Google Drive not offered.
-GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID-}"
+GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID-806356058259-0f19gg4o54pvvl0v2rkoo5tq91376g5h.apps.googleusercontent.com}"
 # Google Play: no donation link and no link to a page with donation links (Play payments policy, see PUBLISHING.md)
 [ "$PLAY" = 1 ] && DONATE_URL="" && SOURCE_URL=""
 # Java compiles against API 36; resources are linked against API 34 because Debian's aapt can't read newer
