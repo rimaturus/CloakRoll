@@ -483,4 +483,9 @@
     <string name="whats_new_t">Novidades do Cloakroll %1$s</string>
     <string name="whats_new_off">Não mostrar depois das atualizações</string>
     <string name="whats_new">• Backup automático: fotos e vídeos novos vão sozinhos para o cofre, no Wi-Fi, mesmo com o app fechado (Configurações).\n• Liberar espaço: remove do celular o que o cofre já tem.\n• Zoom com dois dedos no visualizador.\n• Restaurar num celular novo não baixa mais cada arquivo: a lista vem da nuvem, prévias sob demanda.\n• Tempo restante em cada transferência.\n• Envios interrompidos são repetidos; um arquivo danificado não bloqueia mais a restauração.\n• Segurança reforçada.</string>
+    <string name="auto_net_t">Com qual conexão?</string>
+    <string name="auto_net_d">Fotos e vídeos podem ser grandes: nos dados móveis, contam no seu plano.</string>
+    <string name="auto_net_wifi">Só Wi-Fi</string>
+    <string name="auto_net_any">Wi-Fi e dados móveis</string>
+    <string name="auto_on_any_d">Ativado: fotos e vídeos novos vão sozinhos para o cofre, no Wi-Fi ou nos dados móveis, mesmo com o app fechado</string>
 </resources>

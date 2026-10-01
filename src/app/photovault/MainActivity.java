@@ -166,7 +166,7 @@ public class MainActivity extends Activity {
     /** Automatic backup while the app is open and unlocked: new photos and videos go to the upload service now. */
     void autoBackup() {
         if (st.key == null || !Backup.on(st) || !Backup.allowed(this) || st.busyJobs > 0 || st.backupRunning
-                || SystemClock.elapsedRealtime() < nextAutoBackup) return;
+                || SystemClock.elapsedRealtime() < nextAutoBackup || !Backup.networkOk(this, st)) return;
         nextAutoBackup = SystemClock.elapsedRealtime() + 30_000;
         final List<Store.Item> items = new ArrayList<>(st.items);
         io.execute(new Runnable() { public void run() {
@@ -1750,16 +1750,24 @@ public class MainActivity extends Activity {
             post(new Runnable() { public void run() {
                 if (st.key == null) return;
                 new AlertDialog.Builder(MainActivity.this).setTitle(R.string.auto_scope_t).setMessage(R.string.auto_scope_d)
-                        .setPositiveButton(s(R.string.auto_all, all, human(bytes[0])), new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { turnOnBackup(0); } })
-                        .setNeutralButton(R.string.auto_new, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { turnOnBackup(System.currentTimeMillis() / 1000); } })
+                        .setPositiveButton(s(R.string.auto_all, all, human(bytes[0])), new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { askBackupNetwork(0); } })
+                        .setNeutralButton(R.string.auto_new, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { askBackupNetwork(System.currentTimeMillis() / 1000); } })
                         .setNegativeButton(R.string.cancel, null).show();
             }});
         }});
     }
 
-    void turnOnBackup(long since) {
+    /** Wi-Fi only, or mobile data too. */
+    void askBackupNetwork(final long since) {
+        new AlertDialog.Builder(this).setTitle(R.string.auto_net_t).setMessage(R.string.auto_net_d)
+                .setPositiveButton(R.string.auto_net_wifi, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { turnOnBackup(since, false); } })
+                .setNeutralButton(R.string.auto_net_any, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { turnOnBackup(since, true); } })
+                .setNegativeButton(R.string.cancel, null).show();
+    }
+
+    void turnOnBackup(long since, boolean anyNetwork) {
         try {
-            Backup.turnOn(this, st, since);
+            Backup.turnOn(this, st, since, anyNetwork);
             Journal.add("automatic backup switched on");
             nextAutoBackup = 0;
             autoBackup();
@@ -2145,7 +2153,7 @@ public class MainActivity extends Activity {
         u.row(sto, Ui.SYNC, s(R.string.menu_sync, cloudName()), s(R.string.sync_d), null,
                 new View.OnClickListener() { public void onClick(View v) { startSync(); showGallery(); } });
         final boolean auto = Backup.on(st);
-        u.row(sto, Ui.IMAGE, s(R.string.auto_t), s(auto ? R.string.auto_on_d : R.string.auto_off_d), u.toggle(auto), new View.OnClickListener() { public void onClick(View v) {
+        u.row(sto, Ui.IMAGE, s(R.string.auto_t), s(!auto ? R.string.auto_off_d : Backup.anyNetwork(st) ? R.string.auto_on_any_d : R.string.auto_on_d), u.toggle(auto), new View.OnClickListener() { public void onClick(View v) {
             if (auto) { Backup.turnOff(MainActivity.this, st); showSettings(); } else enableBackup();
         }});
         if (Backup.allowed(this)) {

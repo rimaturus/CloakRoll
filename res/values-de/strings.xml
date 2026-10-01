@@ -483,4 +483,9 @@
     <string name="whats_new_t">Neu in Cloakroll %1$s</string>
     <string name="whats_new_off">Nach Updates nicht mehr zeigen</string>
     <string name="whats_new">• Automatische Sicherung: Neue Fotos und Videos kommen von selbst in den Tresor, im WLAN, auch bei geschlossener App (Einstellungen).\n• Speicherplatz freigeben: Entfernt vom Handy, was schon im Tresor ist.\n• Zoom mit zwei Fingern im Betrachter.\n• Die Wiederherstellung auf einem neuen Handy lädt nicht mehr jede Datei: Die Liste kommt aus der Cloud, Vorschauen auf Wunsch.\n• Restzeit bei jeder Übertragung.\n• Unterbrochene Uploads werden wiederholt; eine beschädigte Datei blockiert die Wiederherstellung nicht mehr.\n• Mehr Sicherheit.</string>
+    <string name="auto_net_t">Über welche Verbindung?</string>
+    <string name="auto_net_d">Fotos und Videos können groß sein: über mobile Daten zählen sie zu deinem Tarif.</string>
+    <string name="auto_net_wifi">Nur WLAN</string>
+    <string name="auto_net_any">WLAN und mobile Daten</string>
+    <string name="auto_on_any_d">An: Neue Fotos und Videos kommen von selbst in den Tresor, über WLAN oder mobile Daten, auch bei geschlossener App</string>
 </resources>
