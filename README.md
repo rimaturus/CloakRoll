@@ -107,6 +107,7 @@ The app has **not** had an independent security audit yet. Reviews and reports a
 | Biometric | Optional fingerprint unlock |
 | Foreground service (data sync) | Uploads and syncs keep running when you leave the app |
 | Notifications | Show upload progress (never file names) |
+| Network state, boot completed | Let the automatic backup job wait for Wi-Fi and survive a restart (no prompt) |
 | Photos and videos (optional) | Asked for only if you turn on **automatic backup**, so it can see new photos. Android 14+ lets you limit it to selected photos |
 
 No contacts, location, camera or microphone permission. Without automatic backup, photos are chosen through Android's photo picker, which grants access only to what you select; a folder on the phone, through Android's folder picker, the same way.

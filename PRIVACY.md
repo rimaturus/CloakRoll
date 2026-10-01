@@ -1,6 +1,6 @@
 # Privacy policy
 
-*Cloakroll (formerly PhotoVault), last updated 30 September 2026 (version 1.9)*
+*Cloakroll (formerly PhotoVault), last updated 1 October 2026 (version 1.9.1)*
 
 **Cloakroll collects no personal data.** The developer receives nothing from the app: no analytics, no crash reports, no identifiers, no usage statistics. There are no Cloakroll servers and no Cloakroll accounts, and the app contains no advertising and no third-party libraries or SDKs.
 
