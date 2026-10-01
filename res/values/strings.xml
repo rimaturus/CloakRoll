@@ -464,4 +464,23 @@
     <string name="free_d">%1$d photos and videos already in the vault take %2$s on this phone. Removes them from the phone; Android asks first</string>
     <string name="free_done">Removed from the phone</string>
     <string name="where_key_auto">• Automatic backup: a copy of the key stays on this phone, protected by its secure hardware, so new photos are encrypted while the vault is locked. Opening the vault still needs your password.</string>
+    <string name="tour_title">Welcome to Cloakroll</string>
+    <string name="tour_next">Next</string>
+    <string name="tour_skip">Skip</string>
+    <string name="tour_again">Show the tour again</string>
+    <string name="tour1_t">Add photos and videos</string>
+    <string name="tour1_d">Tap Add and pick from your gallery. Each file is encrypted on your phone and uploaded as an image of random pixels: the cloud only ever sees noise. The queue runs in the background, with a Stop button.</string>
+    <string name="tour2_t">Browse</string>
+    <string name="tour2_d">The gallery shows small previews kept only on your phone. Tap one to download and open the original, swipe for the next, pinch to zoom, Save to phone to export a copy.</string>
+    <string name="tour3_t">Folders</string>
+    <string name="tour3_d">Long-press to select items, then move them to a folder or delete them. Folders and the item list are saved to your storage too, encrypted, so another phone gets them back.</string>
+    <string name="tour4_t">Locked when you leave</string>
+    <string name="tour4_d">The vault locks itself 60 s after you leave the app, and nothing decrypted stays on screen. Fingerprint unlock is optional, in Settings.</string>
+    <string name="tour5_t">Automatic backup</string>
+    <string name="tour5_d">In Settings, Automatic backup sends new photos and videos by itself on Wi-Fi, even with the app closed. Free up space removes from the phone what the vault already holds.</string>
+    <string name="tour6_t">Your password is the key</string>
+    <string name="tour6_d">On a new phone, sign in to the same storage, enter the same password and Sync brings everything back in seconds. Nobody can recover the photos without the password, not even us: keep it safe.</string>
+    <string name="whats_new_t">What\'s new in Cloakroll %1$s</string>
+    <string name="whats_new_off">Don\'t show this after updates</string>
+    <string name="whats_new">• Automatic backup: new photos and videos go to the vault by themselves, on Wi-Fi, even with the app closed (Settings).\n• Free up space: remove from the phone what the vault already holds.\n• Pinch to zoom in the viewer.\n• Restoring on a new phone no longer downloads every file: the list comes from the cloud, previews on demand.\n• Time left for every transfer.\n• Interrupted uploads are retried; a damaged file no longer blocks a restore.\n• Security hardening.</string>
 </resources>

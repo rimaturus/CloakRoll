@@ -464,4 +464,23 @@
     <string name="free_d">%1$d fotos y vídeos ya en la bóveda ocupan %2$s en este teléfono. Los quita del teléfono; Android pregunta antes</string>
     <string name="free_done">Quitados del teléfono</string>
     <string name="where_key_auto">• Copia automática: una copia de la clave queda en este teléfono, protegida por su hardware seguro, para cifrar las fotos nuevas mientras la bóveda está bloqueada. Abrir la bóveda sigue necesitando tu contraseña.</string>
+    <string name="tour_title">Bienvenido a Cloakroll</string>
+    <string name="tour_next">Siguiente</string>
+    <string name="tour_skip">Saltar</string>
+    <string name="tour_again">Ver el recorrido otra vez</string>
+    <string name="tour1_t">Añade fotos y vídeos</string>
+    <string name="tour1_d">Toca Añadir y elige de tu galería. Cada archivo se cifra en tu teléfono y se sube como una imagen de píxeles aleatorios: la nube solo ve ruido. La cola sigue en segundo plano, con un botón Detener.</string>
+    <string name="tour2_t">Explora</string>
+    <string name="tour2_d">La galería muestra vistas previas pequeñas guardadas solo en tu teléfono. Toca una para descargar y abrir el original, desliza para la siguiente, pellizca para ampliar, Guardar en el teléfono para exportar una copia.</string>
+    <string name="tour3_t">Carpetas</string>
+    <string name="tour3_d">Mantén pulsado para seleccionar, luego mueve a una carpeta o elimina. Las carpetas y la lista también se guardan en tu almacenamiento, cifradas, para que otro teléfono las recupere.</string>
+    <string name="tour4_t">Se bloquea al salir</string>
+    <string name="tour4_d">La bóveda se bloquea sola 60 s después de salir de la app, y nada descifrado queda en pantalla. El desbloqueo con huella es opcional, en Ajustes.</string>
+    <string name="tour5_t">Copia automática</string>
+    <string name="tour5_d">En Ajustes, Copia automática envía sola las fotos y vídeos nuevos con Wi-Fi, incluso con la app cerrada. Liberar espacio quita del teléfono lo que la bóveda ya tiene.</string>
+    <string name="tour6_t">Tu contraseña es la clave</string>
+    <string name="tour6_d">En un teléfono nuevo, inicia sesión en el mismo almacenamiento, escribe la misma contraseña y Sincronizar lo trae todo en segundos. Sin la contraseña nadie puede recuperar las fotos, ni nosotros: guárdala bien.</string>
+    <string name="whats_new_t">Novedades de Cloakroll %1$s</string>
+    <string name="whats_new_off">No mostrar tras las actualizaciones</string>
+    <string name="whats_new">• Copia automática: las fotos y vídeos nuevos van solos a la bóveda, con Wi-Fi, incluso con la app cerrada (Ajustes).\n• Liberar espacio: quita del teléfono lo que la bóveda ya tiene.\n• Zoom con dos dedos en el visor.\n• Restaurar en un teléfono nuevo ya no descarga cada archivo: la lista viene de la nube, las vistas previas bajo demanda.\n• Tiempo restante en cada transferencia.\n• Las subidas interrumpidas se reintentan; un archivo dañado ya no bloquea la restauración.\n• Seguridad reforzada.</string>
 </resources>

@@ -464,4 +464,23 @@
     <string name="free_d">%1$d Fotos und Videos, die schon im Tresor sind, belegen %2$s auf diesem Handy. Entfernt sie vom Handy; Android fragt vorher</string>
     <string name="free_done">Vom Handy entfernt</string>
     <string name="where_key_auto">• Automatische Sicherung: Eine Kopie des Schlüssels bleibt auf diesem Handy, geschützt durch seine sichere Hardware, damit neue Fotos bei gesperrtem Tresor verschlüsselt werden. Zum Öffnen des Tresors braucht es weiterhin dein Passwort.</string>
+    <string name="tour_title">Willkommen bei Cloakroll</string>
+    <string name="tour_next">Weiter</string>
+    <string name="tour_skip">Überspringen</string>
+    <string name="tour_again">Rundgang noch einmal zeigen</string>
+    <string name="tour1_t">Fotos und Videos hinzufügen</string>
+    <string name="tour1_d">Tippe auf Hinzufügen und wähle aus deiner Galerie. Jede Datei wird auf dem Handy verschlüsselt und als Bild aus zufälligen Pixeln hochgeladen: Die Cloud sieht nur Rauschen. Die Warteschlange läuft im Hintergrund weiter, mit Stopp-Knopf.</string>
+    <string name="tour2_t">Stöbern</string>
+    <string name="tour2_d">Die Galerie zeigt kleine Vorschauen, die nur auf deinem Handy liegen. Tippe auf eine, um das Original zu laden und zu öffnen, wische zum nächsten, zoome mit zwei Fingern, Auf dem Handy speichern exportiert eine Kopie.</string>
+    <string name="tour3_t">Ordner</string>
+    <string name="tour3_d">Lange drücken zum Auswählen, dann in einen Ordner verschieben oder löschen. Ordner und Liste werden auch verschlüsselt in deinem Speicher abgelegt, damit ein anderes Handy sie zurückbekommt.</string>
+    <string name="tour4_t">Sperrt sich, wenn du gehst</string>
+    <string name="tour4_d">Der Tresor sperrt sich 60 s nach dem Verlassen der App von selbst, und nichts Entschlüsseltes bleibt auf dem Bildschirm. Entsperren per Fingerabdruck ist optional, in den Einstellungen.</string>
+    <string name="tour5_t">Automatische Sicherung</string>
+    <string name="tour5_d">In den Einstellungen schickt die automatische Sicherung neue Fotos und Videos von selbst im WLAN, auch bei geschlossener App. Speicherplatz freigeben entfernt vom Handy, was schon im Tresor ist.</string>
+    <string name="tour6_t">Dein Passwort ist der Schlüssel</string>
+    <string name="tour6_d">Auf einem neuen Handy meldest du dich beim selben Speicher an, gibst dasselbe Passwort ein, und die Synchronisierung holt alles in Sekunden zurück. Ohne Passwort kann niemand die Fotos wiederherstellen, auch wir nicht: bewahre es gut auf.</string>
+    <string name="whats_new_t">Neu in Cloakroll %1$s</string>
+    <string name="whats_new_off">Nach Updates nicht mehr zeigen</string>
+    <string name="whats_new">• Automatische Sicherung: Neue Fotos und Videos kommen von selbst in den Tresor, im WLAN, auch bei geschlossener App (Einstellungen).\n• Speicherplatz freigeben: Entfernt vom Handy, was schon im Tresor ist.\n• Zoom mit zwei Fingern im Betrachter.\n• Die Wiederherstellung auf einem neuen Handy lädt nicht mehr jede Datei: Die Liste kommt aus der Cloud, Vorschauen auf Wunsch.\n• Restzeit bei jeder Übertragung.\n• Unterbrochene Uploads werden wiederholt; eine beschädigte Datei blockiert die Wiederherstellung nicht mehr.\n• Mehr Sicherheit.</string>
 </resources>

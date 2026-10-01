@@ -464,4 +464,23 @@
     <string name="free_d">%1$d fotos e vídeos que já estão no cofre ocupam %2$s neste celular. Remove do celular; o Android pergunta antes</string>
     <string name="free_done">Removidos do celular</string>
     <string name="where_key_auto">• Backup automático: uma cópia da chave fica neste celular, protegida pelo hardware seguro dele, para criptografar fotos novas com o cofre bloqueado. Abrir o cofre continua pedindo sua senha.</string>
+    <string name="tour_title">Bem-vindo ao Cloakroll</string>
+    <string name="tour_next">Avançar</string>
+    <string name="tour_skip">Pular</string>
+    <string name="tour_again">Ver o tour de novo</string>
+    <string name="tour1_t">Adicione fotos e vídeos</string>
+    <string name="tour1_d">Toque em Adicionar e escolha da sua galeria. Cada arquivo é criptografado no celular e enviado como uma imagem de pixels aleatórios: a nuvem só vê ruído. A fila continua em segundo plano, com um botão Parar.</string>
+    <string name="tour2_t">Navegue</string>
+    <string name="tour2_d">A galeria mostra prévias pequenas guardadas só no seu celular. Toque em uma para baixar e abrir o original, deslize para a próxima, aproxime os dedos para ampliar, Salvar no celular exporta uma cópia.</string>
+    <string name="tour3_t">Pastas</string>
+    <string name="tour3_d">Toque e segure para selecionar, depois mova para uma pasta ou exclua. Pastas e lista também ficam salvas no seu armazenamento, criptografadas, para outro celular recuperá-las.</string>
+    <string name="tour4_t">Bloqueia quando você sai</string>
+    <string name="tour4_d">O cofre se bloqueia sozinho 60 s depois que você sai do app, e nada descriptografado fica na tela. Desbloqueio por digital é opcional, nas Configurações.</string>
+    <string name="tour5_t">Backup automático</string>
+    <string name="tour5_d">Nas Configurações, o Backup automático envia sozinho fotos e vídeos novos no Wi-Fi, mesmo com o app fechado. Liberar espaço remove do celular o que o cofre já tem.</string>
+    <string name="tour6_t">Sua senha é a chave</string>
+    <string name="tour6_d">Num celular novo, entre no mesmo armazenamento, digite a mesma senha e a sincronização traz tudo de volta em segundos. Sem a senha ninguém recupera as fotos, nem nós: guarde-a bem.</string>
+    <string name="whats_new_t">Novidades do Cloakroll %1$s</string>
+    <string name="whats_new_off">Não mostrar depois das atualizações</string>
+    <string name="whats_new">• Backup automático: fotos e vídeos novos vão sozinhos para o cofre, no Wi-Fi, mesmo com o app fechado (Configurações).\n• Liberar espaço: remove do celular o que o cofre já tem.\n• Zoom com dois dedos no visualizador.\n• Restaurar num celular novo não baixa mais cada arquivo: a lista vem da nuvem, prévias sob demanda.\n• Tempo restante em cada transferência.\n• Envios interrompidos são repetidos; um arquivo danificado não bloqueia mais a restauração.\n• Segurança reforçada.</string>
 </resources>

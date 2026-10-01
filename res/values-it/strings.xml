@@ -464,4 +464,23 @@
     <string name="free_d">%1$d foto e video già nella cassaforte occupano %2$s su questo telefono. Li rimuove dal telefono; Android chiede prima conferma</string>
     <string name="free_done">Rimossi dal telefono</string>
     <string name="where_key_auto">• Backup automatico: una copia della chiave resta su questo telefono, protetta dal suo hardware sicuro, così le nuove foto vengono cifrate mentre la cassaforte è bloccata. Per aprire la cassaforte serve sempre la password.</string>
+    <string name="tour_title">Benvenuto in Cloakroll</string>
+    <string name="tour_next">Avanti</string>
+    <string name="tour_skip">Salta</string>
+    <string name="tour_again">Rivedi il tour</string>
+    <string name="tour1_t">Aggiungi foto e video</string>
+    <string name="tour1_d">Tocca Aggiungi e scegli dalla galleria. Ogni file viene cifrato sul telefono e caricato come un\'immagine di pixel casuali: il cloud vede solo rumore. La coda va avanti in sottofondo, con un pulsante Ferma.</string>
+    <string name="tour2_t">Sfoglia</string>
+    <string name="tour2_d">La galleria mostra piccole anteprime tenute solo sul telefono. Toccane una per scaricare e aprire l\'originale, scorri per la successiva, zoom con due dita, Salva sul telefono per esportarne una copia.</string>
+    <string name="tour3_t">Cartelle</string>
+    <string name="tour3_d">Tieni premuto per selezionare, poi sposta in una cartella o elimina. Cartelle ed elenco sono salvati anche nel tuo spazio, cifrati, così un altro telefono li recupera.</string>
+    <string name="tour4_t">Si blocca quando esci</string>
+    <string name="tour4_d">La cassaforte si blocca da sola 60 s dopo che lasci l\'app, e niente di decifrato resta sullo schermo. Lo sblocco con impronta è opzionale, nelle Impostazioni.</string>
+    <string name="tour5_t">Backup automatico</string>
+    <string name="tour5_d">Nelle Impostazioni, Backup automatico manda da solo le nuove foto e i nuovi video con il Wi-Fi, anche ad app chiusa. Libera spazio rimuove dal telefono ciò che la cassaforte ha già.</string>
+    <string name="tour6_t">La password è la chiave</string>
+    <string name="tour6_d">Su un telefono nuovo, accedi allo stesso spazio, inserisci la stessa password e la sincronizzazione riporta tutto in pochi secondi. Senza password nessuno può recuperare le foto, nemmeno noi: conservala bene.</string>
+    <string name="whats_new_t">Novità di Cloakroll %1$s</string>
+    <string name="whats_new_off">Non mostrare dopo gli aggiornamenti</string>
+    <string name="whats_new">• Backup automatico: le nuove foto e i nuovi video vanno da soli nella cassaforte, con il Wi-Fi, anche ad app chiusa (Impostazioni).\n• Libera spazio: rimuovi dal telefono ciò che la cassaforte ha già.\n• Zoom con due dita nel visualizzatore.\n• Il ripristino su un telefono nuovo non scarica più ogni file: l\'elenco arriva dal cloud, le anteprime a richiesta.\n• Tempo rimanente per ogni trasferimento.\n• I caricamenti interrotti vengono ritentati; un file danneggiato non blocca più il ripristino.\n• Sicurezza rafforzata.</string>
 </resources>
