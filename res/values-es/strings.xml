@@ -488,4 +488,7 @@
     <string name="auto_net_wifi">Solo Wi-Fi</string>
     <string name="auto_net_any">Wi-Fi y datos móviles</string>
     <string name="auto_on_any_d">Activada: las fotos y vídeos nuevos van solos a la bóveda, con Wi-Fi o datos móviles, incluso con la app cerrada</string>
+    <string name="amazon_site_t">¿En qué sitio de Amazon está tu cuenta?</string>
+    <string name="privacy_t">Política de privacidad</string>
+    <string name="privacy_d">Qué hace la app con tus datos: nada sale del teléfono sin cifrar, nada nos llega</string>
 </resources>

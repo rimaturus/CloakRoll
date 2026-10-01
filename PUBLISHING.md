@@ -142,3 +142,42 @@ Why the client type is **iOS**: for Android clients Google allows only its own s
 
 - `drive.file` means the app sees only the files it created (the folder `Cloakroll` and its contents), on any phone signed in to the same account, and nothing else in the user's Drive.
 - Users can remove the app's access at [myaccount.google.com/connections](https://myaccount.google.com/connections).
+
+## 6. Play compliance checklist (v1.9.2)
+
+What each Play policy asks and how Cloakroll answers it. Re-check the linked pages before each release.
+
+| Policy | Where it applies | Cloakroll |
+|---|---|---|
+| [User Data](https://support.google.com/googleplay/android-developer/answer/10144311): privacy policy linked in the listing **and** in the app | Store listing field; app | Listing: the URL below. App: *Privacy policy* on the welcome screen and in *Settings > About*, the full text of `PRIVACY.md` built into the app |
+| User Data: prominent disclosure and consent before accessing personal data | Photos permission | Asked only when the user turns on automatic backup, after a dialog that says what is read and that a copy of the key stays on the phone; the photo picker otherwise |
+| [Photo and Video Permissions](https://support.google.com/googleplay/android-developer/answer/14115180) | `READ_MEDIA_IMAGES/VIDEO` | Declaration form: core use case **backup and cloud storage**; permission requested only for automatic backup, picker used for one-off selection; Android 14 "selected photos" supported |
+| [Foreground services](https://support.google.com/googleplay/android-developer/answer/13392821) | `dataSync` | Declaration: user-started uploads and downloads of the user's encrypted files that must finish when the app is left; attach a screen recording |
+| Data safety form | Policy > App content | See the answers below |
+| [Account deletion](https://support.google.com/googleplay/android-developer/answer/13327111) | Apps with accounts | Not applicable: the app creates no accounts. Answer "no" to account creation |
+| [Permissions](https://support.google.com/googleplay/android-developer/answer/9888170): minimum needed | Manifest | Nine permissions, each justified in the README table; no `MANAGE_EXTERNAL_STORAGE`, no location, no contacts |
+| [Payments](https://support.google.com/googleplay/android-developer/answer/9858738) | Donations | Play build has no donation button or link (`PLAY=1`); nothing in the listing either |
+| [Impersonation](https://support.google.com/googleplay/android-developer/answer/9888374) | Amazon/Microsoft/Google names | Title without their names; "not affiliated" in the listing and in the policy; their names used only to say what the app works with |
+| [Device and Network Abuse](https://support.google.com/googleplay/android-developer/answer/16559646): no use of a service against its terms | Amazon web API | The known risk (section 3). OneDrive and Google Drive use official APIs with the narrowest scopes (`Files.ReadWrite.AppFolder`, `drive.file`) |
+| [Country requirements](https://support.google.com/googleplay/android-developer/answer/6223646) | Brazil, EU, Japan, Korea, Vietnam, Israel, India | No purchases, no games, no financial features: nothing applies. EU: no geo-blocking; the app is offered in every country. Since v1.9.1 the Amazon site is chosen by the user (amazon.com, .co.uk, .de, .fr, .it, .es, .nl, .se, .pl, .com.be, .ie, .ca, .com.mx, .co.jp, .com.au), so non-EU accounts work |
+| Target API level | Manifest | targetSdk 36, minSdk 33 |
+| US export (encryption) | "Create app" declarations | Standard AES-GCM from Android's own libraries, no custom cryptography, source public: mass-market exemption (5D992 / ENC "publicly available"). No EAR filing needed for publicly available open-source encryption; keep a note of the GitHub URL |
+| Families / age | Content rating | Not for children; target audience 18+; the policy says so |
+| Code transparency | App Bundle | `bundletool add-transparency` with your key; the fingerprint is in the README |
+
+### Data safety answers
+
+Play defines "collected" as data transmitted off the device. Photos are transmitted, encrypted, to the user's own storage account at the user's request, and nothing reaches the developer. Answer:
+
+- **Does your app collect or share any of the required user data types?** Yes (the encrypted photos leave the device).
+- **Is all of the user data collected by your app encrypted in transit?** Yes.
+- **Do you provide a way for users to request that their data is deleted?** Yes (the user deletes items or the vault folder in their own storage; explain in the policy link).
+- **Photos and videos** → Collected: Yes. Shared: No. Processed ephemerally: No. Required or optional: Optional (users choose what to upload; automatic backup is opt-in). Purpose: App functionality. "Collected" here means uploaded to the user's own cloud account in encrypted form; the developer has no access.
+- **Files and docs**: same answers if you let users add non-media files (the picker allows photos and videos only: answer No).
+- **Account info, personal info, location, contacts, messages, financial, health, app activity, web browsing, app info and performance (crash logs, diagnostics), device IDs**: not collected.
+- **Security practices**: data encrypted in transit: yes; users can request deletion: yes; independent security review: no; committed to Play Families policy: not applicable.
+
+### Privacy policy URL
+
+Use a page without donation links. The repository page shows a *Sponsor* button, so prefer the raw file or GitHub Pages:
+`https://raw.githubusercontent.com/rimaturus/PhotoVault/master/PRIVACY.md` (plain text, always current), or enable GitHub Pages from the `docs/` folder and copy `PRIVACY.md` there at each release.

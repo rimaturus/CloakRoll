@@ -488,4 +488,7 @@
     <string name="auto_net_wifi">Só Wi-Fi</string>
     <string name="auto_net_any">Wi-Fi e dados móveis</string>
     <string name="auto_on_any_d">Ativado: fotos e vídeos novos vão sozinhos para o cofre, no Wi-Fi ou nos dados móveis, mesmo com o app fechado</string>
+    <string name="amazon_site_t">Em qual site da Amazon está sua conta?</string>
+    <string name="privacy_t">Política de privacidade</string>
+    <string name="privacy_d">O que o app faz com seus dados: nada sai do celular sem criptografia, nada chega até nós</string>
 </resources>

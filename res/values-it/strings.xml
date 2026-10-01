@@ -488,4 +488,7 @@
     <string name="auto_net_wifi">Solo Wi-Fi</string>
     <string name="auto_net_any">Wi-Fi e dati mobili</string>
     <string name="auto_on_any_d">Attivo: le nuove foto e i nuovi video vanno da soli nella cassaforte, con Wi-Fi o dati mobili, anche ad app chiusa</string>
+    <string name="amazon_site_t">Su quale sito Amazon è il tuo account?</string>
+    <string name="privacy_t">Informativa sulla privacy</string>
+    <string name="privacy_d">Cosa fa l\'app con i tuoi dati: niente lascia il telefono in chiaro, niente arriva a noi</string>
 </resources>

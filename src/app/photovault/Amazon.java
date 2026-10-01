@@ -15,9 +15,19 @@ import org.json.JSONObject;
  * github.com/trevorhobenshield/amazon_photos). Auth = the session cookies of the in-app sign-in page.
  */
 final class Amazon extends Cloud {
-    static final String WEB = "https://www.amazon.it";
-    static final String DRIVE = WEB + "/drive/v1";
-    static final String CDPROXY = "https://content-eu.drive.amazonaws.com/cdproxy/nodes";
+    /** Amazon sites the user can choose, with the drive region behind each (na, eu, fe): sign-in page and file servers. */
+    static final String[][] SITES = {{"com", "na", "United States"}, {"ca", "na", "Canada"}, {"com.mx", "na", "México"},
+            {"co.uk", "eu", "United Kingdom"}, {"de", "eu", "Deutschland"}, {"fr", "eu", "France"}, {"it", "eu", "Italia"}, {"es", "eu", "España"},
+            {"nl", "eu", "Nederland"}, {"se", "eu", "Sverige"}, {"pl", "eu", "Polska"}, {"com.be", "eu", "Belgique"}, {"ie", "eu", "Ireland"},
+            {"co.jp", "fe", "日本"}, {"com.au", "fe", "Australia"}};
+    static volatile String tld = "it"; // set from the settings (Store) and when the user picks a site
+    static String web() { return "https://www.amazon." + tld; }
+    static String drive() { return web() + "/drive/v1"; }
+    static String cdproxy() {
+        String region = "eu";
+        for (String[] x : SITES) if (x[0].equals(tld)) region = x[1];
+        return "https://content-" + region + ".drive.amazonaws.com/cdproxy/nodes";
+    }
     static final String BASE = "asset=ALL&tempLink=false&resourceVersion=V2&ContentType=JSON";
     static final String UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36";
 
@@ -34,7 +44,7 @@ final class Amazon extends Cloud {
         return host != null && host.toLowerCase(Locale.ROOT).matches("(.+\\.)?amazon\\.(it|com|co\\.uk|de|fr|es|nl|se|pl|com\\.be|ie|ca|com\\.mx|com\\.br|co\\.jp|com\\.au|in|sg|ae|sa|eg|com\\.tr)");
     }
 
-    static String cookies() { String c = CookieManager.getInstance().getCookie(WEB); return c == null ? "" : c; }
+    static String cookies() { String c = CookieManager.getInstance().getCookie(web()); return c == null ? "" : c; }
 
     @Override boolean hasSession() {
         String c = cookies();
@@ -110,7 +120,7 @@ final class Amazon extends Cloud {
 
     /** Folder "PhotoVault" at the top of the Amazon Drive behind Amazon Photos. */
     @Override String vaultFolder() throws Exception {
-        JSONObject root = new JSONObject(call("GET", DRIVE + "/nodes?filters=" + enc("isRoot:true") + "&" + BASE, null, false))
+        JSONObject root = new JSONObject(call("GET", drive() + "/nodes?filters=" + enc("isRoot:true") + "&" + BASE, null, false))
                 .getJSONArray("data").getJSONObject(0);
         st.prefs.edit().putString("owner", root.optString("ownerId")).apply();
         return folder(root.getString("id"), "PhotoVault");
@@ -119,7 +129,7 @@ final class Amazon extends Cloud {
     @Override String folder(String parentId, String name) throws IOException, JSONException {
         JSONObject b = new JSONObject().put("kind", "FOLDER").put("name", name)
                 .put("parents", new JSONArray().put(parentId)).put("resourceVersion", "V2").put("ContentType", "JSON");
-        JSONObject r = new JSONObject(call("POST", DRIVE + "/nodes", b, true));
+        JSONObject r = new JSONObject(call("POST", drive() + "/nodes", b, true));
         String id = r.optString("id", "");
         if (id.isEmpty() && r.optJSONObject("info") != null) id = r.getJSONObject("info").optString("nodeId", "");
         if (id.isEmpty()) throw new IOException("could not create or find folder " + name);
@@ -138,7 +148,7 @@ final class Amazon extends Cloud {
             int limit = Math.min(200, max - out.size());
             String q = "&limit=" + limit + "&" + BASE + (token.isEmpty() ? "&offset=" + offset : "&startToken=" + enc(token));
             JSONObject r;
-            try { r = new JSONObject(call("GET", DRIVE + "/nodes/" + folderId + "/children?filters=" + enc(fileFilter) + q, null, false)); }
+            try { r = new JSONObject(call("GET", drive() + "/nodes/" + folderId + "/children?filters=" + enc(fileFilter) + q, null, false)); }
             catch (ApiError e) {
                 if (e.code != 400 || fileFilter.equals("kind:FILE")) throw e;
                 fileFilter = "kind:FILE"; // status filter refused: the status check below still skips trashed files
@@ -163,7 +173,7 @@ final class Amazon extends Cloud {
     }
 
     @Override JSONObject upload(File png, String name, String parentId, Progress p) throws IOException, JSONException {
-        String url = CDPROXY + "?name=" + enc(name) + "&kind=FILE&parentNodeId=" + enc(parentId);
+        String url = cdproxy() + "?name=" + enc(name) + "&kind=FILE&parentNodeId=" + enc(parentId);
         long t0 = System.currentTimeMillis();
         HttpURLConnection c = open("POST", url);
         c.setDoOutput(true);
@@ -178,11 +188,11 @@ final class Amazon extends Cloud {
 
     @Override void download(String id, File dst, Progress p) throws IOException {
         try {
-            get(DRIVE + "/nodes/" + id + "/contentRedirection?querySuffix=" + enc("?download=true") + "&ownerId=" + enc(st.owner()), dst, p);
+            get(drive() + "/nodes/" + id + "/contentRedirection?querySuffix=" + enc("?download=true") + "&ownerId=" + enc(st.owner()), dst, p);
         } catch (ApiError e) {
             if (e.isAuth()) throw e;
             Journal.add("  retrying download via content endpoint");
-            get(CDPROXY + "/" + id + "/content", dst, p);
+            get(cdproxy() + "/" + id + "/content", dst, p);
         }
     }
 
@@ -216,13 +226,13 @@ final class Amazon extends Cloud {
     @Override void trash(List<String> ids) throws IOException, JSONException {
         JSONArray v = new JSONArray();
         for (String id : ids) v.put(id);
-        call("PATCH", DRIVE + "/trash", new JSONObject().put("recurse", "true").put("op", "add").put("filters", "")
+        call("PATCH", drive() + "/trash", new JSONObject().put("recurse", "true").put("op", "add").put("filters", "")
                 .put("conflictResolution", "RENAME").put("value", v).put("resourceVersion", "V2").put("ContentType", "JSON"), false);
     }
 
     /** Prime: photos are free. Anything billed as "photo" means unlimited photo storage isn't active. */
     @Override String[] storage() throws Exception {
-        JSONObject u = new JSONObject(call("GET", DRIVE + "/account/usage?" + BASE, null, false)), ph = u.optJSONObject("photo");
+        JSONObject u = new JSONObject(call("GET", drive() + "/account/usage?" + BASE, null, false)), ph = u.optJSONObject("photo");
         if (ph == null) return new String[]{"warn", st.app.getString(R.string.stor_amz_none)};
         long bill = ph.optJSONObject("billable") == null ? -1 : ph.getJSONObject("billable").optLong("bytes", -1);
         long total = ph.optJSONObject("total") == null ? -1 : ph.getJSONObject("total").optLong("bytes", -1);
