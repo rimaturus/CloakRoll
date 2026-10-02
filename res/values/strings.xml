@@ -491,4 +491,9 @@
     <string name="amazon_site_t">Which Amazon site is your account on?</string>
     <string name="privacy_t">Privacy policy</string>
     <string name="privacy_d">What the app does with your data: nothing leaves your phone unencrypted, nothing reaches us</string>
+    <string name="donate_ask_t">100 photos and videos safe</string>
+    <string name="donate_ask_d">Cloakroll is free, with no ads and no tracking, and it is kept going only by voluntary donations. If it is useful to you, a small donation helps keep it maintained. Donating unlocks nothing: everything stays free for everyone.\n\nOn GitHub you also find the source code and photovault.py, a small Python program that opens your vault on a PC, without the app.\n\nThis message is shown only once; the heart at the top is always there.</string>
+    <string name="donate_ask_yes">Donate</string>
+    <string name="donate_ask_src">GitHub</string>
+    <string name="donate_ask_no">Not now</string>
 </resources>

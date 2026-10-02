@@ -1114,6 +1114,16 @@ public class MainActivity extends Activity {
         showGallery();
     }
 
+    /** Once ever, when the vault reaches 100 items: the app lives on donations, and the source and photovault.py are on GitHub (GitHub build only). */
+    void askDonation() {
+        if (Config.DONATE_URL.isEmpty() || st.items.size() < 100 || prefs.getBoolean("donation_asked", false)) return;
+        prefs.edit().putBoolean("donation_asked", true).apply();
+        new AlertDialog.Builder(this).setTitle(R.string.donate_ask_t).setMessage(R.string.donate_ask_d)
+                .setPositiveButton(R.string.donate_ask_yes, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { openUrl(Config.DONATE_URL); }})
+                .setNeutralButton(Config.SOURCE_URL.isEmpty() ? null : s(R.string.donate_ask_src), new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { openUrl(Config.SOURCE_URL); }})
+                .setNegativeButton(R.string.donate_ask_no, null).show();
+    }
+
     /** After an update, once: what changed in this version. "Don't show after updates" keeps it quiet from then on. */
     void whatsNew() {
         long now = versionCode(), seen = prefs.getLong("seen_version", 0);
@@ -1402,9 +1412,13 @@ public class MainActivity extends Activity {
         if (selecting) setScreen("gallery", q(R.plurals.selected, selected.size()), s(R.string.tap_more), Ui.CLOSE, frame,
                 u.iconButton(Ui.MOVE, u.text, s(R.string.move_to_folder), new View.OnClickListener() { public void onClick(View v) { moveSelected(); } }),
                 u.iconButton(Ui.TRASH, u.text, s(R.string.delete), new View.OnClickListener() { public void onClick(View v) { confirmDeleteSelected(); } }));
-        else setScreen("gallery", openFolder.isEmpty() ? "Cloakroll" : openFolder, gallerySubtitle(), openFolder.isEmpty() ? 0 : Ui.BACK, frame,
-                u.iconButton(Ui.LOCK, u.text, s(R.string.lock_now), new View.OnClickListener() { public void onClick(View v) { st.lock(); st.changed(); } }),
-                menuButton());
+        else {
+            View lock = u.iconButton(Ui.LOCK, u.text, s(R.string.lock_now), new View.OnClickListener() { public void onClick(View v) { st.lock(); st.changed(); } });
+            View[] actions = Config.DONATE_URL.isEmpty() ? new View[] {lock, menuButton()} : new View[] {u.iconButton(Ui.HEART, u.accent, s(R.string.menu_support),
+                    new View.OnClickListener() { public void onClick(View v) { openUrl(Config.DONATE_URL); } }), lock, menuButton()};
+            setScreen("gallery", openFolder.isEmpty() ? "Cloakroll" : openFolder, gallerySubtitle(), openFolder.isEmpty() ? 0 : Ui.BACK, frame, actions);
+            askDonation();
+        }
         banner = b;
         restoreScroll();
         refresh();

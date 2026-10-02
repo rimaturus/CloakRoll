@@ -491,4 +491,8 @@
     <string name="amazon_site_t">Em qual site da Amazon está sua conta?</string>
     <string name="privacy_t">Política de privacidade</string>
     <string name="privacy_d">O que o app faz com seus dados: nada sai do celular sem criptografia, nada chega até nós</string>
+    <string name="donate_ask_t">100 fotos e vídeos em segurança</string>
+    <string name="donate_ask_d">O Cloakroll é gratuito, sem anúncios e sem rastreamento, e se mantém apenas com doações voluntárias. Se ele é útil para você, uma pequena doação ajuda a mantê-lo. Doar não desbloqueia nada: tudo continua gratuito para todos.\n\nNo GitHub você também encontra o código-fonte e o photovault.py, um pequeno programa em Python que abre o seu cofre num PC, sem o app.\n\nEsta mensagem aparece só uma vez; o coração no topo fica sempre lá.</string>
+    <string name="donate_ask_yes">Doar</string>
+    <string name="donate_ask_no">Agora não</string>
 </resources>

@@ -10,7 +10,9 @@ Amazon Prime includes unlimited full-resolution photo storage, and OneDrive and 
 
 ![What you see vs. what the cloud stores](docs/comparison.png)
 
-> **Status: beta (v1.6).** Android 13 or newer. Not affiliated with, endorsed by or connected to Amazon or Microsoft.
+> **Status: beta (v1.9.2).** Android 13 or newer. Not affiliated with, endorsed by or connected to Amazon, Microsoft or Google.
+>
+> ♥ **Cloakroll is free and lives on donations: [buy me a coffee](https://buymeacoffee.com/rimaturus)** if it is useful to you.
 
 ---
 
@@ -22,6 +24,7 @@ Amazon Prime includes unlimited full-resolution photo storage, and OneDrive and 
 | **No tracking** | No analytics, no crash reporting, no third-party SDKs. The app has **zero** third-party libraries. |
 | **No data collection, no data selling** | There are no Cloakroll servers and no Cloakroll accounts. The app talks only to the cloud storage you choose (Amazon Photos, OneDrive or Google Drive), and only sends it encrypted files. We never receive anything, so there is nothing to sell or to leak. |
 | **Open source** | GPL-3.0. About 4,000 lines of plain Java and Python that anyone can read. The whole cryptography is in one file, [`Vault.java`](src/app/photovault/Vault.java) (280 lines). |
+| **No lock-in** | Your vault opens without the app too: [`photovault.py`](photovault.py), one small Python file, decrypts it on any PC. [How](#recover-your-files-without-the-app). |
 | **Donation-funded** | Cloakroll is free. Donations are voluntary and unlock nothing: every feature is free for everyone. [Support the project](#support-the-project). |
 
 ## Why
