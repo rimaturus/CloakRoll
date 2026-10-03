@@ -11,19 +11,17 @@ Files over 32 MB are stored as several PNGs ("parts"); `dec` puts them back toge
 when you give it all of them (e.g. the whole downloaded folder).
 
 Password: prompted, or env var PV_PASSWORD.
-Deps: pip install pillow cryptography
+Deps: pip install cryptography   (PNG reading and writing use only the standard library)
 """
-import argparse, getpass, hashlib, io, json, math, mimetypes, os, struct, time
+import argparse, getpass, hashlib, json, math, mimetypes, os, struct, time, zlib
 from pathlib import Path
 
-from PIL import Image
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 MAGIC = b"PVT2"
 CHUNK = 32 << 20  # same as the app: bigger files become several PNGs
 HDR = struct.Struct(">4s16s12sQ")  # magic, salt, nonce, ciphertext length
 SALT_FILE = Path(__file__).with_name("vault.salt")
-Image.MAX_IMAGE_PIXELS = None  # our own files, not decompression bombs
 _keys = {}
 
 
@@ -49,13 +47,11 @@ def encode(data, meta, password):
     w = math.ceil(math.sqrt(len(blob) / 3))
     h = math.ceil(len(blob) / (3 * w))
     blob += os.urandom(w * h * 3 - len(blob))  # random padding: uniform noise to the last pixel
-    return Image.frombytes("RGB", (w, h), blob)
+    return to_png(w, h, blob)
 
 
-def decode(img, password):
-    if img.mode != "RGB":
-        raise ValueError(f"not a vault image (mode {img.mode})")
-    raw = img.tobytes()
+def decode(png, password):
+    raw = from_png(png)
     magic, salt, nonce, ct_len = HDR.unpack_from(raw)
     if magic != MAGIC:
         raise ValueError("not a vault image")
@@ -66,10 +62,58 @@ def decode(img, password):
     return json.loads(plain[2:2 + n]), plain[2 + n:]
 
 
-def to_png(img):
-    buf = io.BytesIO()
-    img.save(buf, "PNG", compress_level=0)  # random data doesn't compress: store only, fastest
-    return buf.getvalue()
+PNG_SIG = b"\x89PNG\r\n\x1a\n"
+
+
+def _chunk(kind, data):
+    return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+
+
+def to_png(w, h, pixels):
+    """8-bit RGB PNG, filter "none" on every row, zlib level 0: random data doesn't compress. Same as the app."""
+    row = w * 3
+    raw = b"".join(b"\0" + pixels[y * row:(y + 1) * row] for y in range(h))
+    return (PNG_SIG + _chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
+            + _chunk(b"IDAT", zlib.compress(raw, 0)) + _chunk(b"IEND", b""))
+
+
+def from_png(png):
+    """Pixel bytes of an 8-bit RGB PNG. Any filter type (files made with Pillow by older versions of this script)."""
+    if png[:8] != PNG_SIG:
+        raise ValueError("not a PNG")
+    pos, idat, w = 8, [], 0
+    while pos < len(png):
+        n, kind = struct.unpack_from(">I4s", png, pos)
+        data = png[pos + 8:pos + 8 + n]
+        pos += 12 + n
+        if kind == b"IHDR":
+            w, h, depth, color, _, _, interlace = struct.unpack(">IIBBBBB", data)
+            if (depth, color, interlace) != (8, 2, 0):
+                raise ValueError("not a vault image (needs 8-bit RGB)")
+        elif kind == b"IDAT":
+            idat.append(data)
+        elif kind == b"IEND":
+            break
+    if not w:
+        raise ValueError("not a vault image")
+    raw, row, out, prev = zlib.decompress(b"".join(idat)), w * 3, bytearray(), bytearray(w * 3)
+    for y in range(h):
+        f, cur = raw[y * (row + 1)], bytearray(raw[y * (row + 1) + 1:(y + 1) * (row + 1)])
+        if f:  # ponytail: per-byte Python loop, slow on big filtered files; the app and this script never filter
+            for i in range(row):
+                a, b, c = cur[i - 3] if i >= 3 else 0, prev[i], prev[i - 3] if i >= 3 else 0
+                if f == 1: p = a
+                elif f == 2: p = b
+                elif f == 3: p = (a + b) >> 1
+                elif f == 4:
+                    q = a + b - c
+                    pa, pb, pc = abs(q - a), abs(q - b), abs(q - c)
+                    p = a if pa <= pb and pa <= pc else b if pb <= pc else c
+                else: raise ValueError(f"bad PNG filter {f}")
+                cur[i] = (cur[i] + p) & 0xFF
+        out += cur
+        prev = cur
+    return bytes(out)
 
 
 def meta_of(f):
@@ -82,14 +126,14 @@ def enc_file(f, out, pw):
     meta, size = meta_of(f), f.stat().st_size
     if size <= CHUNK:
         dst = out / (os.urandom(8).hex() + ".png")
-        dst.write_bytes(to_png(encode(f.read_bytes(), meta, pw)))
+        dst.write_bytes(encode(f.read_bytes(), meta, pw))
         return [dst]
     group, parts, done = os.urandom(8).hex(), math.ceil(size / CHUNK), []
     with open(f, "rb") as src:
         for i in range(parts):
             m = dict(meta, group=group, part=0, parts=parts, size=size) if i == 0 else {"group": group, "part": i}
             dst = out / (os.urandom(8).hex() + ".png")
-            dst.write_bytes(to_png(encode(src.read(CHUNK), m, pw)))
+            dst.write_bytes(encode(src.read(CHUNK), m, pw))
             done.append(dst)
     return done
 
@@ -100,7 +144,7 @@ def dec_files(files, out, pw):
     for f in files:
         t = time.perf_counter()
         try:
-            meta, data = decode(Image.open(f), pw)
+            meta, data = decode(f.read_bytes(), pw)
         except Exception as e:  # other password (e.g. before a password change), or not a PhotoVault file
             print(f"{f.name}: skipped ({type(e).__name__}: wrong password or not a PhotoVault file)")
             continue
@@ -153,10 +197,10 @@ def main():
             print(f"{f.name} -> {names[0]}" + (f" (+{len(names) - 1} parts)" if len(names) > 1 else "") + f"  {time.perf_counter() - t:.3f}s")
         else:
             data = f.read_bytes()
-            png = to_png(encode(data, meta_of(f), pw))
+            png = encode(data, meta_of(f), pw)
             t_enc = time.perf_counter() - t
             t = time.perf_counter()
-            meta, back = decode(Image.open(io.BytesIO(png)), pw)
+            meta, back = decode(png, pw)
             t_dec = time.perf_counter() - t
             ok = hashlib.sha256(back).digest() == hashlib.sha256(data).digest() and meta["name"] == f.name
             print(f"{f.name}: {'OK bit-exact' if ok else 'MISMATCH'} | "

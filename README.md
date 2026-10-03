@@ -168,7 +168,7 @@ Every file stays readable even if this app disappears.
 2. On a PC with Python 3:
 
 ```
-pip install pillow cryptography
+pip install cryptography
 python photovault.py dec downloaded_folder -o recovered
 ```
 
@@ -209,7 +209,7 @@ ONEDRIVE_CLIENT_ID='your-app-id' GOOGLE_CLIENT_ID='your-client-id' KS_PASS='...'
 
 On Windows, with Android Studio installed (its JDK and the SDK build-tools), `build-win.sh` takes the same options from Git Bash.
 
-Without `ONEDRIVE_CLIENT_ID` or `GOOGLE_CLIENT_ID` the app builds fine and shows that option as not available. `build.sh` downloads the Android API jars, compiles, and signs. **Keep `photovault.jks` private and out of git** (it is in `.gitignore`): anyone who has it can sign "updates" that install over your users' copies.
+Without `ONEDRIVE_CLIENT_ID` or `GOOGLE_CLIENT_ID` the app builds fine and shows that option as not available. `build.sh` downloads the Android API jars from Google's SDK repository (and bundletool from Google's releases), checks each against a pinned SHA-256 on every build, compiles, and signs. **Keep `photovault.jks` private and out of git** (it is in `.gitignore`): anyone who has it can sign "updates" that install over your users' copies.
 
 Source layout:
 

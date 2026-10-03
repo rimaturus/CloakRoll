@@ -20,9 +20,19 @@ GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID-806356058259-0f19gg4o54pvvl0v2rkoo5tq91376g
 # framework resource tables (the framework attribute IDs used here are identical in both).
 JAR=sdk/android-36.jar RES_JAR=sdk/android-34.jar BUNDLETOOL=sdk/bundletool-all-1.18.3.jar
 mkdir -p sdk
-[ -f "$JAR" ] || curl -sSL -o "$JAR" https://raw.githubusercontent.com/Reginer/aosp-android-jar/main/android-36/android.jar
-[ -f "$RES_JAR" ] || curl -sSL -o "$RES_JAR" https://raw.githubusercontent.com/Reginer/aosp-android-jar/main/android-34/android.jar
-[ "$AAB" != 1 ] || [ -f "$BUNDLETOOL" ] || curl -sSL -o "$BUNDLETOOL" https://github.com/google/bundletool/releases/download/1.18.3/bundletool-all-1.18.3.jar
+# Every download comes from Google and is checked against a pinned SHA-256, on every build.
+fetch() { # <file> <sha256> <url> [path inside the zip]
+    echo "$2  $1" | sha256sum -c --status - 2>/dev/null && return
+    rm -f "$1"; curl -fsSL -o "$1.dl" "$3"
+    if [ -n "$4" ]; then unzip -p "$1.dl" "$4" > "$1"; rm "$1.dl"; else mv "$1.dl" "$1"; fi
+    echo "$2  $1" | sha256sum -c --status - || { rm -f "$1"; echo "$1: SHA-256 mismatch, refused"; exit 1; }
+}
+fetch "$JAR" d9eb9da824d9e247a352f570f01e1169e725b2954bca9e283a71786c59b59f9a \
+    https://dl.google.com/android/repository/platform-36_r02.zip android-36/android.jar
+fetch "$RES_JAR" 6cea1df3efb77103ac3e2beb9bf4718964b0e0869ab16d39d29d5cbae1c147ad \
+    https://dl.google.com/android/repository/platform-34-ext7_r03.zip android-34/android.jar
+[ "$AAB" != 1 ] || fetch "$BUNDLETOOL" a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29 \
+    https://github.com/google/bundletool/releases/download/1.18.3/bundletool-all-1.18.3.jar
 KEYSTORE="${KEYSTORE-photovault.jks}"
 [ -n "$KS_PASS" ] || { echo "Set KS_PASS to the signing-key password (README > Build from source)."; exit 1; }
 rm -rf build && mkdir -p build/classes build/gen/app/photovault res/raw
