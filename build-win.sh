@@ -24,7 +24,11 @@ KEYSTORE="${KEYSTORE-photovault.jks}"
 [ -f "$JAR" ] || { echo "Android SDK platform 36 not found at $JAR"; exit 1; }
 w() { cygpath -w "$1"; }
 mkdir -p sdk
-[ "$AAB" != 1 ] || [ -f "$BUNDLETOOL" ] || curl -sSL -o "$BUNDLETOOL" https://github.com/google/bundletool/releases/download/1.18.3/bundletool-all-1.18.3.jar
+BT_SHA=a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29 # Google's release asset, checked on every build
+[ "$AAB" != 1 ] || echo "$BT_SHA  $BUNDLETOOL" | sha256sum -c --status - 2>/dev/null || {
+    curl -fsSL -o "$BUNDLETOOL" https://github.com/google/bundletool/releases/download/1.18.3/bundletool-all-1.18.3.jar
+    echo "$BT_SHA  $BUNDLETOOL" | sha256sum -c --status - || { rm -f "$BUNDLETOOL"; echo "bundletool: SHA-256 mismatch, refused"; exit 1; }
+}
 rm -rf build && mkdir -p build/classes build/gen/app/photovault res/raw
 cp PRIVACY.md res/raw/privacy.txt # the privacy policy, shown inside the app
 cat > build/gen/app/photovault/Config.java <<EOC
