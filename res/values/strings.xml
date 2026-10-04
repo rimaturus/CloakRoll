@@ -482,7 +482,7 @@
     <string name="tour6_d">On a new phone, sign in to the same storage, enter the same password and Sync brings everything back in seconds. Nobody can recover the photos without the password, not even us: keep it safe.</string>
     <string name="whats_new_t">What\'s new in Cloakroll %1$s</string>
     <string name="whats_new_off">Don\'t show this after updates</string>
-    <string name="whats_new">• Automatic backup: new photos and videos go to the vault by themselves, on Wi-Fi, even with the app closed (Settings).\n• Free up space: remove from the phone what the vault already holds.\n• Pinch to zoom in the viewer.\n• Restoring on a new phone no longer downloads every file: the list comes from the cloud, previews on demand.\n• Time left for every transfer.\n• Interrupted uploads are retried; a damaged file no longer blocks a restore.\n• Security hardening.</string>
+    <string name="whats_new">• The gallery is in order of the date written in each file\'s name. Items of the main view with no date in their name are in the folder “No date” (moved there once; move them wherever you like).\n• Sort into folders by type (menu): screenshots, WhatsApp, camera… going by the names.\n• Search by name; filter photos or videos; sort by date, name or size.\n• Select all, deselect all, invert the selection.\n• Coming back from a photo, the gallery is where you left it.</string>
     <string name="auto_net_t">Which connection?</string>
     <string name="auto_net_d">Photos and videos can be big: on mobile data they count against your plan.</string>
     <string name="auto_net_wifi">Only Wi-Fi</string>
@@ -496,4 +496,27 @@
     <string name="donate_ask_yes">Donate</string>
     <string name="donate_ask_src">GitHub</string>
     <string name="donate_ask_no">Not now</string>
+    <string name="folder_no_date">No date</string>
+    <string name="folder_screenshots">Screenshots</string>
+    <string name="folder_recordings">Screen recordings</string>
+    <string name="folder_camera">Camera</string>
+    <string name="menu_classify">Sort into folders by type</string>
+    <string name="classify_d">Items in the main view are moved into these folders, going by their names. Those already in a folder stay there.</string>
+    <string name="classify_sel_d">The selected items are moved into these folders, going by their names.</string>
+    <string name="classify_none">No name says what kind of file it is: nothing to move.</string>
+    <string name="classify_done">%1$d moved into folders by type</string>
+    <string name="select_all">Select all</string>
+    <string name="select_none">Deselect all</string>
+    <string name="select_invert">Invert selection</string>
+    <string name="search">Search by name</string>
+    <string name="search_hint">Search by name</string>
+    <string name="filter">Filter and sort</string>
+    <string name="filter_all">Everything</string>
+    <string name="filter_photos">Photos only</string>
+    <string name="filter_videos">Videos only</string>
+    <string name="sort_newest">Newest first</string>
+    <string name="sort_oldest">Oldest first</string>
+    <string name="sort_name">By name</string>
+    <string name="sort_size">Largest first</string>
+    <string name="no_match">Nothing found</string>
 </resources>

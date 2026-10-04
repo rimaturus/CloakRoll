@@ -355,7 +355,7 @@ final class Ui {
 
     static final int BACK = 1, CLOSE = 2, MORE = 3, PLUS = 4, CHECK = 5, LOCK = 6, KEY = 7, FOLDER = 8, MOVE = 9, TRASH = 10,
             SAVE = 11, EYE = 12, CLOUD = 13, SYNC = 14, HEART = 15, SHIELD = 16, INFO = 17, ALERT = 18, LIST = 19, CODE = 20,
-            FINGER = 21, IMAGE = 22, NOISE = 23, CIRCLE = 24, GLOBE = 25, PHONE = 26, CHART = 27;
+            FINGER = 21, IMAGE = 22, NOISE = 23, CIRCLE = 24, GLOBE = 25, PHONE = 26, CHART = 27, SEARCH = 28, FILTER = 29;
 
     /** Line icons on a 24 x 24 grid, stroked in one color. */
     static final class Icon extends Drawable {
@@ -437,6 +437,8 @@ final class Ui {
                 case LIST:
                     for (int y = 7; y <= 17; y += 5) { a.moveTo(9, y); a.lineTo(20, y); dot(cv, 4.5f, y, 1.3f); }
                     break;
+                case SEARCH: a.addCircle(10.5f, 10.5f, 6, Path.Direction.CW); a.moveTo(15, 15); a.lineTo(20, 20); break;
+                case FILTER: a.moveTo(4, 7); a.lineTo(20, 7); a.moveTo(7, 12); a.lineTo(17, 12); a.moveTo(10, 17); a.lineTo(14, 17); break;
                 case CODE: a.moveTo(9, 7); a.lineTo(4, 12); a.lineTo(9, 17); a.moveTo(15, 7); a.lineTo(20, 12); a.lineTo(15, 17); break;
                 case FINGER:
                     a.addArc(new RectF(4, 3.5f, 20, 19.5f), 200, 140);

@@ -482,7 +482,7 @@
     <string name="tour6_d">Auf einem neuen Handy meldest du dich beim selben Speicher an, gibst dasselbe Passwort ein, und die Synchronisierung holt alles in Sekunden zurück. Ohne Passwort kann niemand die Fotos wiederherstellen, auch wir nicht: bewahre es gut auf.</string>
     <string name="whats_new_t">Neu in Cloakroll %1$s</string>
     <string name="whats_new_off">Nach Updates nicht mehr zeigen</string>
-    <string name="whats_new">• Automatische Sicherung: Neue Fotos und Videos kommen von selbst in den Tresor, im WLAN, auch bei geschlossener App (Einstellungen).\n• Speicherplatz freigeben: Entfernt vom Handy, was schon im Tresor ist.\n• Zoom mit zwei Fingern im Betrachter.\n• Die Wiederherstellung auf einem neuen Handy lädt nicht mehr jede Datei: Die Liste kommt aus der Cloud, Vorschauen auf Wunsch.\n• Restzeit bei jeder Übertragung.\n• Unterbrochene Uploads werden wiederholt; eine beschädigte Datei blockiert die Wiederherstellung nicht mehr.\n• Mehr Sicherheit.</string>
+    <string name="whats_new">• Die Galerie ist nach dem Datum im Dateinamen geordnet. Elemente der Hauptansicht ohne Datum im Namen liegen im Ordner „Ohne Datum“ (einmalig dorthin verschoben; du kannst sie beliebig verschieben).\n• Nach Typ in Ordner sortieren (Menü): Screenshots, WhatsApp, Kamera… anhand der Namen.\n• Nach Namen suchen; Fotos oder Videos filtern; nach Datum, Name oder Größe sortieren.\n• Alle auswählen, Auswahl aufheben, Auswahl umkehren.\n• Zurück von einem Foto ist die Galerie dort, wo du sie verlassen hast.</string>
     <string name="auto_net_t">Über welche Verbindung?</string>
     <string name="auto_net_d">Fotos und Videos können groß sein: über mobile Daten zählen sie zu deinem Tarif.</string>
     <string name="auto_net_wifi">Nur WLAN</string>
@@ -495,4 +495,27 @@
     <string name="donate_ask_d">Cloakroll ist kostenlos, ohne Werbung und ohne Tracking, und lebt nur von freiwilligen Spenden. Wenn dir die App nützt, hilft eine kleine Spende, sie weiter zu pflegen. Spenden schaltet nichts frei: alles bleibt für alle kostenlos.\n\nAuf GitHub findest du auch den Quellcode und photovault.py, ein kleines Python-Programm, das deinen Tresor ohne die App auf einem PC öffnet.\n\nDiese Nachricht erscheint nur einmal; das Herz oben bleibt immer da.</string>
     <string name="donate_ask_yes">Spenden</string>
     <string name="donate_ask_no">Nicht jetzt</string>
+    <string name="folder_no_date">Ohne Datum</string>
+    <string name="folder_screenshots">Screenshots</string>
+    <string name="folder_recordings">Bildschirmaufnahmen</string>
+    <string name="folder_camera">Kamera</string>
+    <string name="menu_classify">Nach Typ in Ordner sortieren</string>
+    <string name="classify_d">Die Elemente der Hauptansicht werden anhand ihrer Namen in diese Ordner verschoben. Was schon in einem Ordner liegt, bleibt dort.</string>
+    <string name="classify_sel_d">Die ausgewählten Elemente werden anhand ihrer Namen in diese Ordner verschoben.</string>
+    <string name="classify_none">Kein Name verrät den Typ der Datei: nichts zu verschieben.</string>
+    <string name="classify_done">%1$d nach Typ in Ordner verschoben</string>
+    <string name="select_all">Alle auswählen</string>
+    <string name="select_none">Auswahl aufheben</string>
+    <string name="select_invert">Auswahl umkehren</string>
+    <string name="search">Nach Namen suchen</string>
+    <string name="search_hint">Nach Namen suchen</string>
+    <string name="filter">Filtern und sortieren</string>
+    <string name="filter_all">Alles</string>
+    <string name="filter_photos">Nur Fotos</string>
+    <string name="filter_videos">Nur Videos</string>
+    <string name="sort_newest">Neueste zuerst</string>
+    <string name="sort_oldest">Älteste zuerst</string>
+    <string name="sort_name">Nach Name</string>
+    <string name="sort_size">Größte zuerst</string>
+    <string name="no_match">Nichts gefunden</string>
 </resources>

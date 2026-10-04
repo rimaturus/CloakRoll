@@ -27,8 +27,10 @@ import android.provider.MediaStore;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyPermanentlyInvalidatedException;
 import android.security.keystore.KeyProperties;
+import android.text.Editable;
 import android.text.SpannableString;
 import android.text.TextUtils;
+import android.text.TextWatcher;
 import android.text.style.RelativeSizeSpan;
 import android.util.Base64;
 import android.util.Size;
@@ -99,6 +101,12 @@ public class MainActivity extends Activity {
     final Set<String> selected = new LinkedHashSet<>();   // ids selected with a long press
     final Map<String, int[]> scrollPos = new HashMap<>(); // folder -> grid position, restored when coming back
     final Map<String, String> renames = new HashMap<>();  // folder renamed while open: old -> new name
+    String query = "";                                    // search by name; from the top level it looks into every folder
+    boolean searching;                                    // the search field is shown
+    EditText searchField;
+    int kind, order;                                      // filter: KINDS; sort: ORDERS
+    static final int[] KINDS = {R.string.filter_all, R.string.filter_photos, R.string.filter_videos};
+    static final int[] ORDERS = {R.string.sort_newest, R.string.sort_oldest, R.string.sort_name, R.string.sort_size};
     List<Store.Item> viewList = new ArrayList<>();        // what the viewer swipes through
     int viewIndex;
     String lastViewedId;
@@ -221,6 +229,8 @@ public class MainActivity extends Activity {
     void refresh() {
         if (st.key == null) { // locked: forget everything decrypted that the screens hold
             openFolder = "";
+            query = "";
+            searching = false;
             selected.clear();
             scrollPos.clear();
             renames.clear();
@@ -263,6 +273,7 @@ public class MainActivity extends Activity {
             case "gallery":
                 saveScroll();
                 if (!selected.isEmpty()) { selected.clear(); showGallery(); }
+                else if (searching) { searching = false; query = ""; showGallery(); }
                 else if (!openFolder.isEmpty()) { openFolder = ""; showGallery(); }
                 else finish();
                 break;
@@ -340,11 +351,14 @@ public class MainActivity extends Activity {
 
     View logButton() { return u.iconButton(Ui.LIST, u.text, s(R.string.log), new View.OnClickListener() { public void onClick(View v) { showLog(); } }); }
 
-    void menu(View anchor) {
+    void menu(final View anchor) {
         PopupMenu p = new PopupMenu(this, anchor);
         Menu m = p.getMenu();
         if (openFolder.isEmpty()) m.add(0, 1, 0, R.string.menu_new_folder);
         else { m.add(0, 2, 0, R.string.menu_rename_folder); m.add(0, 3, 0, R.string.menu_delete_folder); }
+        m.add(0, 7, 0, R.string.filter);
+        m.add(0, 8, 0, R.string.select_all);
+        if (openFolder.isEmpty()) m.add(0, 9, 0, R.string.menu_classify);
         m.add(0, 4, 0, s(R.string.menu_sync, cloudName()));
         m.add(0, 5, 0, R.string.settings);
         if (!Config.DONATE_URL.isEmpty()) m.add(0, 6, 0, R.string.menu_support);
@@ -356,10 +370,59 @@ public class MainActivity extends Activity {
                 case 4: startSync(); break;
                 case 5: showSettings(); break;
                 case 6: openUrl(Config.DONATE_URL); break;
+                case 7: filterMenu(anchor); break;
+                case 8: select(1); break;
+                case 9: classify(null); break;
             }
             return true;
         }});
         p.show();
+    }
+
+    /** Like a file manager's: which kind of item is shown, and in what order. */
+    void filterMenu(View anchor) {
+        PopupMenu p = new PopupMenu(this, anchor);
+        Menu m = p.getMenu();
+        for (int i = 0; i < KINDS.length; i++) m.add(1, i, 0, KINDS[i]);
+        for (int i = 0; i < ORDERS.length; i++) m.add(2, 10 + i, 0, ORDERS[i]);
+        m.setGroupCheckable(1, true, true);
+        m.setGroupCheckable(2, true, true);
+        m.setGroupDividerEnabled(true);
+        m.findItem(kind).setChecked(true);
+        m.findItem(10 + order).setChecked(true);
+        p.setOnMenuItemClickListener(new PopupMenu.OnMenuItemClickListener() { public boolean onMenuItemClick(MenuItem i) {
+            if (i.getItemId() < 10) kind = i.getItemId(); else order = i.getItemId() - 10;
+            scrollPos.remove(openFolder); // other items, or another order: from the top
+            showGallery();
+            return true;
+        }});
+        p.show();
+    }
+
+    /** In selection mode: all, none, the opposite; and sorting just the selected items into folders by type. */
+    void selectMenu(View anchor) {
+        PopupMenu p = new PopupMenu(this, anchor);
+        Menu m = p.getMenu();
+        m.add(0, 1, 0, R.string.select_all);
+        m.add(0, 2, 0, R.string.select_none);
+        m.add(0, 3, 0, R.string.select_invert);
+        m.add(0, 4, 0, R.string.menu_classify);
+        p.setOnMenuItemClickListener(new PopupMenu.OnMenuItemClickListener() { public boolean onMenuItemClick(MenuItem i) {
+            if (i.getItemId() == 4) classify(new HashSet<>(selected)); else select(i.getItemId());
+            return true;
+        }});
+        p.show();
+    }
+
+    /** 1: every item shown (what a search or filter hides stays out), 2: none, 3: the opposite of now. */
+    void select(int how) {
+        boolean was = !selected.isEmpty();
+        for (Store.Item it : cellItems()) {
+            if (how == 1) selected.add(it.id);
+            else if (how == 2 || !selected.add(it.id)) selected.remove(it.id);
+        }
+        if (was && !selected.isEmpty()) selectionChanged();
+        else if (was || !selected.isEmpty()) { saveScroll(); showGallery(); } // selection mode starts or ends
     }
 
     /** A text of the app in the current language. */
@@ -1199,8 +1262,13 @@ public class MainActivity extends Activity {
         if (!good) { post(wrong); return; }
         synchronized (st) { // a background job can't change the index between this read and the list shown
             Store.Index l;
-            try { l = st.readIndex(k); st.writeIndex(k, l); } // also upgrades an older index to the current, encrypted format
-            catch (Exception e) { Journal.add("local list unreadable, use Sync: " + e); l = new Store.Index(); }
+            try {
+                l = st.readIndex(k);
+                boolean filed = fileUndated(l);
+                st.writeIndex(k, l); // also upgrades an older index to the current, encrypted format, and puts it in today's order
+                prefs.edit().putBoolean("undated_filed", true).apply();
+                if (filed) st.backupFolders(k);
+            } catch (Exception e) { Journal.add("local list unreadable, use Sync: " + e); l = new Store.Index(); }
             final Store.Index ix = l;
             post(new Runnable() { public void run() {
                 st.key = k;
@@ -1211,6 +1279,20 @@ public class MainActivity extends Activity {
                 if (st.reencrypting()) startJob(SyncService.REENCRYPT); // a password change still being applied
             }});
         }
+    }
+
+    /**
+     * Once, for a vault filled before items were sorted by the date in their name: those of the main view that have no
+     * date there go to the folder new ones go to (Jobs.upload). True if any was moved.
+     */
+    boolean fileUndated(Store.Index ix) {
+        if (prefs.getBoolean("undated_filed", false)) return false;
+        String f = ix.canonical(s(R.string.folder_no_date));
+        int n = 0;
+        for (Store.Item it : ix.items) if (it.folder.isEmpty() && Names.date(it.name) == 0) { it.folder = f; n++; }
+        if (n > 0 && !ix.folders.contains(f)) ix.folders.add(f);
+        if (n > 0) Journal.add(n + " items without a date in their name moved to their own folder");
+        return n > 0;
     }
 
     boolean bioAvailable() {
@@ -1289,7 +1371,10 @@ public class MainActivity extends Activity {
 
     // ================================================================ gallery: folders and items
 
-    /** Top level: folder tiles, then items not in a folder. Inside a folder: its items. Main thread. */
+    /**
+     * Top level: folder tiles, then items not in a folder. Inside a folder: its items. Of those, the ones the search
+     * and the filter let through, in the chosen order (the list itself is newest first). Main thread.
+     */
     void rebuildCells() {
         shownItems = st.items;
         shownFolders = st.folders;
@@ -1301,7 +1386,10 @@ public class MainActivity extends Activity {
         counts.clear();
         covers.clear();
         List<Object> c = new ArrayList<>();
-        if (openFolder.isEmpty()) c.addAll(st.folders);
+        List<Store.Item> shown = new ArrayList<>();
+        String q = query.trim().toLowerCase(Locale.ROOT);
+        boolean everywhere = openFolder.isEmpty() && !q.isEmpty();
+        if (openFolder.isEmpty()) for (String f : st.folders) if (f.toLowerCase(Locale.ROOT).contains(q)) c.add(f);
         for (Store.Item it : st.items) {
             String f = known.contains(it.folder) ? it.folder : ""; // unknown folder name: show it at the top level
             if (!f.isEmpty()) {
@@ -1309,8 +1397,15 @@ public class MainActivity extends Activity {
                 counts.put(f, n == null ? 1 : n + 1);
                 if (!covers.containsKey(f)) covers.put(f, it);
             }
-            if (f.equals(openFolder)) { c.add(it); ids.add(it.id); }
+            if ((everywhere || f.equals(openFolder)) && (kind == 0 || it.video() == (kind == 2)) && it.name.toLowerCase(Locale.ROOT).contains(q)) {
+                shown.add(it);
+                ids.add(it.id);
+            }
         }
+        if (order != 0) Collections.sort(shown, new Comparator<Store.Item>() { public int compare(Store.Item a, Store.Item b) {
+            return order == 1 ? Long.compare(a.when(), b.when()) : order == 2 ? a.name.compareToIgnoreCase(b.name) : Long.compare(b.size, a.size);
+        }});
+        c.addAll(shown);
         selected.retainAll(ids);
         cells = c;
     }
@@ -1321,7 +1416,10 @@ public class MainActivity extends Activity {
         return l;
     }
 
+    boolean filtering() { return searching || kind != 0; }
+
     String gallerySubtitle() {
+        if (filtering()) return q(R.plurals.items, cellItems().size()) + (kind == 0 ? "" : " • " + s(KINDS[kind]));
         if (!openFolder.isEmpty()) return q(R.plurals.items_in_folder, cellItems().size());
         return q(R.plurals.items_encrypted_on, st.items.size(), cloudName()) + (st.folders.isEmpty() ? "" : " • " + q(R.plurals.folders, st.folders.size()));
     }
@@ -1360,6 +1458,38 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(MATCH, WRAP);
         bp.setMargins(u.dp(12), 0, u.dp(12), u.dp(8));
         col.addView(b, bp);
+
+        searchField = null;
+        if (searching && !selecting) { // search by name, as you type
+            LinearLayout sr = u.hbox();
+            sr.setBackground(Ui.round(u.field, u.dp(14)));
+            final EditText e = searchField = new EditText(this);
+            e.setHint(R.string.search_hint);
+            e.setHintTextColor(u.muted);
+            e.setTextColor(u.text);
+            e.setTextSize(16);
+            e.setBackground(null);
+            e.setSingleLine();
+            e.setPadding(u.dp(16), u.dp(12), u.dp(8), u.dp(12));
+            e.setText(query);
+            e.setSelection(query.length());
+            e.addTextChangedListener(new TextWatcher() {
+                public void beforeTextChanged(CharSequence t, int a, int n, int c) { }
+                public void onTextChanged(CharSequence t, int a, int n, int c) { }
+                public void afterTextChanged(Editable t) {
+                    query = t.toString();
+                    rebuildCells();
+                    adapter.notifyDataSetChanged();
+                    subtitleView.setText(gallerySubtitle());
+                }
+            });
+            sr.addView(e, new LinearLayout.LayoutParams(0, WRAP, 1f));
+            sr.addView(u.iconButton(Ui.FILTER, u.text, s(R.string.filter), new View.OnClickListener() { public void onClick(View v) { filterMenu(v); } }));
+            sr.addView(u.iconButton(Ui.CLOSE, u.text, s(R.string.cancel), new View.OnClickListener() { public void onClick(View v) { back(); } }));
+            LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(MATCH, WRAP);
+            sp.setMargins(u.dp(12), 0, u.dp(12), u.dp(8));
+            col.addView(sr, sp);
+        }
 
         FrameLayout body = new FrameLayout(this);
         cellSize = (getResources().getDisplayMetrics().widthPixels - u.dp(16)) / 3;
@@ -1411,11 +1541,13 @@ public class MainActivity extends Activity {
 
         if (selecting) setScreen("gallery", q(R.plurals.selected, selected.size()), s(R.string.tap_more), Ui.CLOSE, frame,
                 u.iconButton(Ui.MOVE, u.text, s(R.string.move_to_folder), new View.OnClickListener() { public void onClick(View v) { moveSelected(); } }),
-                u.iconButton(Ui.TRASH, u.text, s(R.string.delete), new View.OnClickListener() { public void onClick(View v) { confirmDeleteSelected(); } }));
+                u.iconButton(Ui.TRASH, u.text, s(R.string.delete), new View.OnClickListener() { public void onClick(View v) { confirmDeleteSelected(); } }),
+                u.iconButton(Ui.MORE, u.text, s(R.string.menu), new View.OnClickListener() { public void onClick(View v) { selectMenu(v); } }));
         else {
             View lock = u.iconButton(Ui.LOCK, u.text, s(R.string.lock_now), new View.OnClickListener() { public void onClick(View v) { st.lock(); st.changed(); } });
-            View[] actions = Config.DONATE_URL.isEmpty() ? new View[] {lock, menuButton()} : new View[] {u.iconButton(Ui.HEART, u.accent, s(R.string.menu_support),
-                    new View.OnClickListener() { public void onClick(View v) { openUrl(Config.DONATE_URL); } }), lock, menuButton()};
+            View search = u.iconButton(Ui.SEARCH, u.text, s(R.string.search), new View.OnClickListener() { public void onClick(View v) { openSearch(); } });
+            View[] actions = Config.DONATE_URL.isEmpty() ? new View[] {search, lock, menuButton()} : new View[] {u.iconButton(Ui.HEART, u.accent, s(R.string.menu_support),
+                    new View.OnClickListener() { public void onClick(View v) { openUrl(Config.DONATE_URL); } }), search, lock, menuButton()};
             setScreen("gallery", openFolder.isEmpty() ? "Cloakroll" : openFolder, gallerySubtitle(), openFolder.isEmpty() ? 0 : Ui.BACK, frame, actions);
             askDonation();
         }
@@ -1424,11 +1556,29 @@ public class MainActivity extends Activity {
         refresh();
     }
 
+    /** The search field, with the keyboard up. */
+    void openSearch() {
+        saveScroll();
+        searching = true;
+        showGallery();
+        if (searchField == null) return; // locked meanwhile
+        searchField.requestFocus();
+        searchField.post(new Runnable() { public void run() {
+            WindowInsetsController c = getWindow().getInsetsController();
+            if (c != null && "gallery".equals(screen)) c.show(WindowInsets.Type.ime());
+        }});
+    }
+
     /** Shown instead of the grid when there is nothing in it. */
     View emptyState() {
         LinearLayout l = u.vbox();
         l.setGravity(Gravity.CENTER);
         l.setPadding(u.dp(32), u.dp(24), u.dp(32), u.dp(96));
+        if (filtering()) { // nothing passes the search or the filter
+            l.addView(u.badge(Ui.SEARCH, u.accent, u.accentSoft, 72), new LinearLayout.LayoutParams(u.dp(72), u.dp(72)));
+            u.heading(l, s(R.string.no_match)).setPadding(0, u.dp(16), 0, u.dp(4));
+            return u.scroll(l);
+        }
         boolean top = openFolder.isEmpty();
         l.addView(u.badge(top ? Ui.IMAGE : Ui.FOLDER, u.accent, u.accentSoft, 72), new LinearLayout.LayoutParams(u.dp(72), u.dp(72)));
         TextView t = u.heading(l, s(top ? R.string.empty_top_t : R.string.empty_folder_t));
@@ -1546,6 +1696,10 @@ public class MainActivity extends Activity {
     void toggle(Store.Item it) {
         if (!selected.remove(it.id)) selected.add(it.id);
         if (selected.isEmpty()) { saveScroll(); showGallery(); return; }
+        selectionChanged();
+    }
+
+    void selectionChanged() {
         titleView.setText(q(R.plurals.selected, selected.size()));
         adapter.notifyDataSetChanged();
     }
@@ -1566,7 +1720,12 @@ public class MainActivity extends Activity {
                 if (cells.get(i) instanceof Store.Item && ((Store.Item) cells.get(i)).id.equals(lastViewedId)) target = i;
         lastViewedId = null;
         if (target >= 0 && (p == null || target < p[0] || target >= p[0] + p[2])) grid.setSelection(target);
-        else if (p != null) grid.setSelectionFromTop(p[0], p[1]);
+        else if (p != null) { // not setSelectionFromTop: on a GridView in touch mode it goes back to the top
+            final GridView g = grid;
+            final int off = -p[1];
+            g.setSelection(p[0]);
+            g.post(new Runnable() { public void run() { g.scrollListBy(off); } }); // after the layout: the part of the row that was hidden
+        }
     }
 
     // ---------------------------------------------------------------- folder actions
@@ -1643,6 +1802,42 @@ public class MainActivity extends Activity {
                         ix.folders.remove(name);
                         for (Store.Item it : ix.items) if (it.folder.equals(name)) it.folder = "";
                     }}, null);
+                }})
+                .setNegativeButton(R.string.cancel, null).show();
+    }
+
+    /**
+     * Sorts items into folders by what their names say they are (Screenshot_..., IMG-...-WA0001, PXL_...), without
+     * looking at the pictures: the main view's (`only` null), or the selected ones. Asks first, with the numbers.
+     */
+    void classify(final Set<String> only) {
+        final String[] names = new String[Names.TYPES];
+        names[Names.SCREENSHOT] = s(R.string.folder_screenshots); names[Names.RECORDING] = s(R.string.folder_recordings);
+        names[Names.WHATSAPP] = "WhatsApp"; names[Names.TELEGRAM] = "Telegram"; names[Names.SOCIAL] = "Social";
+        names[Names.CAMERA] = s(R.string.folder_camera); names[Names.VIDEO] = "Video";
+        final Set<String> ids = new HashSet<>();
+        if (only != null) for (String id : only) ids.add(st.currentId(id));
+        int[] n = new int[Names.TYPES];
+        int all = 0;
+        for (Store.Item it : st.items) {
+            int t = (only == null ? it.folder.isEmpty() : ids.contains(it.id)) ? Names.type(it.name, it.mime) : -1;
+            if (t >= 0 && !names[t].equalsIgnoreCase(it.folder)) { n[t]++; all++; }
+        }
+        if (all == 0) { toast(s(R.string.classify_none)); return; }
+        StringBuilder b = new StringBuilder();
+        for (int t = 0; t < n.length; t++) if (n[t] > 0) b.append(names[t]).append(": ").append(n[t]).append("\n");
+        final int total = all;
+        new AlertDialog.Builder(this).setTitle(R.string.menu_classify).setMessage(b + "\n" + s(only == null ? R.string.classify_d : R.string.classify_sel_d))
+                .setPositiveButton(R.string.ok, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                    editFolders(new Store.Edit() { public void apply(Store.Index ix) {
+                        for (Store.Item it : ix.items) {
+                            int t = (only == null ? it.folder.isEmpty() : ids.contains(it.id)) ? Names.type(it.name, it.mime) : -1;
+                            if (t < 0) continue;
+                            it.folder = ix.canonical(names[t]);
+                            if (!ix.folders.contains(it.folder)) ix.folders.add(it.folder);
+                        }
+                    }}, s(R.string.classify_done, total));
+                    if (only != null) { saveScroll(); selected.clear(); showGallery(); }
                 }})
                 .setNegativeButton(R.string.cancel, null).show();
     }
@@ -1884,7 +2079,7 @@ public class MainActivity extends Activity {
         u.action(row, Ui.TRASH, s(R.string.delete), Color.WHITE, new View.OnClickListener() { public void onClick(View v) { confirmDelete(it); } });
         l.addView(row, u.wide(0));
         setScreen("viewer", it.name, (viewList.size() > 1 ? s(R.string.v_pos, viewIndex + 1, viewList.size()) + " • " : "")
-                + date(it.taken) + " • " + human(it.size), Ui.BACK, l);
+                + date(it.when()) + " • " + human(it.size), Ui.BACK, l);
         lastViewedId = it.id;
         Bitmap pre = st.thumbs.get(it.id);
         iv.setTag(it.id);

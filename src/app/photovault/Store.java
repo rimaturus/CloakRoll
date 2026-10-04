@@ -44,6 +44,9 @@ final class Store {
         String salt = "";                   // hex salt of the key the file in the cloud was made with ("" = before v1.3)
         List<String> parts = new ArrayList<>(); // big files: cloud ids of all parts, [0] == id. Empty: one PNG
         long taken, size;
+        private long when;                  // sort key, worked out once
+        /** When it was taken: the date in its name if there is one (`taken` is often just when it was added), else `taken`. */
+        long when() { if (when == 0) { when = Names.date(name); if (when == 0) when = taken; } return when; }
         boolean video() { return mime != null && mime.startsWith("video/"); }
         /** Every cloud file this item is made of. */
         List<String> nodes() { return parts.isEmpty() ? Collections.singletonList(id) : parts; }
@@ -223,7 +226,7 @@ final class Store {
     }
 
     private static byte[] indexJson(Index ix) throws Exception {
-        Collections.sort(ix.items, new Comparator<Item>() { public int compare(Item a, Item b) { return Long.compare(b.taken, a.taken); } });
+        Collections.sort(ix.items, new Comparator<Item>() { public int compare(Item a, Item b) { return Long.compare(b.when(), a.when()); } });
         Collections.sort(ix.folders, String.CASE_INSENSITIVE_ORDER);
         for (Item it : ix.items) if (!it.folder.isEmpty()) it.folder = ix.canonical(it.folder); // one spelling per folder
         JSONArray a = new JSONArray();

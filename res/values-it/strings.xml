@@ -482,7 +482,7 @@
     <string name="tour6_d">Su un telefono nuovo, accedi allo stesso spazio, inserisci la stessa password e la sincronizzazione riporta tutto in pochi secondi. Senza password nessuno può recuperare le foto, nemmeno noi: conservala bene.</string>
     <string name="whats_new_t">Novità di Cloakroll %1$s</string>
     <string name="whats_new_off">Non mostrare dopo gli aggiornamenti</string>
-    <string name="whats_new">• Backup automatico: le nuove foto e i nuovi video vanno da soli nella cassaforte, con il Wi-Fi, anche ad app chiusa (Impostazioni).\n• Libera spazio: rimuovi dal telefono ciò che la cassaforte ha già.\n• Zoom con due dita nel visualizzatore.\n• Il ripristino su un telefono nuovo non scarica più ogni file: l\'elenco arriva dal cloud, le anteprime a richiesta.\n• Tempo rimanente per ogni trasferimento.\n• I caricamenti interrotti vengono ritentati; un file danneggiato non blocca più il ripristino.\n• Sicurezza rafforzata.</string>
+    <string name="whats_new">• La galleria è in ordine della data scritta nel nome di ogni file. Gli elementi della vista principale senza data nel nome sono nella cartella «Senza data» (spostati lì una volta sola; mettili dove vuoi).\n• Smista in cartelle per tipo (menu): screenshot, WhatsApp, fotocamera… in base ai nomi.\n• Cerca per nome; filtra foto o video; ordina per data, nome o dimensione.\n• Seleziona tutto, deseleziona tutto, inverti la selezione.\n• Tornando da una foto, la galleria è dove l\'avevi lasciata.</string>
     <string name="auto_net_t">Con quale connessione?</string>
     <string name="auto_net_d">Foto e video possono essere grandi: con i dati mobili consumano il tuo piano.</string>
     <string name="auto_net_wifi">Solo Wi-Fi</string>
@@ -495,4 +495,27 @@
     <string name="donate_ask_d">Cloakroll è gratuita, senza pubblicità e senza tracciamento, e va avanti solo grazie a donazioni volontarie. Se ti è utile, una piccola donazione aiuta a mantenerla. Donare non sblocca nulla: tutto resta gratis per tutti.\n\nSu GitHub trovi anche il codice sorgente e photovault.py, un piccolo programma Python che apre il tuo vault su un PC, senza l\'app.\n\nQuesto messaggio compare una sola volta; il cuore in alto resta sempre lì.</string>
     <string name="donate_ask_yes">Dona</string>
     <string name="donate_ask_no">Non ora</string>
+    <string name="folder_no_date">Senza data</string>
+    <string name="folder_screenshots">Screenshot</string>
+    <string name="folder_recordings">Registrazioni schermo</string>
+    <string name="folder_camera">Fotocamera</string>
+    <string name="menu_classify">Smista in cartelle per tipo</string>
+    <string name="classify_d">Gli elementi della vista principale vengono spostati in queste cartelle, in base al nome. Quelli già in una cartella restano dove sono.</string>
+    <string name="classify_sel_d">Gli elementi selezionati vengono spostati in queste cartelle, in base al nome.</string>
+    <string name="classify_none">Nessun nome dice di che tipo è il file: niente da spostare.</string>
+    <string name="classify_done">%1$d spostati nelle cartelle per tipo</string>
+    <string name="select_all">Seleziona tutto</string>
+    <string name="select_none">Deseleziona tutto</string>
+    <string name="select_invert">Inverti selezione</string>
+    <string name="search">Cerca per nome</string>
+    <string name="search_hint">Cerca per nome</string>
+    <string name="filter">Filtra e ordina</string>
+    <string name="filter_all">Tutto</string>
+    <string name="filter_photos">Solo foto</string>
+    <string name="filter_videos">Solo video</string>
+    <string name="sort_newest">Prima i più recenti</string>
+    <string name="sort_oldest">Prima i più vecchi</string>
+    <string name="sort_name">Per nome</string>
+    <string name="sort_size">Prima i più grandi</string>
+    <string name="no_match">Nessun risultato</string>
 </resources>

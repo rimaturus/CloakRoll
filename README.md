@@ -10,7 +10,7 @@ Amazon Prime includes unlimited full-resolution photo storage, and OneDrive and 
 
 ![What you see vs. what the cloud stores](docs/comparison.png)
 
-> **Status: beta (v1.9.2).** Android 13 or newer. Not affiliated with, endorsed by or connected to Amazon, Microsoft or Google.
+> **Status: beta (v1.10.0).** Android 13 or newer. Not affiliated with, endorsed by or connected to Amazon, Microsoft or Google.
 >
 > ♥ **Cloakroll is free and lives on donations: [buy me a coffee](https://buymeacoffee.com/rimaturus)** if it is useful to you.
 

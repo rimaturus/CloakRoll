@@ -482,7 +482,7 @@
     <string name="tour6_d">Sur un nouveau téléphone, connectez-vous au même espace, saisissez le même mot de passe et la synchronisation ramène tout en quelques secondes. Sans mot de passe, personne ne peut récupérer les photos, pas même nous : gardez-le bien.</string>
     <string name="whats_new_t">Nouveautés de Cloakroll %1$s</string>
     <string name="whats_new_off">Ne plus afficher après les mises à jour</string>
-    <string name="whats_new">• Sauvegarde automatique : les nouvelles photos et vidéos vont d\'elles-mêmes dans le coffre, en Wi-Fi, même l\'app fermée (Réglages).\n• Libérer de l\'espace : retire du téléphone ce que le coffre a déjà.\n• Zoom à deux doigts dans la visionneuse.\n• Restaurer sur un nouveau téléphone ne télécharge plus chaque fichier : la liste vient du cloud, les aperçus à la demande.\n• Temps restant pour chaque transfert.\n• Les envois interrompus sont réessayés ; un fichier endommagé ne bloque plus la restauration.\n• Sécurité renforcée.</string>
+    <string name="whats_new">• La galerie suit la date écrite dans le nom de chaque fichier. Les éléments de la vue principale sans date dans leur nom sont dans le dossier « Sans date » (déplacés une seule fois ; mettez-les où vous voulez).\n• Trier en dossiers par type (menu) : captures d\'écran, WhatsApp, appareil photo… d\'après les noms.\n• Rechercher par nom ; filtrer photos ou vidéos ; trier par date, nom ou taille.\n• Tout sélectionner, tout désélectionner, inverser la sélection.\n• En revenant d\'une photo, la galerie est là où vous l\'aviez laissée.</string>
     <string name="auto_net_t">Avec quelle connexion ?</string>
     <string name="auto_net_d">Les photos et vidéos peuvent être lourdes : en données mobiles, elles comptent dans votre forfait.</string>
     <string name="auto_net_wifi">Wi-Fi seulement</string>
@@ -495,4 +495,27 @@
     <string name="donate_ask_d">Cloakroll est gratuite, sans publicité et sans pistage, et ne vit que de dons volontaires. Si elle vous est utile, un petit don aide à la maintenir. Donner ne débloque rien : tout reste gratuit pour tout le monde.\n\nSur GitHub, vous trouverez aussi le code source et photovault.py, un petit programme Python qui ouvre votre coffre sur un PC, sans l\'application.\n\nCe message ne s\'affiche qu\'une fois ; le cœur en haut reste toujours là.</string>
     <string name="donate_ask_yes">Faire un don</string>
     <string name="donate_ask_no">Pas maintenant</string>
+    <string name="folder_no_date">Sans date</string>
+    <string name="folder_screenshots">Captures d\'écran</string>
+    <string name="folder_recordings">Enregistrements d\'écran</string>
+    <string name="folder_camera">Appareil photo</string>
+    <string name="menu_classify">Trier en dossiers par type</string>
+    <string name="classify_d">Les éléments de la vue principale sont déplacés dans ces dossiers, d\'après leur nom. Ceux qui sont déjà dans un dossier y restent.</string>
+    <string name="classify_sel_d">Les éléments sélectionnés sont déplacés dans ces dossiers, d\'après leur nom.</string>
+    <string name="classify_none">Aucun nom n\'indique le type du fichier : rien à déplacer.</string>
+    <string name="classify_done">%1$d déplacés dans des dossiers par type</string>
+    <string name="select_all">Tout sélectionner</string>
+    <string name="select_none">Tout désélectionner</string>
+    <string name="select_invert">Inverser la sélection</string>
+    <string name="search">Rechercher par nom</string>
+    <string name="search_hint">Rechercher par nom</string>
+    <string name="filter">Filtrer et trier</string>
+    <string name="filter_all">Tout</string>
+    <string name="filter_photos">Photos seulement</string>
+    <string name="filter_videos">Vidéos seulement</string>
+    <string name="sort_newest">Les plus récents d\'abord</string>
+    <string name="sort_oldest">Les plus anciens d\'abord</string>
+    <string name="sort_name">Par nom</string>
+    <string name="sort_size">Les plus gros d\'abord</string>
+    <string name="no_match">Aucun résultat</string>
 </resources>

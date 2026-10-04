@@ -482,7 +482,7 @@
     <string name="tour6_d">En un teléfono nuevo, inicia sesión en el mismo almacenamiento, escribe la misma contraseña y Sincronizar lo trae todo en segundos. Sin la contraseña nadie puede recuperar las fotos, ni nosotros: guárdala bien.</string>
     <string name="whats_new_t">Novedades de Cloakroll %1$s</string>
     <string name="whats_new_off">No mostrar tras las actualizaciones</string>
-    <string name="whats_new">• Copia automática: las fotos y vídeos nuevos van solos a la bóveda, con Wi-Fi, incluso con la app cerrada (Ajustes).\n• Liberar espacio: quita del teléfono lo que la bóveda ya tiene.\n• Zoom con dos dedos en el visor.\n• Restaurar en un teléfono nuevo ya no descarga cada archivo: la lista viene de la nube, las vistas previas bajo demanda.\n• Tiempo restante en cada transferencia.\n• Las subidas interrumpidas se reintentan; un archivo dañado ya no bloquea la restauración.\n• Seguridad reforzada.</string>
+    <string name="whats_new">• La galería está ordenada por la fecha escrita en el nombre de cada archivo. Los elementos de la vista principal sin fecha en el nombre están en la carpeta «Sin fecha» (movidos allí una sola vez; ponlos donde quieras).\n• Ordenar en carpetas por tipo (menú): capturas, WhatsApp, cámara… según los nombres.\n• Buscar por nombre; filtrar fotos o vídeos; ordenar por fecha, nombre o tamaño.\n• Seleccionar todo, deseleccionar todo, invertir la selección.\n• Al volver de una foto, la galería está donde la dejaste.</string>
     <string name="auto_net_t">¿Con qué conexión?</string>
     <string name="auto_net_d">Las fotos y vídeos pueden ser grandes: con datos móviles consumen tu tarifa.</string>
     <string name="auto_net_wifi">Solo Wi-Fi</string>
@@ -495,4 +495,27 @@
     <string name="donate_ask_d">Cloakroll es gratuita, sin anuncios y sin rastreo, y se mantiene solo con donaciones voluntarias. Si te resulta útil, una pequeña donación ayuda a mantenerla. Donar no desbloquea nada: todo sigue siendo gratis para todos.\n\nEn GitHub también encontrarás el código fuente y photovault.py, un pequeño programa en Python que abre tu bóveda en un PC, sin la app.\n\nEste mensaje se muestra solo una vez; el corazón de arriba siempre está ahí.</string>
     <string name="donate_ask_yes">Donar</string>
     <string name="donate_ask_no">Ahora no</string>
+    <string name="folder_no_date">Sin fecha</string>
+    <string name="folder_screenshots">Capturas de pantalla</string>
+    <string name="folder_recordings">Grabaciones de pantalla</string>
+    <string name="folder_camera">Cámara</string>
+    <string name="menu_classify">Ordenar en carpetas por tipo</string>
+    <string name="classify_d">Los elementos de la vista principal se mueven a estas carpetas según su nombre. Los que ya están en una carpeta se quedan donde están.</string>
+    <string name="classify_sel_d">Los elementos seleccionados se mueven a estas carpetas según su nombre.</string>
+    <string name="classify_none">Ningún nombre indica de qué tipo es el archivo: nada que mover.</string>
+    <string name="classify_done">%1$d movidos a carpetas por tipo</string>
+    <string name="select_all">Seleccionar todo</string>
+    <string name="select_none">Deseleccionar todo</string>
+    <string name="select_invert">Invertir selección</string>
+    <string name="search">Buscar por nombre</string>
+    <string name="search_hint">Buscar por nombre</string>
+    <string name="filter">Filtrar y ordenar</string>
+    <string name="filter_all">Todo</string>
+    <string name="filter_photos">Solo fotos</string>
+    <string name="filter_videos">Solo vídeos</string>
+    <string name="sort_newest">Más recientes primero</string>
+    <string name="sort_oldest">Más antiguos primero</string>
+    <string name="sort_name">Por nombre</string>
+    <string name="sort_size">Más grandes primero</string>
+    <string name="no_match">Sin resultados</string>
 </resources>

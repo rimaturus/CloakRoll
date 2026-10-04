@@ -63,7 +63,8 @@ final class Jobs {
                 }
                 if (mime == null) mime = "application/octet-stream";
                 Store.Item it = new Store.Item();
-                it.name = name; it.mime = mime; it.taken = taken; it.folder = into; it.salt = Store.hex(salt);
+                boolean undated = into.isEmpty() && Names.date(name) == 0; // the main view is in order of the dates in the names
+                it.name = name; it.mime = mime; it.taken = taken; it.folder = undated ? ctx.getString(R.string.folder_no_date) : into; it.salt = Store.hex(salt);
                 byte[] thumb;
                 try (InputStream in = ctx.getContentResolver().openInputStream(u)) {
                     // as big as the file, not 32 MB for every photo (one byte more shows a file longer than it said)
@@ -85,7 +86,7 @@ final class Jobs {
                     }
                 }
                 st.saveThumb(it.id, k, thumb);
-                st.add(k, it, false);
+                st.add(k, it, undated);
                 ok++;
             } catch (Throwable e) {
                 failed++;
