@@ -18,7 +18,7 @@ import java.util.concurrent.Executors;
  * Each job works with its own copy of the key, wiped when the job ends. The notification never shows file names.
  */
 public class SyncService extends Service {
-    static final String UPLOAD = "upload", SYNC = "sync", REENCRYPT = "reencrypt", PREVIEWS = "previews", STOP = "stop", CHANNEL = "sync";
+    static final String UPLOAD = "upload", BACKUP = "backup", SYNC = "sync", REENCRYPT = "reencrypt", PREVIEWS = "previews", MOVE = "move", STOP = "stop", CHANNEL = "sync";
     static final int NOTE = 1, DONE_NOTE = 2;
 
     final ExecutorService worker = Executors.newSingleThreadExecutor();
@@ -69,13 +69,14 @@ public class SyncService extends Service {
         if (STOP.equals(action)) {
             jobs.cancelUpTo = seq;
             if (pending > 0) show(getString(R.string.stopping), -1);
-        } else if (st.key != null && (UPLOAD.equals(action) || SYNC.equals(action) || REENCRYPT.equals(action) || PREVIEWS.equals(action))) {
+        } else if (st.key != null && Arrays.asList(UPLOAD, BACKUP, SYNC, REENCRYPT, PREVIEWS, MOVE).contains(action)) {
             final byte[] k = st.key.clone(), salt = st.salt(); // taken together: they always belong to the same key
             final int id = ++seq;
             final List<Uri> uris = new ArrayList<>();
             ClipData c = in.getClipData();
             if (c != null) for (int n = 0; n < c.getItemCount(); n++) uris.add(c.getItemAt(n).getUri());
-            final boolean upload = UPLOAD.equals(action), reencrypt = REENCRYPT.equals(action), previews = PREVIEWS.equals(action);
+            final boolean upload = UPLOAD.equals(action), backup = BACKUP.equals(action), reencrypt = REENCRYPT.equals(action),
+                    previews = PREVIEWS.equals(action), move = MOVE.equals(action);
             final String into = in.getStringExtra("folder") == null ? "" : in.getStringExtra("folder");
             pending++;
             st.busyJobs = pending;
@@ -86,8 +87,12 @@ public class SyncService extends Service {
                         done(getString(upload ? R.string.not_added_pw : R.string.stopped_pw), true);
                         return;
                     }
-                    if (upload) jobs.upload(k, salt, uris, into, id); else if (reencrypt) jobs.reencrypt(k, id);
-                    else if (previews) jobs.previews(k, id); else jobs.sync(k, id);
+                    if (upload) jobs.upload(k, salt, uris, into, id);
+                    else if (backup) backup(k, salt, id);
+                    else if (reencrypt) jobs.reencrypt(k, id);
+                    else if (previews) jobs.previews(k, id);
+                    else if (move) jobs.move(k, id);
+                    else jobs.sync(k, id);
                 } catch (Throwable e) {
                     Journal.add("background job failed: " + e);
                 } finally {
@@ -98,6 +103,19 @@ public class SyncService extends Service {
         }
         if (pending == 0) finish();
         return START_NOT_STICKY;
+    }
+
+    /**
+     * Automatic backup while the app is open: everything new on the phone, found here rather than handed over in the
+     * Intent (which has a size limit), so one run takes 60 GB as well as 60 MB. What is still pending after the run
+     * failed and waits for tomorrow.
+     */
+    void backup(byte[] k, byte[] salt, int id) throws Exception {
+        List<Uri> todo = Backup.pending(this, st, st.readIndex(k).items, new long[1]);
+        if (todo.isEmpty()) return;
+        Journal.add("automatic backup: " + todo.size() + " new files");
+        jobs.upload(k, salt, todo, "", id);
+        Backup.noteFailed(st, todo, Backup.pending(this, st, st.readIndex(k).items, new long[1]));
     }
 
     /** Main thread, when the queue is empty. A start request still on its way keeps the service alive. */
@@ -125,10 +143,12 @@ public class SyncService extends Service {
 
     Notification note(String text, String title, int pct, boolean ongoing) {
         PendingIntent open = PendingIntent.getActivity(this, 0, getPackageManager().getLaunchIntentForPackage(getPackageName()), PendingIntent.FLAG_IMMUTABLE);
+        String line = ongoing ? st.liveLine() : ""; // bytes, speed and time left under the headline
         Notification.Builder b = new Notification.Builder(this, CHANNEL)
                 .setSmallIcon(ongoing ? android.R.drawable.stat_sys_upload : android.R.drawable.stat_sys_upload_done)
                 .setContentTitle(title == null ? "Cloakroll" : title)
                 .setContentText(text)
+                .setStyle(new Notification.BigTextStyle().bigText(line.isEmpty() ? text : text + "\n" + line))
                 .setContentIntent(open)
                 .setOnlyAlertOnce(true)
                 .setOngoing(ongoing)
@@ -143,10 +163,10 @@ public class SyncService extends Service {
 
     /** Progress in the notification (throttled) and in the gallery. */
     void show(String text, int pct) {
-        st.setStatus(text, true, false);
+        st.setStatus(text, true, false, pct);
         if (destroyed) return; // stopped by the system (6 h limit): no orphan notification
         long now = SystemClock.elapsedRealtime();
-        if (now - lastNote < 700 && pct > 0 && pct < 100) return;
+        if (now - lastNote < 700 && pct >= 0 && pct < 100) return; // progress comes every MB: the notification follows it at most ~1.5 times a second
         lastNote = now;
         nm.notify(NOTE, note(text, getString(R.string.n_working), pct, true));
     }

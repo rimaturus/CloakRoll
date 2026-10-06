@@ -59,7 +59,7 @@ public class MainActivity extends Activity {
     static final int BIO_NEGATIVE_BUTTON = 13; // BiometricPrompt.BIOMETRIC_ERROR_NEGATIVE_BUTTON, which the SDK jar hides
     static final int REQ_PICK = 1, REQ_NOTIF = 2, REQ_MEDIA = 3, REQ_FREE = 4, REQ_TREE = 10, RUN = 1, OK = 2, WARN = 3, BAD = 4, INFO_TEXT = 0xB3FFFFFF, INFO_ERROR = 0xFFFF9A93;
     static final int MATCH = ViewGroup.LayoutParams.MATCH_PARENT, WRAP = ViewGroup.LayoutParams.WRAP_CONTENT;
-    static final List<String> VAULT_SCREENS = Arrays.asList("gallery", "viewer", "settings", "about", "changepw", "stats", "tour");
+    static final List<String> VAULT_SCREENS = Arrays.asList("gallery", "viewer", "settings", "about", "changepw", "stats", "tour", "activity");
     static final int TOUR_PAGES = 6;
     /** App languages ("" = the phone's). Also in res/xml/locales_config.xml. */
     static final String[] LANGS = {"", "en", "it", "es", "de", "fr", "pt"};
@@ -77,18 +77,19 @@ public class MainActivity extends Activity {
     int tourPage;
     /** What the folder picker is open for; its index is added to REQ_TREE, so the answer survives a restart of the screen. */
     static final String[] TREE_FOR = {"vault", "copy", "copy_settings"};
-    boolean picking, connecting, testing, started;
+    boolean picking, connecting, testing, started, askingMove;
     long nextLoginTry, nextAutoBackup; // the automatic backup looks for new files at most every 30 s
-    volatile List<Uri> lastBatch;      // what it queued last: files still pending after that failed
     volatile int viewToken;
     WebView web;
     TextView titleView, subtitleView, loginStatus, loginHost, odStatus;
     ImageView loginHostIcon;
     View odFallback;
     LinearLayout banner;
-    TextView bannerText, bannerAction;
+    TextView bannerText, bannerDetail, bannerAction;
     ImageView bannerIcon;
-    ProgressBar bannerSpin;
+    ProgressBar bannerSpin, bannerBar;
+    final Runnable activityTick = new Runnable() { public void run() { if ("activity".equals(screen)) { fillActivity.run(); ui.postDelayed(this, 1000); } } };
+    Runnable fillActivity = new Runnable() { public void run() { } }; // set by showActivity: writes the live figures into its views
     BaseAdapter adapter;
     GridView grid;
     int cellSize;
@@ -152,6 +153,7 @@ public class MainActivity extends Activity {
         else if ("log".equals(again)) showLog();
         else if ("stats".equals(again)) showStats();
         else if ("tour".equals(again)) showTour();
+        else if ("activity".equals(again)) showActivity();
         else showGallery();
     }
 
@@ -173,26 +175,20 @@ public class MainActivity extends Activity {
 
     /** Automatic backup while the app is open and unlocked: new photos and videos go to the upload service now. */
     void autoBackup() {
-        if (st.key == null || !Backup.on(st) || !Backup.allowed(this) || st.busyJobs > 0 || st.backupRunning
+        if (st.key == null || !Backup.on(st) || !Backup.allowed(this) || st.busyJobs > 0 || st.backupRunning || st.moving() || st.changing()
                 || SystemClock.elapsedRealtime() < nextAutoBackup || !Backup.networkOk(this, st)) return;
         nextAutoBackup = SystemClock.elapsedRealtime() + 30_000;
         final List<Store.Item> items = new ArrayList<>(st.items);
         io.execute(new Runnable() { public void run() {
-            List<Uri> before = lastBatch, now = Backup.pending(MainActivity.this, st, items, new long[1]);
-            lastBatch = null;
-            if (before != null) { Backup.noteFailed(st, before, now); now.removeAll(before); } // left for tomorrow
-            final List<Uri> todo = now.subList(0, Math.min(now.size(), Backup.BATCH));
-            if (todo.isEmpty()) return;
+            if (Backup.pending(MainActivity.this, st, items, new long[1]).isEmpty()) return; // nothing new: no service started for nothing
             post(new Runnable() { public void run() {
                 if (st.key == null || st.busyJobs > 0 || st.backupRunning) return;
-                Journal.add("automatic backup: " + todo.size() + " new files");
-                lastBatch = todo;
-                startUploads(todo, "");
+                startJob(SyncService.BACKUP); // the service lists the new files itself: no limit on how many
             }});
         }});
     }
 
-    /** Queues files for the upload service; the automatic backup takes the next batch when the job has ended. */
+    /** Queues picked files for the upload service. */
     void startUploads(List<Uri> uris, String into) {
         try { SyncService.start(this, SyncService.UPLOAD, uris, into); }
         catch (Exception e) { toast(s(R.string.upload_start_failed, explain(e))); }
@@ -259,12 +255,24 @@ public class MainActivity extends Activity {
             banner.setVisibility(st.status == null ? View.GONE : View.VISIBLE);
             if (st.status != null) {
                 bannerText.setText(st.status);
+                String line = st.jobRunning ? st.liveLine() : "";
+                bannerDetail.setText(line);
+                bannerDetail.setVisibility(line.isEmpty() ? View.GONE : View.VISIBLE);
+                bannerBar.setVisibility(st.jobRunning && st.statusPct >= 0 ? View.VISIBLE : View.GONE);
+                bannerBar.setProgress(Math.max(0, st.statusPct));
                 bannerSpin.setVisibility(st.jobRunning ? View.VISIBLE : View.GONE);
                 bannerIcon.setVisibility(st.jobRunning ? View.GONE : View.VISIBLE);
                 bannerIcon.setImageDrawable(new Ui.Icon(st.statusBad ? Ui.ALERT : Ui.CHECK, st.statusBad ? u.warn : u.ok));
                 bannerAction.setText(st.jobRunning ? R.string.stop : R.string.ok);
             }
         }
+    }
+
+    /** The Stop button of the banner and of the Activity screen: after the current file. */
+    void askStop() {
+        new AlertDialog.Builder(this).setMessage(R.string.stop_job_q)
+                .setPositiveButton(R.string.stop, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { SyncService.stop(MainActivity.this); Backup.stop(); } })
+                .setNegativeButton(R.string.continue_, null).show();
     }
 
     void back() {
@@ -277,7 +285,7 @@ public class MainActivity extends Activity {
                 else if (!openFolder.isEmpty()) { openFolder = ""; showGallery(); }
                 else finish();
                 break;
-            case "settings": showGallery(); break;
+            case "settings": case "activity": showGallery(); break;
             case "about": case "changepw": case "stats": showSettings(); break;
             case "tour": if (tourPage > 0) { tourPage--; showTour(); } else endTour(); break;
             case "privacy": if (st.key != null) showSettings(); else if (prefs.contains("verifier")) start(); else showWelcome(); break;
@@ -289,8 +297,8 @@ public class MainActivity extends Activity {
             case "login":
                 if (web != null && web.canGoBack()) { web.goBack(); break; }
                 // fall through
-            case "odlogin": if (prefs.contains("verifier")) start(); else showChoose(); break;
-            case "choose": showWelcome(); break;
+            case "odlogin": if (st.changing()) cancelChange(); else if (prefs.contains("verifier")) start(); else showChoose(); break;
+            case "choose": if (st.changing()) cancelChange(); else showWelcome(); break;
             case "selftest": if (!testing) { if (st.key != null) showGallery(); else start(); } break;
             case "create": case "restore": showChoose(); break;
             default: finish();
@@ -544,17 +552,20 @@ public class MainActivity extends Activity {
     }
 
     void showChoose() {
+        final boolean changing = st.changing(); // from Settings: another storage for an existing vault
         LinearLayout l = u.page();
-        u.steps(l, 1, 3);
-        u.title(l, s(R.string.choose_title));
-        u.note(l, s(R.string.choose_note));
-        LinearLayout copy = u.card(l);
-        copy.setPadding(u.dp(6), u.dp(4), u.dp(6), u.dp(4));
-        final Switch sw = u.toggle(prefs.getBoolean("local_copy", false));
-        u.row(copy, Ui.PHONE, s(R.string.copy_t), s(R.string.copy_setup_d), sw, new View.OnClickListener() { public void onClick(View v) {
-            sw.setChecked(!sw.isChecked());
-            prefs.edit().putBoolean("local_copy", sw.isChecked()).apply();
-        }});
+        if (!changing) u.steps(l, 1, 3);
+        u.title(l, s(changing ? R.string.change_choose_title : R.string.choose_title));
+        u.note(l, s(changing ? R.string.change_choose_note : R.string.choose_note));
+        if (!changing) {
+            LinearLayout copy = u.card(l);
+            copy.setPadding(u.dp(6), u.dp(4), u.dp(6), u.dp(4));
+            final Switch sw = u.toggle(prefs.getBoolean("local_copy", false));
+            u.row(copy, Ui.PHONE, s(R.string.copy_t), s(R.string.copy_setup_d), sw, new View.OnClickListener() { public void onClick(View v) {
+                sw.setChecked(!sw.isChecked());
+                prefs.edit().putBoolean("local_copy", sw.isChecked()).apply();
+            }});
+        }
         option(l, Ui.CLOUD, "Amazon Photos", s(R.string.amazon_tag), s(R.string.amazon_detail), true, "amazon");
         option(l, Ui.CLOUD, "OneDrive", s(R.string.od_tag), s(R.string.od_detail) + (OneDrive.configured() ? "" : "\n\n" + s(R.string.not_in_build, "Microsoft")),
                 OneDrive.configured(), "onedrive");
@@ -564,10 +575,11 @@ public class MainActivity extends Activity {
         LinearLayout n = u.notice(l, u.field);
         u.heading(n, s(R.string.google_t));
         u.note(n, s(R.string.google_d));
-        setScreen("choose", s(R.string.storage_title), s(R.string.step_n, 1), Ui.BACK, u.scroll(l));
+        setScreen("choose", s(R.string.storage_title), changing ? s(R.string.storage_now, st.baseFor(prefs.getString("changing", "")).name()) : s(R.string.step_n, 1), Ui.BACK, u.scroll(l));
     }
 
     void option(LinearLayout parent, int icon, String name, String tag, String detail, boolean enabled, final String backend) {
+        if (st.changing() && backend.equals(prefs.getString("changing", ""))) { enabled = false; detail = s(R.string.change_same); } // a move needs two accounts signed in: not the same service twice
         LinearLayout k = u.card(parent);
         LinearLayout head = u.hbox();
         head.addView(u.badge(icon, u.accent, u.accentSoft, 44), new LinearLayout.LayoutParams(u.dp(44), u.dp(44)));
@@ -584,7 +596,7 @@ public class MainActivity extends Activity {
         k.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
             prefs.edit().putString("backend", backend).apply();
             if ("local".equals(backend)) pickFolder("vault");
-            else if (prefs.getBoolean("local_copy", false)) pickFolder("copy");
+            else if (prefs.getBoolean("local_copy", false) && !st.changing()) pickFolder("copy");
             else showSignIn();
         }});
     }
@@ -658,7 +670,7 @@ public class MainActivity extends Activity {
                 post(new Runnable() { public void run() {
                     if (!from.equals(screen)) { connecting = false; return; }
                     String old = prefs.getString("folder", "");
-                    if (!prefs.contains("verifier") || old.isEmpty() || old.equals(folder)) { connecting = false; useFolder(folder, first); return; }
+                    if (!prefs.contains("verifier") || old.isEmpty() || old.equals(folder) || st.changing()) { connecting = false; useFolder(folder, first); return; }
                     // `connecting` stays true while the question is open: the sign-in page doesn't connect again meanwhile
                     new AlertDialog.Builder(MainActivity.this).setTitle(R.string.other_account_t)
                             .setMessage(st.base() instanceof Local ? s(R.string.other_folder_d) : s(R.string.other_account_d, c.name()))
@@ -678,9 +690,77 @@ public class MainActivity extends Activity {
 
     void useFolder(String folder, List<JSONObject> first) {
         prefs.edit().putString("folder", folder).apply();
-        if (prefs.contains("verifier")) { if (!(st.base() instanceof Local)) toast(s(R.string.signed_in_to, cloudName())); start(); }
+        if (st.changing() && prefs.contains("verifier")) askMove();
+        else if (prefs.contains("verifier")) { if (!(st.base() instanceof Local)) toast(s(R.string.signed_in_to, cloudName())); start(); }
         else if (first.isEmpty()) showCreatePassword();
         else showRestorePassword(first.get(0).optString("id"));
+    }
+
+    // ---------------------------------------------------------------- another storage for an existing vault
+
+    /** Settings: the vault goes to another service or folder. The current one is remembered until the user decides what happens to the files. */
+    void changeStorage() {
+        long bytes = 0;
+        for (Store.Item it : st.items) bytes += it.size;
+        new AlertDialog.Builder(this).setTitle(R.string.change_storage_t)
+                .setMessage(s(R.string.change_storage_d, st.items.size(), human(bytes), cloudName()))
+                .setPositiveButton(R.string.continue_, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                    prefs.edit().putString("changing", st.backend()).putString("changing_folder", st.folder()).apply();
+                    showChoose();
+                }})
+                .setNegativeButton(R.string.cancel, null).show();
+    }
+
+    /** Back to the storage the vault was on, nothing changed. */
+    void cancelChange() {
+        prefs.edit().putString("backend", prefs.getString("changing", "")).putString("folder", prefs.getString("changing_folder", ""))
+                .remove("changing").remove("changing_folder").apply();
+        if (st.key != null) showSettings(); else start();
+    }
+
+    /**
+     * Signed in to the new storage: move the items there (the encrypted files are copied in the background), or start
+     * empty there (they stay where they are). Asked again after an unlock if the vault locked meanwhile.
+     */
+    void askMove() {
+        if (st.key == null) { showUnlock(); return; }
+        if (askingMove) return; // the question is on screen already
+        askingMove = true;
+        long bytes = 0;
+        for (Store.Item it : st.items) bytes += it.size;
+        final String oldName = st.baseFor(prefs.getString("changing", "")).name(), newName = cloudName();
+        String eta = st.eta(st.stats.seconds(bytes, Stats.DOWN, Stats.DEC, Stats.ENC, Stats.UP));
+        new AlertDialog.Builder(this).setTitle(s(R.string.move_q, newName))
+                .setMessage(s(R.string.move_d, st.items.size(), human(bytes), oldName, newName) + (eta.isEmpty() ? "" : "\n\n" + s(R.string.move_eta, eta)))
+                .setPositiveButton(R.string.move_btn, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                    askingMove = false;
+                    SharedPreferences.Editor e = prefs.edit().putString("move_from", prefs.getString("changing", "")).putString("move_from_folder", prefs.getString("changing_folder", ""))
+                            .putInt("move_left", st.items.size()).remove("changing").remove("changing_folder");
+                    if (st.baseFor(prefs.getString("changing", "")) instanceof Local) e.putBoolean("local_copy", false); // the phone folder was the vault, not a copy folder: no copies go there
+                    e.apply();
+                    Journal.add("vault moved to " + newName + " from " + oldName + ": the files follow in the background");
+                    startJob(SyncService.MOVE);
+                    showGallery();
+                }})
+                .setNeutralButton(R.string.move_empty, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { askingMove = false; startEmpty(); } })
+                .setNegativeButton(R.string.cancel, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { askingMove = false; cancelChange(); } })
+                .setCancelable(false).show();
+    }
+
+    /** The vault on the new storage starts with nothing: the list on the phone is emptied (the files stay on the previous storage). */
+    void startEmpty() {
+        final byte[] k = keyCopy();
+        if (k == null) { showUnlock(); return; }
+        io.execute(new Runnable() { public void run() {
+            try {
+                st.edit(k, new Store.Edit() { public void apply(Store.Index ix) { ix.items.clear(); ix.folders.clear(); ix.retire.clear(); } });
+                prefs.edit().remove("changing").remove("changing_folder").remove("unopenable").remove("suspect").apply();
+                Journal.add("vault now on " + cloudName() + ", started empty");
+                post(new Runnable() { public void run() { showGallery(); } });
+            } catch (final Exception e) {
+                post(new Runnable() { public void run() { toast(explain(e)); } });
+            } finally { Arrays.fill(k, (byte) 0); }
+        }});
     }
 
     void signOut() {
@@ -1277,6 +1357,8 @@ public class MainActivity extends Activity {
                 showGallery();
                 whatsNew();
                 if (st.reencrypting()) startJob(SyncService.REENCRYPT); // a password change still being applied
+                if (st.moving()) startJob(SyncService.MOVE);            // a move to another storage still under way
+                if (st.changing()) askMove();                           // signed in to another storage, locked before deciding
             }});
         }
     }
@@ -1432,29 +1514,40 @@ public class MainActivity extends Activity {
         LinearLayout col = u.vbox();
         frame.addView(col, new FrameLayout.LayoutParams(MATCH, MATCH));
 
-        // background job status: progress, result, Stop
-        LinearLayout b = u.hbox();
+        // background job status: what is happening, bytes / speed / time left, a progress bar, Stop. Tap it for the details
+        LinearLayout b = u.vbox();
         b.setBackground(Ui.round(u.surface, u.dp(16)));
-        b.setPadding(u.dp(14), u.dp(6), u.dp(4), u.dp(6));
+        LinearLayout row = u.hbox();
+        row.setPadding(u.dp(14), u.dp(6), u.dp(4), u.dp(2));
         FrameLayout mark = new FrameLayout(this);
         bannerSpin = new ProgressBar(this, null, android.R.attr.progressBarStyleSmall);
         bannerSpin.setIndeterminateTintList(ColorStateList.valueOf(u.accent));
         mark.addView(bannerSpin, new FrameLayout.LayoutParams(u.dp(20), u.dp(20), Gravity.CENTER));
         bannerIcon = new ImageView(this);
         mark.addView(bannerIcon, new FrameLayout.LayoutParams(u.dp(20), u.dp(20), Gravity.CENTER));
-        b.addView(mark, new LinearLayout.LayoutParams(u.dp(22), u.dp(22)));
-        bannerText = u.label(null, "", 14, u.text, false);
-        bannerText.setPadding(u.dp(12), u.dp(6), u.dp(8), u.dp(6));
-        b.addView(bannerText, new LinearLayout.LayoutParams(0, WRAP, 1f));
-        bannerAction = u.label(b, "", 14, u.accent, true);
+        row.addView(mark, new LinearLayout.LayoutParams(u.dp(22), u.dp(22)));
+        LinearLayout texts = u.vbox();
+        texts.setPadding(u.dp(12), u.dp(6), u.dp(8), u.dp(6));
+        texts.setBackground(u.ripple(null, u.dp(12)));
+        texts.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { showActivity(); } });
+        bannerText = u.label(texts, "", 14, u.text, false);
+        bannerDetail = u.label(texts, "", 12, u.muted, false);
+        bannerDetail.setPadding(0, u.dp(2), 0, 0);
+        row.addView(texts, new LinearLayout.LayoutParams(0, WRAP, 1f));
+        bannerAction = u.label(row, "", 14, u.accent, true);
         bannerAction.setPadding(u.dp(14), u.dp(12), u.dp(14), u.dp(12));
         bannerAction.setBackground(u.ripple(null, u.dp(12)));
         bannerAction.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
-            if (st.jobRunning) new AlertDialog.Builder(MainActivity.this).setMessage(R.string.stop_job_q)
-                    .setPositiveButton(R.string.stop, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { SyncService.stop(MainActivity.this); Backup.stop(); } })
-                    .setNegativeButton(R.string.continue_, null).show();
-            else { st.status = null; refresh(); }
+            if (st.jobRunning) askStop(); else { st.status = null; refresh(); }
         }});
+        b.addView(row);
+        bannerBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        bannerBar.setMax(100);
+        bannerBar.setProgressTintList(ColorStateList.valueOf(u.accent));
+        bannerBar.setProgressBackgroundTintList(ColorStateList.valueOf(u.line));
+        LinearLayout.LayoutParams barP = new LinearLayout.LayoutParams(MATCH, u.dp(4));
+        barP.setMargins(u.dp(14), 0, u.dp(14), u.dp(8));
+        b.addView(bannerBar, barP);
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(MATCH, WRAP);
         bp.setMargins(u.dp(12), 0, u.dp(12), u.dp(8));
         col.addView(b, bp);
@@ -1554,6 +1647,7 @@ public class MainActivity extends Activity {
         banner = b;
         restoreScroll();
         refresh();
+        if (st.changing()) askMove(); // signed in to another storage, and the question was lost (screen restarted)
     }
 
     /** The search field, with the keyboard up. */
@@ -2036,8 +2130,45 @@ public class MainActivity extends Activity {
         if (c != null) for (int i = 0; i < c.getItemCount(); i++) uris.add(c.getItemAt(i).getUri());
         else if (data.getData() != null) uris.add(data.getData());
         if (uris.isEmpty()) return;
-        startUploads(uris, openFolder);
-        toast(openFolder.isEmpty() ? q(R.plurals.queued, uris.size()) : q(R.plurals.queued_for, uris.size(), openFolder));
+        queuePicked(uris, openFolder);
+    }
+
+    /** Picked files go to the upload service; on mobile data, more than 50 MB is confirmed first, with the size. */
+    void queuePicked(final List<Uri> uris, final String into) {
+        io.execute(new Runnable() { public void run() {
+            long sum = 0;
+            for (Uri u : uris) sum += Jobs.size(MainActivity.this, u);
+            final long bytes = sum;
+            post(new Runnable() { public void run() {
+                if (st.key == null) { toast(s(R.string.locked_toast)); return; }
+                final Runnable go = new Runnable() { public void run() {
+                    startUploads(uris, into);
+                    toast(into.isEmpty() ? q(R.plurals.queued, uris.size()) : q(R.plurals.queued_for, uris.size(), into));
+                }};
+                if (!metered() || bytes < (50L << 20)) { go.run(); return; }
+                new AlertDialog.Builder(MainActivity.this).setTitle(R.string.mobile_q).setMessage(s(R.string.mobile_d, human(bytes)))
+                        .setPositiveButton(R.string.mobile_now, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { go.run(); } })
+                        .setNegativeButton(R.string.cancel, null).show();
+            }});
+        }});
+    }
+
+    boolean metered() {
+        android.net.ConnectivityManager cm = getSystemService(android.net.ConnectivityManager.class);
+        return cm != null && cm.isActiveNetworkMetered();
+    }
+
+    /** "Wi-Fi", "Mobile data (metered)"...: the connection in use, and what it says it can do. */
+    String[] connection() {
+        android.net.ConnectivityManager cm = getSystemService(android.net.ConnectivityManager.class);
+        android.net.Network n = cm == null ? null : cm.getActiveNetwork();
+        android.net.NetworkCapabilities c = n == null ? null : cm.getNetworkCapabilities(n);
+        if (c == null) return new String[]{s(R.string.net_none), null};
+        String kind = s(c.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) ? R.string.net_wifi
+                : c.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR) ? R.string.net_mobile : R.string.net_other);
+        int down = c.getLinkDownstreamBandwidthKbps(), up = c.getLinkUpstreamBandwidthKbps();
+        return new String[]{cm.isActiveNetworkMetered() ? s(R.string.net_metered, kind) : kind,
+                down <= 0 && up <= 0 ? null : s(R.string.net_link, human(down * 125L), human(up * 125L))};
     }
 
     void startSync() { startJob(SyncService.SYNC); }
@@ -2138,10 +2269,11 @@ public class MainActivity extends Activity {
             final long began = SystemClock.elapsedRealtime();
             return new Cloud.Progress() { public void on(final long d, final long total) {
                 if (!open()) throw new CancellationException();
-                final double rate = st.stats.speed(Stats.DOWN, d, SystemClock.elapsedRealtime() - began); // of this download, once it has one
+                long ms = SystemClock.elapsedRealtime() - began; // this download's own speed once it says something, the remembered one until then
+                final double rate = ms >= 2000 && d >= (1 << 20) ? d * 1000.0 / ms : st.stats.speed(Stats.DOWN);
                 post(new Runnable() { public void run() {
                     if (open()) say(owner, s(R.string.v_downloading, total > 0 ? 100 * d / total + "%" : human(d))
-                            + (total > 0 ? st.left(st.stats.seconds(total - d, rate)) : ""), false);
+                            + (total > 0 && rate > 0 ? st.left(Math.round(Math.ceil((total - d) / rate))) : ""), false);
                 }});
             }};
         }
@@ -2381,8 +2513,14 @@ public class MainActivity extends Activity {
         u.section(l, s(R.string.storage_title).toUpperCase(getResources().getConfiguration().getLocales().get(0)));
         LinearLayout sto = u.card(l);
         sto.setPadding(u.dp(6), u.dp(4), u.dp(6), u.dp(4));
+        if (st.moving()) u.row(sto, Ui.MOVE, s(R.string.move_t, cloudName()), q(R.plurals.move_left, prefs.getInt("move_left", 0), st.baseFor(prefs.getString("move_from", "")).name()), null,
+                new View.OnClickListener() { public void onClick(View v) { startJob(SyncService.MOVE); showGallery(); } });
+        else u.row(sto, st.base() instanceof Local ? Ui.PHONE : Ui.CLOUD, s(R.string.storage_now, cloudName()), s(R.string.storage_change_d), null,
+                new View.OnClickListener() { public void onClick(View v) { changeStorage(); } });
         u.row(sto, Ui.SYNC, s(R.string.menu_sync, cloudName()), s(R.string.sync_d), null,
                 new View.OnClickListener() { public void onClick(View v) { startSync(); showGallery(); } });
+        if (st.status != null) u.row(sto, Ui.CHART, s(R.string.act_t), st.status, null,
+                new View.OnClickListener() { public void onClick(View v) { showActivity(); } });
         final boolean auto = Backup.on(st);
         u.row(sto, Ui.IMAGE, s(R.string.auto_t), s(!auto ? R.string.auto_off_d : Backup.anyNetwork(st) ? R.string.auto_on_any_d : R.string.auto_on_d), u.toggle(auto), new View.OnClickListener() { public void onClick(View v) {
             if (auto) { Backup.turnOff(MainActivity.this, st); showSettings(); } else enableBackup();
@@ -2447,6 +2585,78 @@ public class MainActivity extends Activity {
         foot.setGravity(Gravity.CENTER);
         foot.setPadding(u.dp(16), u.dp(20), u.dp(16), 0);
         setScreen("settings", s(R.string.settings), null, Ui.BACK, u.scroll(l));
+    }
+
+    /**
+     * The figures behind the banner, refreshed every second: how far the job under way (or the last one) is, its speed,
+     * how long each step has taken, and the connection in use.
+     */
+    void showActivity() {
+        final Stats.Live l = st.stats.live;
+        LinearLayout p = u.page();
+        LinearLayout k = u.card(p);
+        final TextView head = u.heading(k, "");
+        final ProgressBar bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        bar.setMax(100);
+        bar.setProgressTintList(ColorStateList.valueOf(u.accent));
+        bar.setProgressBackgroundTintList(ColorStateList.valueOf(u.line));
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(MATCH, u.dp(6));
+        bp.setMargins(0, u.dp(8), 0, u.dp(10));
+        k.addView(bar, bp);
+        final int[] names = {R.string.act_files, R.string.act_data, R.string.act_elapsed, R.string.act_left, R.string.act_now, R.string.act_avg};
+        final TextView[] values = new TextView[names.length];
+        for (int i = 0; i < names.length; i++) values[i] = pair(k, s(names[i]));
+        final TextView stop = u.button(p, s(R.string.stop), Ui.TONAL, new View.OnClickListener() { public void onClick(View v) { askStop(); } });
+
+        LinearLayout steps = u.card(p);
+        u.heading(steps, s(R.string.act_steps));
+        final int[] titles = {R.string.act_up, R.string.act_down, R.string.act_enc, R.string.act_dec}; // Stats.KINDS order
+        final TextView[] step = new TextView[titles.length];
+        for (int i = 0; i < titles.length; i++) step[i] = pair(steps, s(titles[i]));
+        u.note(steps, s(R.string.act_steps_note));
+
+        LinearLayout net = u.card(p);
+        u.heading(net, s(R.string.act_net));
+        final TextView netKind = u.body(net, ""), netLink = u.note(net, "");
+        u.button(p, s(R.string.stats_t), Ui.TEXT, new View.OnClickListener() { public void onClick(View v) { showStats(); } });
+
+        fillActivity = new Runnable() { public void run() {
+            boolean running = st.jobRunning;
+            head.setText(st.status == null ? s(R.string.act_idle) : st.status);
+            bar.setVisibility(running && st.statusPct >= 0 ? View.VISIBLE : View.GONE);
+            bar.setProgress(Math.max(0, st.statusPct));
+            stop.setVisibility(running ? View.VISIBLE : View.GONE);
+            long secs = l.elapsed() / 1000;
+            values[0].setText(l.files == 0 ? "–" : l.file + " / " + l.files);
+            values[1].setText(l.total == 0 ? "–" : s(R.string.live_bytes, human(l.moved), human(l.total)) + " (" + (100 * l.moved / Math.max(1, l.total)) + "%)");
+            values[2].setText(l.began == 0 ? "–" : st.eta(secs));
+            values[3].setText(running && l.eta >= 0 ? st.eta(l.eta) : "–");
+            values[4].setText(running && l.rate > 0 ? s(R.string.live_rate, human((long) l.rate)) : "–");
+            values[5].setText(l.moved > 0 && secs > 0 ? s(R.string.live_rate, human(l.moved / secs)) : "–");
+            for (int i = 0; i < step.length; i++) {
+                long b = l.bytes[i], ms = l.ms[i];
+                ((View) step[i].getParent()).setVisibility(b > 0 ? View.VISIBLE : View.GONE);
+                if (b > 0) step[i].setText(s(R.string.act_step_line, human(b), st.eta(Math.max(1, (ms + 500) / 1000)), human(b * 1000 / Math.max(1, ms))));
+            }
+            String[] c = connection();
+            netKind.setText(c[0]);
+            netLink.setText(c[1] == null ? "" : c[1]);
+            netLink.setVisibility(c[1] == null ? View.GONE : View.VISIBLE);
+        }};
+        setScreen("activity", s(R.string.act_t), null, Ui.BACK, u.scroll(p));
+        ui.removeCallbacks(activityTick);
+        activityTick.run();
+    }
+
+    /** A "label        value" line of the Activity screen. Returns the value view. */
+    TextView pair(LinearLayout parent, String name) {
+        LinearLayout r = u.hbox();
+        r.setPadding(0, u.dp(5), 0, u.dp(5));
+        u.label(r, name, 14, u.muted, false).setLayoutParams(new LinearLayout.LayoutParams(0, WRAP, 1f));
+        TextView v = u.label(r, "", 14, u.text, true);
+        v.setGravity(Gravity.END);
+        parent.addView(r, u.wide(0));
+        return v;
     }
 
     /** Measured speeds and what they mean for typical files. */

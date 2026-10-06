@@ -85,6 +85,7 @@ final class Store {
     List<Item> items = new ArrayList<>(); // decrypted index: in memory only while unlocked
     List<String> folders = new ArrayList<>();
     String status;                        // last background-job line shown in the gallery
+    int statusPct = -1;                   // its progress, -1 if unknown
     boolean jobRunning, statusBad, needLogin, allowScreenshots;
     volatile boolean backupRunning;       // the scheduled automatic backup (Backup) is uploading
     String reopen;                        // screen to show again after the language changed (the activity restarts)
@@ -120,14 +121,25 @@ final class Store {
     }
 
     /** The storage itself, without timing or phone copy: for sign-in, the self-test and texts. Any thread. */
-    Cloud base() {
-        switch (backend()) {
+    Cloud base() { return baseFor(backend()); }
+
+    Cloud baseFor(String backend) {
+        switch (backend) {
             case "onedrive": return oneDrive;
             case "google": return google;
             case "local": return local;
             default: return amazon;
         }
     }
+
+    /** Another storage, read and written like cloud(): the one a move takes the files from. Any thread. */
+    Cloud cloudFor(String backend) { return new Transfers(baseFor(backend), keepsCopy() ? local : null, stats); }
+
+    /** The vault is being moved to another storage ("move_from": the one its files are still on). */
+    boolean moving() { return prefs.contains("move_from"); }
+
+    /** Another storage was picked in Settings and signed in to, and the user hasn't yet said whether the files move there. */
+    boolean changing() { return prefs.contains("changing"); }
 
     /** A copy of every encrypted file is kept in a folder on the phone too (next to a cloud). */
     boolean keepsCopy() { return !"local".equals(backend()) && prefs.getBoolean("local_copy", false) && local.tree() != null; }
@@ -152,8 +164,22 @@ final class Store {
     void post(Runnable r) { ui.post(r); }
 
     /** Any thread. `bad`: the job failed or stopped early (shown with a warning sign). */
-    void setStatus(final String s, final boolean running, final boolean bad) {
-        post(new Runnable() { public void run() { status = s; jobRunning = running; statusBad = bad; changed(); } });
+    void setStatus(final String s, final boolean running, final boolean bad) { setStatus(s, running, bad, -1); }
+
+    void setStatus(final String s, final boolean running, final boolean bad, final int pct) {
+        if (!running && stats.live.running()) stats.live.ended = android.os.SystemClock.elapsedRealtime();
+        post(new Runnable() { public void run() { status = s; jobRunning = running; statusBad = bad; statusPct = pct; changed(); } });
+    }
+
+    /** "1.2 GB of 60 GB · 8.4 MB/s · about 2 h left": the figures of the job under way, "" if it has none. */
+    String liveLine() {
+        Stats.Live l = stats.live;
+        if (l.total <= 0) return "";
+        StringBuilder s = new StringBuilder(app.getString(R.string.live_bytes, human(l.moved), human(l.total)));
+        if (l.rate > 0) s.append(" · ").append(app.getString(R.string.live_rate, human((long) l.rate)));
+        String t = eta(l.eta);
+        if (!t.isEmpty()) s.append(" · ").append(app.getString(R.string.eta_left, t));
+        return s.toString();
     }
 
     /** Main thread. Background jobs keep their own copy of the key until they finish. */

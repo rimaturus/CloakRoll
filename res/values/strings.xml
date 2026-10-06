@@ -39,7 +39,7 @@
     <string name="welcome_steps">Setup: choose where to store, sign in, create your password, self-test.</string>
     <string name="step_n">Step %1$d of 3</string>
     <string name="choose_title">Where should your vault live?</string>
-    <string name="choose_note">Only encrypted PNGs are stored there. To move to another service later you would start a new vault.</string>
+    <string name="choose_note">Only encrypted PNGs are stored there. You can move the vault to another service later, from Settings.</string>
     <string name="storage_title">Storage</string>
     <string name="amazon_tag">Unlimited with Prime</string>
     <string name="amazon_detail">Full-resolution photos don\'t count against your storage with Prime. Unofficial: Cloakroll uses the same web interface as the Amazon Photos website, so it can stop working if Amazon changes it (your files stay decryptable). Videos stored as photos go against the spirit of Prime\'s terms, which include only 5 GB for video.</string>
@@ -482,7 +482,7 @@
     <string name="tour6_d">On a new phone, sign in to the same storage, enter the same password and Sync brings everything back in seconds. Nobody can recover the photos without the password, not even us: keep it safe.</string>
     <string name="whats_new_t">What\'s new in Cloakroll %1$s</string>
     <string name="whats_new_off">Don\'t show this after updates</string>
-    <string name="whats_new">• The gallery is in order of the date written in each file\'s name. Items of the main view with no date in their name are in the folder “No date” (moved there once; move them wherever you like).\n• Sort into folders by type (menu): screenshots, WhatsApp, camera… going by the names.\n• Search by name; filter photos or videos; sort by date, name or size.\n• Select all, deselect all, invert the selection.\n• Coming back from a photo, the gallery is where you left it.</string>
+    <string name="whats_new">• Progress at a glance: the banner shows data through, speed and time left; tap it for the Activity screen (files, bytes, elapsed, each step\'s time, connection).\n• Time left is worked out from the job\'s own speed over the last minute, over all the data still to move.\n• Automatic backup no longer goes 300 files at a time: one run takes everything pending.\n• Change storage (Settings): sign in to another service or folder, and move your items there in the background, or start empty.\n• Adding more than 50 MB on mobile data asks first.</string>
     <string name="auto_net_t">Which connection?</string>
     <string name="auto_net_d">Photos and videos can be big: on mobile data they count against your plan.</string>
     <string name="auto_net_wifi">Only Wi-Fi</string>
@@ -519,4 +519,58 @@
     <string name="sort_name">By name</string>
     <string name="sort_size">Largest first</string>
     <string name="no_match">Nothing found</string>
+    <!-- v1.11: live progress, Activity screen, change of storage, mobile data -->
+    <string name="live_bytes">%1$s of %2$s</string>
+    <string name="live_rate">%1$s/s</string>
+    <string name="act_t">Activity</string>
+    <string name="act_idle">Nothing running</string>
+    <string name="act_files">Files</string>
+    <string name="act_data">Data</string>
+    <string name="act_elapsed">Elapsed</string>
+    <string name="act_left">Time left</string>
+    <string name="act_now">Speed now</string>
+    <string name="act_avg">Average speed</string>
+    <string name="act_steps">This job, step by step</string>
+    <string name="act_steps_note">Time spent in each step since the job began. Encryption and decryption run on this phone; upload and download on the connection. The time left comes from the job\'s own speed over the last minute.</string>
+    <string name="act_step_line">%1$s in %2$s · %3$s/s</string>
+    <string name="act_up">Upload</string>
+    <string name="act_down">Download</string>
+    <string name="act_enc">Encryption</string>
+    <string name="act_dec">Decryption</string>
+    <string name="act_net">Connection</string>
+    <string name="net_wifi">Wi-Fi</string>
+    <string name="net_mobile">Mobile data</string>
+    <string name="net_other">Other network</string>
+    <string name="net_none">No connection</string>
+    <string name="net_metered">%1$s (metered: counts against a data plan)</string>
+    <string name="net_link">The link says up to %1$s/s down, %2$s/s up</string>
+    <string name="storage_now">Vault on %1$s</string>
+    <string name="storage_change_d">Change storage: another service, account or folder, with or without moving the files</string>
+    <string name="change_storage_t">Change storage</string>
+    <string name="change_storage_d">You sign in to another service (or pick another folder), then choose whether your %1$d items (%2$s) move there: the encrypted files are copied over in the background, and stay on %3$s until you delete them there. Your password stays the same.</string>
+    <string name="change_choose_title">Where should the vault go?</string>
+    <string name="change_choose_note">Only encrypted PNGs are stored there. Next: sign in, then decide whether the files move.</string>
+    <string name="change_same">This is where the vault is now. To change account, sign out in Settings instead.</string>
+    <string name="move_q">Move the vault to %1$s?</string>
+    <string name="move_d">%1$d items (%2$s) are on %3$s.\n\nMove: the encrypted files are copied to %4$s in the background, one by one; you can keep using the vault meanwhile. They stay on %3$s until you delete them there.\n\nStart empty: they stay on %3$s only, and the vault on %4$s starts empty. Files already there that belong to another vault are left alone.</string>
+    <string name="move_eta">At the measured speeds the move takes %1$s.</string>
+    <string name="move_btn">Move</string>
+    <string name="move_empty">Start empty</string>
+    <string name="move_t">Move to %1$s under way</string>
+    <plurals name="move_left">
+        <item quantity="one">%1$d item still on %2$s · tap to continue</item>
+        <item quantity="other">%1$d items still on %2$s · tap to continue</item>
+    </plurals>
+    <string name="move_listing">Move: listing your vault on %1$s...</string>
+    <string name="move_progress">Moving %1$d of %2$d to %3$s</string>
+    <string name="move_uploading">Move: uploading</string>
+    <string name="move_done">Moved %1$d items to %2$s. They are still on %3$s too: delete the folder there when you like.</string>
+    <plurals name="move_paused">
+        <item quantity="one">Move paused: %1$d item still to move. It continues the next time you unlock Cloakroll.</item>
+        <item quantity="other">Move paused: %1$d items still to move. It continues the next time you unlock Cloakroll.</item>
+    </plurals>
+    <string name="move_failed">Move stopped: %1$s</string>
+    <string name="mobile_q">Upload on mobile data?</string>
+    <string name="mobile_d">%1$s would go over mobile data now, and count against your plan. Automatic backup on Wi-Fi only avoids this.</string>
+    <string name="mobile_now">Upload now</string>
 </resources>

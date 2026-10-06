@@ -10,7 +10,7 @@ Amazon Prime includes unlimited full-resolution photo storage, and OneDrive and 
 
 ![What you see vs. what the cloud stores](docs/comparison.png)
 
-> **Status: beta (v1.10.0).** Android 13 or newer. Not affiliated with, endorsed by or connected to Amazon, Microsoft or Google.
+> **Status: beta (v1.11.0).** Android 13 or newer. Not affiliated with, endorsed by or connected to Amazon, Microsoft or Google.
 >
 > ♥ **Cloakroll is free and lives on donations: [buy me a coffee](https://buymeacoffee.com/rimaturus)** if it is useful to you.
 
@@ -118,10 +118,13 @@ No contacts, location, camera or microphone permission. Without automatic backup
 ## Features
 
 - **Four storage options**, chosen at setup: Amazon Photos (unlimited photos with Prime, unofficial web interface, on the Amazon site of your account: .com, .co.uk, .de, .it, .co.jp...), OneDrive (official Microsoft Graph API), Google Drive (official Drive API, `drive.file` access only), or **only on this phone**, in a folder you choose
-- **Automatic backup** (*Settings*): new photos and videos go to the vault by themselves, on Wi-Fi, even with the app closed, through Android's job scheduler. Choose everything on the phone or only what is added from now on. To encrypt while the vault is locked, a copy of the key stays on the phone, protected by its secure hardware; opening the vault still needs the password
+- **Automatic backup** (*Settings*): new photos and videos go to the vault by themselves, on Wi-Fi, even with the app closed, through Android's job scheduler. Choose everything on the phone or only what is added from now on. One run takes everything that is pending, 60 MB or 60 GB (Android stops background data sync after 6 hours a day; the next run continues). To encrypt while the vault is locked, a copy of the key stays on the phone, protected by its secure hardware; opening the vault still needs the password
 - **Free up space** (*Settings*): photos and videos already in the vault can be removed from the phone in one go; Android's own dialog asks first
 - **Encrypted copy on the phone** next to any cloud (setup or *Settings*): every encrypted PNG also goes in a folder you choose, so items open faster and offline, and you have one more backup
-- **Time estimates and statistics**: time left while adding or opening files, during *Sync* and a password change (from the speed of the transfer under way, or the measured ones until it has one), and *Settings > Transfer statistics* with the measured upload, download, encryption and decryption speeds of your phone and connection
+- **Change storage** (*Settings > Vault on ...*): sign in to another service, account or folder, then choose whether your items move there. The move copies the encrypted files in the background, one at a time (re-encrypted with the current key, so the file list stays consistent), resumes by itself if interrupted, and leaves the files on the previous storage until you delete them there. Or start empty on the new storage. The password stays the same
+- **Live progress**: the banner in the gallery shows what is happening, how much data is through, the speed of the job over the last minute and the time left (from that speed, so encryption time and network hiccups are in it; from the remembered speeds until the job has run for a few seconds). Tap it for the *Activity* screen: files and bytes done, elapsed and remaining time, speed now and on average, how long each step (encryption, upload, download, decryption) has taken in this job, and the connection in use (Wi-Fi or mobile data, metered or not, what the link says it can do)
+- **Transfer statistics** (*Settings*): the measured upload, download, encryption and decryption speeds of your phone and connection, and what they mean for typical files
+- **Mobile data**: automatic backup is Wi-Fi only unless you allow mobile data; adding more than 50 MB by hand while on mobile data asks first, with the size. Browsing the gallery costs no data (previews are on the phone); originals are downloaded only when you ask
 - Encrypt and upload many photos and videos at once, of any size; big files go up as 32 MB encrypted parts, and a part cut short by the network is sent again by itself instead of failing the whole file. The queue keeps running in the background with a progress notification and a *Stop* button
 - Gallery with instant previews. Opening an item shows its small preview (kept encrypted on the phone) and downloads nothing: the full-quality original is fetched only when you tap *Original* or *Save to phone*, so browsing costs no data. Swipe left and right to move between items; pinch or double-tap to zoom
 - **Folders**: create folders, long-press photos to select several and *Move* or *Delete* them, rename or delete folders (their photos are kept). Folder names and contents are saved in the cloud in one more encrypted file, together with the list of your items (name, date, size), so the provider can't read them and a new phone gets them back
@@ -223,7 +226,7 @@ Source layout:
 | `src/app/photovault/GoogleDrive.java` | Google Drive: Drive API v3 requests |
 | `src/app/photovault/Local.java` | A folder on the phone (Android's folder picker): the vault itself, or the encrypted copy |
 | `src/app/photovault/Transfers.java` | What the app uses: the storage, timed, plus the optional copy on the phone |
-| `src/app/photovault/Stats.java` | Measured speeds, time estimates |
+| `src/app/photovault/Stats.java` | Measured speeds, time estimates, live figures of the job under way |
 | `src/app/photovault/Store.java` | Shared state, encrypted local index and previews |
 | `src/app/photovault/SyncService.java` | Background uploads and sync |
 | `src/app/photovault/MainActivity.java` | All screens |
@@ -242,7 +245,8 @@ Source layout:
 - **Google Drive: storage and registration.** Files count against your Google storage (15 GB free, shared with Gmail and Google Photos). Builds need a Google OAuth client ID (see [PUBLISHING.md](PUBLISHING.md)).
 - **Only on this phone.** No cloud copy: a lost or broken phone means a lost vault, unless you copy the folder elsewhere (a PC, a USB drive).
 - **No Google Photos.** Google's Photos API doesn't fit: apps may upload only real photos and videos (not other data), can't delete what they upload, and downloads aren't bit-exact, which encrypted files need. Google Drive is offered instead.
-- Android limits background data sync to 6 hours a day.
+- Android limits background data sync to 6 hours a day: a very large first backup takes a few days, continuing by itself.
+- **Moving the vault** to another storage downloads and uploads every file once; the previous storage keeps its copy until you delete it, so for a while the vault exists twice.
 
 ## Support the project
 

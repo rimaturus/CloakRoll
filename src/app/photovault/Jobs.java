@@ -31,25 +31,53 @@ final class Jobs {
     final Host host;
     private final String tmp;  // prefix of this runner's temporary files: two runners never share one
     volatile int cancelUpTo;   // jobs with an id up to this one stop
-    long jobTotal, jobDone;    // bytes of all the files of the job, and of the ones already uploaded (for the time left)
-    String[] jobSteps = {};    // what the rest of them goes through before it is uploaded
+    long jobTotal, jobDone;    // bytes of all the files of the job, and of the ones already through (for the time left)
+    String[] jobSteps = {};    // the steps the rest of them goes through (Stats kinds), for the estimate before the job's own speed is known
+    private final ArrayDeque<long[]> samples = new ArrayDeque<>(); // {when, bytes through}: the job's speed over the last minute
+    Cloud from;                // a move: files are downloaded from here and uploaded to the storage in use
 
     Jobs(Context ctx, Store st, Host host, String tmp) { this.ctx = ctx; this.st = st; this.host = host; this.tmp = tmp; }
 
+    /** A job begins: `total` bytes in `files` files, each going through `steps`. */
+    void begin(long total, int files, String... steps) {
+        jobTotal = total; jobDone = 0; jobSteps = steps;
+        samples.clear();
+        st.stats.live.start(total, files);
+    }
+
+    /**
+     * `sent` bytes into the current file. Returns " · about 3 min left" for the rest of the job, from the speed of this
+     * job over the last minute (encryption, transfer and everything in between, as they really went), or from the
+     * remembered speeds of each step until it has been going for a few seconds. "" if not known yet.
+     */
+    String tick(long sent) {
+        Stats.Live l = st.stats.live;
+        long now = SystemClock.elapsedRealtime(), moved = jobDone + sent;
+        samples.addLast(new long[]{now, moved});
+        while (samples.size() > 2 && now - samples.peekFirst()[0] > 60_000) samples.pollFirst();
+        long[] first = samples.peekFirst();
+        long span = now - first[0], rest = Math.max(0, jobTotal - moved);
+        double rate = span >= 5000 && moved > first[1] ? (moved - first[1]) * 1000.0 / span : 0;
+        long secs = jobTotal <= 0 ? -1 : rate > 0 ? Math.round(Math.ceil(rest / rate)) : st.stats.seconds(rest, jobSteps);
+        l.moved = moved; l.rate = rate; l.eta = secs;
+        return st.left(secs);
+    }
 
     void upload(byte[] k, byte[] salt, List<Uri> uris, String into, int id) throws Exception {
         int ok = 0, failed = 0;
         long[] sizes = new long[uris.size()];
-        long before = 0; // bytes of the files before this one
-        jobTotal = jobDone = 0;
-        jobSteps = new String[]{Stats.ENC};
-        for (int n = 0; n < sizes.length; n++) jobTotal += sizes[n] = size(uris.get(n));
+        long before = 0, total = 0; // bytes of the files before this one
+        for (int n = 0; n < sizes.length; n++) total += sizes[n] = size(ctx, uris.get(n));
+        begin(total, uris.size(), Stats.ENC, Stats.UP);
         for (int n = 0; n < uris.size(); n++) {
             if (id <= cancelUpTo) break;
             Uri u = uris.get(n);
             jobDone = before; // also after a file that failed half way
             before += sizes[n];
+            st.stats.live.file = n + 1;
             String pre = ctx.getString(R.string.adding, n + 1, uris.size());
+            host.show(pre, (int) (100 * jobDone / Math.max(1, jobTotal)));
+            tick(0);
             try {
                 String name = "item", mime = ctx.getContentResolver().getType(u);
                 long taken = System.currentTimeMillis();
@@ -105,20 +133,11 @@ final class Jobs {
     String plural(int id, int n) { return ctx.getResources().getQuantityString(id, n, n); }
 
     /** Size of a picked file, 0 if the gallery doesn't say. */
-    long size(Uri u) {
+    static long size(Context ctx, Uri u) {
         try (Cursor c = ctx.getContentResolver().query(u, new String[]{OpenableColumns.SIZE}, null, null, null)) {
             if (c != null && c.moveToFirst() && !c.isNull(0)) return c.getLong(0);
         } catch (Exception ignored) { }
         return 0;
-    }
-
-    /**
-     * " · about 3 min left" for the rest of the job, `sent` bytes into an upload that began `ms` ago: at the speed of
-     * that upload, or at the measured ones until it has one. "" if not known yet.
-     */
-    String left(long sent, long ms) {
-        if (jobTotal <= 0) return "";
-        return st.left(st.stats.seconds(Math.max(0, jobTotal - jobDone - sent), st.stats.speed(Stats.UP, sent, ms), jobSteps));
     }
 
     /** Reads until `buf` is full or the stream ends. */
@@ -135,11 +154,11 @@ final class Jobs {
             long t0 = SystemClock.elapsedRealtime();
             try (OutputStream o = new BufferedOutputStream(new FileOutputStream(png), 1 << 16)) { Vault.encryptToPng(k, salt, plain, o); }
             st.stats.add(Stats.ENC, plain.length, SystemClock.elapsedRealtime() - t0);
-            final long total = png.length(), began = SystemClock.elapsedRealtime();
+            final long total = png.length();
             String id = st.cloud().upload(png, name, st.folder(), new Cloud.Progress() {
                 public void on(long d, long t) {
-                    int pct = (int) (100 * d / Math.max(1, total));
-                    host.show(label + " " + pct + "%" + left(d, SystemClock.elapsedRealtime() - began), pct);
+                    tick(d);
+                    host.show(label + " " + (int) (100 * d / Math.max(1, total)) + "%", (int) (100 * (jobDone + d) / Math.max(1, jobTotal)));
                 }
             }).getString("id");
             jobDone += plain.length;
@@ -204,6 +223,7 @@ final class Jobs {
             List<JSONObject> nodes = listing.files;
             final Set<String> remote = new HashSet<>(), local = new HashSet<>();
             for (JSONObject n : nodes) remote.add(n.getString("id"));
+            begin(0, nodes.size());
             Store.Index before = st.readIndex(k);
             for (Store.Item it : before.items) local.add(it.id);
             final Set<String> skip = new HashSet<>();
@@ -215,7 +235,9 @@ final class Jobs {
             final Set<String> suspect = new HashSet<>(st.prefs.getStringSet("suspect", Collections.<String>emptySet()));
             if (listing.complete) { foreign.retainAll(remote); suspect.retainAll(remote); }
             for (String x : foreign) if (remote.contains(x) && skip.add(x)) { res.unopenable.add(x); skipped++; }
-            if (listing.complete) { // drop items deleted on the cloud's website or app (only if it listed everything)
+            // drop items deleted on the cloud's website or app (only if it listed everything; not while a move is still
+            // bringing items over from the previous storage: they aren't here yet)
+            if (listing.complete && !st.moving()) {
                 final List<String> gone = new ArrayList<>();
                 for (String x : local) if (!remote.contains(x)) gone.add(x);
                 removed = gone.size();
@@ -286,6 +308,7 @@ final class Jobs {
                 if (id <= cancelUpTo) break;
                 String nid = node.getString("id");
                 if (skip.contains(nid)) continue;
+                st.stats.live.file = n;
                 host.show(ctx.getString(R.string.sync_restoring, n, nodes.size())
                         + st.left(looked < 3 ? -1 : (SystemClock.elapsedRealtime() - began) * todo / looked / 1000), 100 * n / nodes.size());
                 looked++;
@@ -424,16 +447,16 @@ final class Jobs {
             ix = st.readIndex(k);
             List<Store.Item> todo = new ArrayList<>();
             for (Store.Item it : ix.items) if (!cur.equals(it.salt)) todo.add(it);
-            long before = 0; // bytes of the files before this one
-            jobTotal = jobDone = 0;
-            jobSteps = new String[]{Stats.DOWN, Stats.DEC, Stats.ENC};
-            for (Store.Item it : todo) jobTotal += it.size;
+            long before = 0, total = 0; // bytes of the files before this one
+            for (Store.Item it : todo) total += it.size;
+            begin(total, todo.size(), Stats.DOWN, Stats.DEC, Stats.ENC, Stats.UP);
             for (int n = 0; n < todo.size(); n++) {
                 if (id <= cancelUpTo) break;
                 final Store.Item it = todo.get(n);
                 jobDone = before;
                 before += it.size;
-                host.show(ctx.getString(R.string.reenc_progress, n + 1, todo.size(), left(0, 0)), 100 * n / todo.size());
+                st.stats.live.file = n + 1;
+                host.show(ctx.getString(R.string.reenc_progress, n + 1, todo.size(), tick(0)), 100 * n / todo.size());
                 File cached = st.blobFile(it.id);
                 try {
                     final List<String> fresh = reencryptItem(k, salt, it, id);
@@ -518,13 +541,15 @@ final class Jobs {
         int made = 0, failed = 0;
         try {
             List<Store.Item> todo = st.withoutPreview(st.readIndex(k).items);
-            long rest = 0;
-            for (Store.Item it : todo) rest += Math.min(it.size, Store.CHUNK);
+            long total = 0;
+            for (Store.Item it : todo) total += Math.min(it.size, Store.CHUNK);
+            begin(total, todo.size(), Stats.DOWN, Stats.DEC);
             for (int n = 0; n < todo.size(); n++) {
                 if (id <= cancelUpTo) break;
                 Store.Item it = todo.get(n);
-                host.show(ctx.getString(R.string.previews_progress, n + 1, todo.size()) + st.left(st.stats.seconds(rest, Stats.DOWN, Stats.DEC)), 100 * n / todo.size());
-                rest -= Math.min(it.size, Store.CHUNK);
+                st.stats.live.file = n + 1;
+                host.show(ctx.getString(R.string.previews_progress, n + 1, todo.size()) + tick(0), 100 * n / todo.size());
+                jobDone += Math.min(it.size, Store.CHUNK);
                 File cached = st.blobFile(it.id), f = cached.exists() ? cached : new File(ctx.getCacheDir(), tmp + "preview.png");
                 try {
                     if (f != cached) st.cloud().download(it.id, f, null);
@@ -556,22 +581,23 @@ final class Jobs {
     List<String> reencryptItem(byte[] k, byte[] salt, Store.Item it, int job) throws Exception {
         File cached = st.blobFile(it.id), down = new File(ctx.getCacheDir(), tmp + "reenc-down.png");
         List<String> fresh = new ArrayList<>();
+        Cloud src = from != null ? from : st.cloud(); // a move: the old copy is on the previous storage
         try {
             List<String> olds = it.nodes();
-            String group = null;
+            String group = null, label = ctx.getString(from != null ? R.string.move_uploading : R.string.reenc_uploading);
             for (int p = 1; p < olds.size(); p++) { // parts 1..n-1 of a big file: same content, new key
                 if (job <= cancelUpTo) throw new IOException("stopped");
-                st.cloud().download(olds.get(p), down, null);
+                src.download(olds.get(p), down, null);
                 Vault.Opened o = st.decrypt(down, k);
                 JSONObject m = new JSONObject(o.meta);
                 if (group == null) group = m.optString("group");
                 if (m.optInt("part", -1) != p || !group.equals(m.optString("group"))) throw new IOException("part " + (p + 1) + " doesn't belong to this file");
-                fresh.add(put(k, salt, o.plain, "r" + olds.get(p) + "-" + Store.hex(Vault.random(4)) + ".png", ctx.getString(R.string.reenc_uploading)));
+                fresh.add(put(k, salt, o.plain, "r" + olds.get(p) + "-" + Store.hex(Vault.random(4)) + ".png", label));
             }
-            File src = cached.exists() ? cached : down;
-            if (src == down) st.cloud().download(it.id, down, null);
-            Vault.Opened o = st.decrypt(src, k);
-            if (olds.size() == 1 && Arrays.equals(o.salt, salt)) return null;
+            File f = cached.exists() ? cached : down;
+            if (f == down) src.download(it.id, down, null);
+            Vault.Opened o = st.decrypt(f, k);
+            if (from == null && olds.size() == 1 && Arrays.equals(o.salt, salt)) return null;
             if (olds.size() > 1 && (new JSONObject(o.meta).optInt("part", -1) != 0 || !new JSONObject(o.meta).optString("group").equals(group)))
                 throw new IOException("part 1 doesn't belong to this file");
             byte[] plain = o.plain;
@@ -580,13 +606,97 @@ final class Jobs {
                 plain = Vault.plainBuffer(meta, o.dataLen());
                 System.arraycopy(o.plain, o.dataOff, plain, plain.length - o.dataLen(), o.dataLen());
             }
-            fresh.add(0, put(k, salt, plain, "r" + it.id + "-" + Store.hex(Vault.random(4)) + ".png", ctx.getString(R.string.reenc_uploading)));
+            fresh.add(0, put(k, salt, plain, "r" + it.id + "-" + Store.hex(Vault.random(4)) + ".png", label));
             return fresh;
         } catch (Throwable e) {
             cached.delete(); // a damaged cached copy must not be reused
             if (!fresh.isEmpty()) try { retireNow(fresh); } catch (Exception x) { Journal.add("new copies left, removed on the next run: " + x); }
             throw e;
         } finally { down.delete(); }
+    }
+
+    /**
+     * The vault was pointed at another storage (Settings): every item still on the previous one is brought over, one
+     * file at a time (downloaded, re-encrypted with the current key, uploaded), and the list on the phone follows the new
+     * ids. Resumes where it stopped: items whose files the new storage already lists are done. The files on the previous
+     * storage are left as they are; the user deletes them there when they like.
+     */
+    void move(final byte[] k, int id) throws Exception {
+        final String fromBackend = st.prefs.getString("move_from", "");
+        if (fromBackend.isEmpty()) return;
+        final Cloud old = st.cloudFor(fromBackend), to = st.cloud();
+        final byte[] salt = st.salt();
+        final String cur = Store.hex(salt);
+        int ok = 0, failed = 0, left = 0;
+        try {
+            host.show(ctx.getString(R.string.move_listing, to.name()), -1);
+            Cloud.Listing listing = to.listFiles(st.folder(), 1_000_000);
+            Set<String> there = new HashSet<>();
+            for (JSONObject n : listing.files) there.add(n.getString("id"));
+            Store.Index ix = st.readIndex(k);
+            List<Store.Item> todo = new ArrayList<>();
+            Set<String> oldNodes = new HashSet<>();
+            for (Store.Item it : ix.items) if (!there.containsAll(it.nodes())) { todo.add(it); oldNodes.addAll(it.nodes()); }
+            // uploads of an interrupted run that were never recorded (named "r" + old id + "-" + random): removed, done again
+            List<String> orphans = new ArrayList<>();
+            for (JSONObject n : listing.files) {
+                String name = n.optString("name");
+                int dash = name.lastIndexOf('-');
+                if (name.startsWith("r") && dash > 1 && oldNodes.contains(name.substring(1, dash))) orphans.add(n.getString("id"));
+            }
+            if (!orphans.isEmpty()) to.trashAll(orphans);
+            long before = 0, total = 0;
+            for (Store.Item it : todo) total += it.size;
+            begin(total, todo.size(), Stats.DOWN, Stats.DEC, Stats.ENC, Stats.UP); // ponytail: the download speed is booked on the new storage, not the old one
+            from = old;
+            left = todo.size();
+            for (int n = 0; n < todo.size(); n++) {
+                if (id <= cancelUpTo) break;
+                final Store.Item it = todo.get(n);
+                jobDone = before;
+                before += it.size;
+                st.stats.live.file = n + 1;
+                st.prefs.edit().putInt("move_left", todo.size() - n).apply();
+                host.show(ctx.getString(R.string.move_progress, n + 1, todo.size(), to.name()) + tick(0), (int) (100 * jobDone / Math.max(1, jobTotal)));
+                File cached = st.blobFile(it.id);
+                try {
+                    final List<String> fresh = reencryptItem(k, salt, it, id);
+                    st.edit(k, new Store.Edit() { public void apply(Store.Index x) {
+                        for (Store.Item i : x.items) if (i.id.equals(it.id)) {
+                            i.id = fresh.get(0);
+                            i.parts = fresh.size() > 1 ? new ArrayList<>(fresh) : new ArrayList<String>();
+                            i.salt = cur;
+                        }
+                    }});
+                    st.renamed.put(it.id, fresh.get(0));
+                    st.thumbFile(it.id).renameTo(st.thumbFile(fresh.get(0)));
+                    cached.delete();
+                    if (!"local".equals(fromBackend) && old instanceof Transfers) ((Transfers) old).dropCopies(it.nodes()); // the new copy is under the new id
+                    ok++;
+                    left--;
+                    if (ok % 25 == 0) st.backupFolders(k); // the list in the cloud refers to item ids, which change
+                } catch (Throwable e) {
+                    if (Store.isAuth(e)) throw e;
+                    Journal.add("move of one file failed, retried later: " + e);
+                    cached.delete();
+                    failed++;
+                }
+            }
+            from = null;
+            jobTotal = 0;
+            if (ok > 0 || todo.isEmpty()) st.backupFolders(k);
+            if (left == 0 && id > cancelUpTo) {
+                st.prefs.edit().remove("move_from").remove("move_from_folder").remove("move_left").apply();
+                Journal.add("move complete: every item is on " + to.name());
+                host.done(ctx.getString(R.string.move_done, ok, to.name(), old.name()), false);
+            } else host.done(plural(R.plurals.move_paused, left) + (failed > 0 ? " " + plural(R.plurals.done_failed, failed) : ""), true);
+        } catch (Throwable e) {
+            from = null;
+            jobTotal = 0;
+            Journal.add("move stopped: " + e);
+            host.done(ctx.getString(R.string.move_failed, st.explain(e)), true);
+            if (Store.isAuth(e)) st.post(new Runnable() { public void run() { st.needLogin = true; st.changed(); } });
+        }
     }
 
     /** Moves replaced files to the cloud's trash and forgets them. Kept for another try if the cloud refuses. */

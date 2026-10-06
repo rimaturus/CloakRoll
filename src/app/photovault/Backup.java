@@ -24,7 +24,7 @@ import java.util.*;
  */
 public final class Backup extends JobService {
     static final String ALIAS = "photovault_backup_key";
-    static final int JOB = 7, BATCH = 300; // at most this many files per run of the upload service (an Intent has a size limit)
+    static final int JOB = 7;
     static final String[] PERMISSIONS = {Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO};
     private static final Uri[] MEDIA = {MediaStore.Images.Media.EXTERNAL_CONTENT_URI, MediaStore.Video.Media.EXTERNAL_CONTENT_URI};
     private static final String[] COLS = {MediaStore.MediaColumns._ID, MediaStore.MediaColumns.DISPLAY_NAME, MediaStore.MediaColumns.SIZE};
@@ -156,7 +156,7 @@ public final class Backup extends JobService {
         st.backupRunning = true;
         running = this;
         jobs = new Jobs(this, st, new Jobs.Host() {
-            public void show(String text, int pct) { st.setStatus(text, true, false); }
+            public void show(String text, int pct) { st.setStatus(text, true, false, pct); }
             public void done(String text, boolean bad) { st.setStatus(text, false, bad); }
         }, "b-");
         new Thread(new Runnable() { public void run() {
