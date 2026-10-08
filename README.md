@@ -207,7 +207,7 @@ sudo apt install aapt apksigner dalvik-exchange zipalign openjdk-21-jdk-headless
 KS_PASS='a-strong-password' ./build.sh           # creates photovault.jks on first run; DONATE_URL=... to change the donation link
 KS_PASS='a-strong-password' PLAY=1 ./build.sh     # Google Play variant: no donation or source links (Play payments policy)
 KS_PASS='a-strong-password' PLAY=1 AAB=1 ./build.sh   # the same as an App Bundle (.aab) for Google Play, with code transparency
-ONEDRIVE_CLIENT_ID='your-app-id' GOOGLE_CLIENT_ID='your-client-id' KS_PASS='...' ./build.sh   # with OneDrive and Google Drive (PUBLISHING.md)
+ONEDRIVE_CLIENT_ID='your-app-id' GOOGLE_CLIENT_ID='your-client-id' KS_PASS='...' ./build.sh   # with OneDrive and Google Drive (your own OAuth client IDs)
 ```
 
 On Windows, with Android Studio installed (its JDK and the SDK build-tools), `build-win.sh` takes the same options from Git Bash.
@@ -241,8 +241,8 @@ Source layout:
 - **Size.** No limit per item: files over 32 MB are stored as several encrypted parts. A big video is downloaded completely before it plays, so opening a 2 GB video takes a few minutes on Wi-Fi.
 - **Password.** It can't be recovered. Changing it re-encrypts the whole vault: every file is downloaded and uploaded again, and until that finishes the old password still opens the files not done yet.
 - **OneDrive: storage.** Files count against your OneDrive quota (5 GB free, 1 TB with Microsoft 365). During a password change the old copies stay in the recycle bin, so the vault needs about twice its size for a while.
-- **OneDrive: app registration.** Microsoft requires every app that signs in with a Microsoft account to be registered; builds need the registration's client ID (see [PUBLISHING.md](PUBLISHING.md)).
-- **Google Drive: storage and registration.** Files count against your Google storage (15 GB free, shared with Gmail and Google Photos). Builds need a Google OAuth client ID (see [PUBLISHING.md](PUBLISHING.md)).
+- **OneDrive: app registration.** Microsoft requires every app that signs in with a Microsoft account to be registered; builds need the registration's client ID (a free app registration in the Azure portal, public client with PKCE, no secret; redirect URI `io.github.rimaturus.photovault://auth`).
+- **Google Drive: storage and registration.** Files count against your Google storage (15 GB free, shared with Gmail and Google Photos). Builds need a Google OAuth client ID (a free OAuth client of type Android in Google Cloud Console, `drive.file` scope).
 - **Only on this phone.** No cloud copy: a lost or broken phone means a lost vault, unless you copy the folder elsewhere (a PC, a USB drive).
 - **No Google Photos.** Google's Photos API doesn't fit: apps may upload only real photos and videos (not other data), can't delete what they upload, and downloads aren't bit-exact, which encrypted files need. Google Drive is offered instead.
 - Android limits background data sync to 6 hours a day: a very large first backup takes a few days, continuing by itself.
