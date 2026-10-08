@@ -71,8 +71,10 @@ else
     (cd build && zip -q unsigned.apk classes.dex)
     "$BT/zipalign.exe" -f -p 4 build/unsigned.apk build/aligned.apk
     OUT=Cloakroll.apk; [ "$PLAY" = 1 ] && OUT=Cloakroll-play.apk
-    "$BT/apksigner.bat" sign --v2-signing-enabled true --v3-signing-enabled true --ks "$(w "$KEYSTORE")" --ks-pass env:KS_PASS \
+    (umask 077; printf '%s\n' "$KS_PASS" > build/ks.pass) # a file, as for the bundle: through apksigner.bat, cmd.exe hands the environment over in the ANSI code page and breaks non-ASCII passwords
+    "$BT/apksigner.bat" sign --v2-signing-enabled true --v3-signing-enabled true --ks "$(w "$KEYSTORE")" --ks-pass "file:$(w build/ks.pass)" \
         --ks-key-alias photovault --out "$OUT" build/aligned.apk
+    rm -f build/ks.pass
     "$BT/apksigner.bat" verify --print-certs "$OUT" | grep SHA-256
 fi
 echo "OK: $OUT  sha256 $(sha256sum "$OUT" | cut -d' ' -f1)"
