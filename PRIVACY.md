@@ -1,6 +1,6 @@
 # Privacy policy
 
-*Cloakroll (formerly PhotoVault), last updated 1 October 2026 (version 1.9.2)*
+*Cloakroll (formerly PhotoVault), last updated 9 October 2026 (version 1.12.0)*
 
 **Cloakroll collects no personal data.** The developer receives nothing from the app: no analytics, no crash reports, no identifiers, no usage statistics, no advertising IDs. There are no Cloakroll servers and no Cloakroll accounts, and the app contains no advertising and no third-party libraries or SDKs. Everything the app does happens on your phone and between your phone and the storage account you chose.
 
@@ -31,7 +31,7 @@ None. The app never sends data to the developer or to any third party other than
 
 ## Children
 
-Cloakroll is not directed at children. It is intended for users aged 18 and over and is rated accordingly on Google Play.
+Cloakroll is not directed at children under 13, and it collects no data from anyone, children included.
 
 ## Security
 
