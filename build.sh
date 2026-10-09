@@ -1,6 +1,7 @@
 #!/bin/sh
 # Builds PhotoVault without Gradle: aapt/aapt2 + javac + dx, then an APK (zipalign + apksigner) or an App Bundle (bundletool).
 #   Ubuntu 24.04:  sudo apt install aapt apksigner dalvik-exchange zipalign openjdk-21-jdk-headless zip unzip curl
+#   Termux (Android, .aab only):  pkg install git openjdk-21 aapt aapt2 d8 zip unzip curl
 #   KS_PASS=... ./build.sh                 PhotoVault.apk, GitHub build (with the donation link)
 #   KS_PASS=... PLAY=1 ./build.sh          PhotoVault-play.apk, Google Play texts (no donation link: Play's payments policy)
 #   KS_PASS=... PLAY=1 AAB=1 ./build.sh    PhotoVault-play.aab for Google Play: App Bundle with code transparency
@@ -55,7 +56,11 @@ else
     aapt package -f -0 arsc -M AndroidManifest.xml -S res -I "$RES_JAR" -F build/res.apk -J build/gen --custom-package app.photovault
 fi
 javac -nowarn -Xlint:-options -source 8 -target 8 -bootclasspath "$JAR" -d build/classes $(find src build/gen -name '*.java')
-dalvik-exchange --dex --min-sdk-version=26 --output=build/classes.dex build/classes
+if command -v dalvik-exchange >/dev/null; then
+    dalvik-exchange --dex --min-sdk-version=26 --output=build/classes.dex build/classes
+else # Termux: d8 instead of Debian's dx
+    jar cf build/classes.jar -C build/classes . && d8 --release --min-api 33 --lib "$JAR" --output build build/classes.jar
+fi
 [ -f "$KEYSTORE" ] || keytool -genkeypair -keystore "$KEYSTORE" -storepass "$KS_PASS" -keypass "$KS_PASS" \
     -alias photovault -keyalg RSA -keysize 4096 -validity 10000 -dname "CN=PhotoVault"
 # Signing: keep the keystore private and out of git. Anyone with it can publish "updates" that install over your users' app.
