@@ -452,6 +452,13 @@
     <string name="previews_d">%1$d sin vista previa. Descarga cada uno una vez (%2$s): mejor con Wi-Fi. Abrir un elemento también crea su vista previa</string>
     <string name="previews_progress">Vistas previas: %1$d de %2$d</string>
     <string name="previews_done">Vistas previas creadas: %1$d</string>
+    <string name="stor_amz_other">%1$s facturados fuera de las fotos (vídeos, documentos, Otros): usan los 5 GB del plan gratuito. Ajustes: Volver a subir los archivos contados como Otros</string>
+    <string name="reup_t">Volver a subir los archivos contados como Otros</string>
+    <string name="reup_d">Amazon cuenta algunos archivos de la bóveda fuera de las fotos ilimitadas, en los 5 GB del plan gratuito. Los sube de nuevo en partes más pequeñas y mueve las copias antiguas a la papelera de Amazon Photos. Mejor con Wi-Fi</string>
+    <string name="reup_progress">Volviendo a subir: %1$d de %2$d</string>
+    <string name="reup_none">Ningún archivo de la bóveda se cuenta fuera de las fotos</string>
+    <string name="reup_mismatch">Detenido, nada cambió: la bóveda tiene %1$s de archivos no leídos como fotos, pero Amazon factura %2$s fuera de las fotos</string>
+    <string name="reup_done">Subidos de nuevo: %1$d</string>
     <string name="auto_t">Copia automática</string>
     <string name="auto_off_d">Desactivada. Las fotos y vídeos nuevos irían solos a la bóveda, con Wi-Fi, incluso con la app cerrada</string>
     <string name="auto_on_d">Activada: las fotos y vídeos nuevos van solos a la bóveda, con Wi-Fi, incluso con la app cerrada</string>

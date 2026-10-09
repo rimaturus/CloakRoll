@@ -94,25 +94,7 @@ final class Jobs {
                 boolean undated = into.isEmpty() && Names.date(name) == 0; // the main view is in order of the dates in the names
                 it.name = name; it.mime = mime; it.taken = taken; it.folder = undated ? ctx.getString(R.string.folder_no_date) : into; it.salt = Store.hex(salt);
                 byte[] thumb;
-                try (InputStream in = ctx.getContentResolver().openInputStream(u)) {
-                    // as big as the file, not 32 MB for every photo (one byte more shows a file longer than it said)
-                    byte[] first = new byte[(int) Math.min(Store.CHUNK, sizes[n] > 0 ? sizes[n] + 1 : Store.CHUNK)];
-                    int len = readUpTo(in, first);
-                    byte[] second = len < first.length ? null : new byte[Store.CHUNK];
-                    int len2 = second == null ? 0 : readUpTo(in, second);
-                    if (len2 == 0) { // fits in one PNG
-                        String meta = new JSONObject().put("name", name).put("taken", taken).put("mime", mime).toString();
-                        byte[] plain = Vault.plainBuffer(meta, len);
-                        System.arraycopy(first, 0, plain, plain.length - len, len);
-                        first = null;
-                        thumb = Store.makeThumb(plain, plain.length - len, len, it.video());
-                        it.id = put(k, salt, plain, Store.hex(Vault.random(8)) + ".png", ctx.getString(R.string.up_single, pre));
-                        it.size = len;
-                    } else {
-                        thumb = Store.makeThumb(ctx, u, null, it.video());
-                        uploadParts(k, salt, it, first, second, len2, in, thumb, pre, id);
-                    }
-                }
+                try (InputStream in = ctx.getContentResolver().openInputStream(u)) { thumb = store(k, salt, it, in, sizes[n], u, null, pre, id); }
                 st.saveThumb(it.id, k, thumb);
                 st.add(k, it, undated);
                 ok++;
@@ -128,6 +110,31 @@ final class Jobs {
         host.done(plural(into.isEmpty() ? R.plurals.done_added : R.plurals.done_added_folder, ok)
                 + (failed > 0 ? plural(R.plurals.done_failed, failed) : "") + (skipped > 0 ? plural(R.plurals.done_not_started, skipped) : ""),
                 failed > 0 || skipped > 0);
+    }
+
+    /**
+     * Encrypts and uploads one file of `size` bytes (0: unknown) for `it` (name, mime, taken set): one PNG, or parts
+     * if bigger than Store.CHUNK. Sets it.id, it.parts, it.size. Returns its preview; `u` or `f` is the file itself.
+     */
+    byte[] store(byte[] k, byte[] salt, Store.Item it, InputStream in, long size, Uri u, File f, String pre, int job) throws Exception {
+        // as big as the file, not a whole part for every photo (one byte more shows a file longer than it said)
+        byte[] first = new byte[(int) Math.min(Store.CHUNK, size > 0 ? size + 1 : Store.CHUNK)];
+        int len = readUpTo(in, first);
+        byte[] second = len < first.length ? null : new byte[Store.CHUNK];
+        int len2 = second == null ? 0 : readUpTo(in, second);
+        if (len2 > 0) { // parts
+            byte[] thumb = Store.makeThumb(ctx, u, f, it.video());
+            uploadParts(k, salt, it, first, second, len2, in, thumb, pre, job);
+            return thumb;
+        }
+        String meta = new JSONObject().put("name", it.name).put("taken", it.taken).put("mime", it.mime).toString();
+        byte[] plain = Vault.plainBuffer(meta, len);
+        System.arraycopy(first, 0, plain, plain.length - len, len);
+        first = null;
+        byte[] thumb = Store.makeThumb(plain, plain.length - len, len, it.video());
+        it.id = put(k, salt, plain, Store.hex(Vault.random(8)) + ".png", ctx.getString(R.string.up_single, pre));
+        it.size = len;
+        return thumb;
     }
 
     String plural(int id, int n) { return ctx.getResources().getQuantityString(id, n, n); }
@@ -695,6 +702,97 @@ final class Jobs {
             jobTotal = 0;
             Journal.add("move stopped: " + e);
             host.done(ctx.getString(R.string.move_failed, st.explain(e)), true);
+            if (Store.isAuth(e)) st.post(new Runnable() { public void run() { st.needLogin = true; st.changed(); } });
+        }
+    }
+
+    /**
+     * Amazon: items with a file Amazon doesn't count as a photo (it bills it in the 5 GB of the free plan, as "Other")
+     * are uploaded again in today's smaller parts; the old copy goes to the trash once the new one is recorded.
+     * Checked first against Amazon's own counters, so a listing that misreads the classification can't start
+     * re-uploading the whole vault. Files uploaded in the last day are left alone: Amazon may still be reading them.
+     */
+    void reupload(final byte[] k, final byte[] salt, int id) {
+        int ok = 0, failed = 0;
+        try {
+            Amazon amz = (Amazon) st.base();
+            host.show(ctx.getString(R.string.sync_listing, amz.name()), -1);
+            SimpleDateFormat iso = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.ROOT);
+            iso.setTimeZone(TimeZone.getTimeZone("UTC"));
+            String dayAgo = iso.format(new Date(System.currentTimeMillis() - 24L * 3600_000));
+            Set<String> bad = new HashSet<>();
+            Map<String, Integer> types = new TreeMap<>();
+            long badBytes = 0, smallest = Long.MAX_VALUE;
+            for (JSONObject n : st.cloud().listFiles(st.folder(), 1_000_000).files) {
+                if (n.optBoolean("photo", true) || n.optString("createdDate").compareTo(dayAgo) > 0) continue;
+                bad.add(n.getString("id"));
+                badBytes += n.optLong("size");
+                smallest = Math.min(smallest, n.optLong("size"));
+                String t = n.optString("type");
+                types.put(t, types.containsKey(t) ? types.get(t) + 1 : 1);
+            }
+            long billed = amz.nonPhoto();
+            Journal.add("reupload: " + bad.size() + " files not counted as photos, " + Store.human(badBytes)
+                    + (bad.isEmpty() ? "" : ", smallest " + Store.human(smallest) + ", types " + types)
+                    + "; Amazon bills " + Store.human(billed) + " outside photos");
+            if (badBytes > billed + billed / 10 + (100L << 20)) {
+                host.done(ctx.getString(R.string.reup_mismatch, Store.human(badBytes), Store.human(billed)), true);
+                return;
+            }
+            Store.Index ix = st.readIndex(k);
+            if (!ix.retire.isEmpty()) retire(k, new ArrayList<>(ix.retire)); // old copies of an earlier run
+            List<Store.Item> todo = new ArrayList<>();
+            long total = 0;
+            for (Store.Item it : ix.items) if (!Collections.disjoint(it.nodes(), bad)) { todo.add(it); total += it.size; }
+            if (todo.isEmpty()) { host.done(ctx.getString(R.string.reup_none), false); return; }
+            begin(total, todo.size(), Stats.DOWN, Stats.DEC, Stats.ENC, Stats.UP);
+            long before = 0;
+            for (int n = 0; n < todo.size(); n++) {
+                if (id <= cancelUpTo) break;
+                final Store.Item it = todo.get(n);
+                jobDone = before;
+                before += it.size;
+                st.stats.live.file = n + 1;
+                String pre = ctx.getString(R.string.reup_progress, n + 1, todo.size());
+                host.show(pre + tick(0), (int) (100 * jobDone / Math.max(1, jobTotal)));
+                File cached = st.blobFile(it.id), down = new File(ctx.getCacheDir(), tmp + "reup.png"), data = new File(ctx.getCacheDir(), tmp + "reup.bin");
+                try {
+                    if (it.parts.isEmpty()) { // one PNG: its data part
+                        File f = cached.exists() ? cached : down;
+                        if (f == down) st.cloud().download(it.id, down, null);
+                        Vault.Opened o = st.decrypt(f, k);
+                        try (OutputStream out = new FileOutputStream(data)) { out.write(o.plain, o.dataOff, o.dataLen()); }
+                    } else st.assemble(it, k, data, null);
+                    final Store.Item fresh = new Store.Item();
+                    fresh.name = it.name; fresh.mime = it.mime; fresh.taken = it.taken; fresh.salt = Store.hex(salt);
+                    try (InputStream in = new BufferedInputStream(new FileInputStream(data), 1 << 16)) { store(k, salt, fresh, in, data.length(), null, data, pre, id); }
+                    final boolean[] found = {false};
+                    st.edit(k, new Store.Edit() { public void apply(Store.Index x) {
+                        for (Store.Item i : x.items) if (i.id.equals(it.id)) {
+                            i.id = fresh.id; i.parts = fresh.parts; i.size = fresh.size; i.salt = fresh.salt;
+                            found[0] = true;
+                        }
+                        x.retire.addAll(found[0] ? it.nodes() : fresh.nodes()); // item deleted meanwhile: the new copy goes too
+                    }});
+                    if (found[0]) { st.renamed.put(it.id, fresh.id); st.thumbFile(it.id).renameTo(st.thumbFile(fresh.id)); }
+                    cached.delete();
+                    retire(k, new ArrayList<>(found[0] ? it.nodes() : fresh.nodes()));
+                    ok++;
+                    if (ok % 25 == 0) st.backupFolders(k); // the list in the cloud refers to item ids, which change
+                } catch (Throwable e) {
+                    if (Store.isAuth(e)) throw e;
+                    Journal.add("reupload of one file failed: " + e);
+                    cached.delete();
+                    failed++;
+                } finally { down.delete(); data.delete(); }
+            }
+            jobTotal = 0;
+            if (ok > 0) st.backupFolders(k);
+            host.done(ctx.getString(R.string.reup_done, ok) + (failed > 0 ? plural(R.plurals.done_failed, failed) : ""), failed > 0 || id <= cancelUpTo);
+        } catch (Throwable e) {
+            jobTotal = 0;
+            Journal.add("reupload stopped: " + e);
+            host.done(ctx.getString(R.string.v_error, st.explain(e)), true);
             if (Store.isAuth(e)) st.post(new Runnable() { public void run() { st.needLogin = true; st.changed(); } });
         }
     }

@@ -9,7 +9,7 @@ import java.nio.file.*;
 public class PartsTest {
     public static void main(String[] a) throws Exception {
         String pw = a[0]; byte[] data = Files.readAllBytes(Paths.get(a[1])); File out = new File(a[2]); out.mkdirs();
-        int CHUNK = 32 << 20;
+        int CHUNK = 16 << 20;
         byte[] salt = Vault.random(16), key = Vault.deriveKey(pw, salt);
         String group = "0123456789abcdef";
         int parts = (data.length + CHUNK - 1) / CHUNK;

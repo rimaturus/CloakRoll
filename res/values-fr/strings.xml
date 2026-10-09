@@ -452,6 +452,13 @@
     <string name="previews_d">%1$d sans aperçu. Télécharge chacun une fois (%2$s) : mieux en Wi-Fi. Ouvrir un élément crée aussi son aperçu</string>
     <string name="previews_progress">Aperçus : %1$d sur %2$d</string>
     <string name="previews_done">Aperçus créés : %1$d</string>
+    <string name="stor_amz_other">%1$s facturés hors photos (vidéos, documents, Autres) : ils utilisent les 5 Go du forfait gratuit. Paramètres : Renvoyer les fichiers comptés comme Autres</string>
+    <string name="reup_t">Renvoyer les fichiers comptés comme Autres</string>
+    <string name="reup_d">Amazon compte certains fichiers du coffre hors des photos illimitées, dans les 5 Go du forfait gratuit. Les renvoie en parties plus petites et déplace les anciennes copies dans la corbeille d’Amazon Photos. Mieux en Wi-Fi</string>
+    <string name="reup_progress">Renvoi : %1$d sur %2$d</string>
+    <string name="reup_none">Aucun fichier du coffre n’est compté hors des photos</string>
+    <string name="reup_mismatch">Arrêté, rien n’a changé : le coffre a %1$s de fichiers non lus comme photos, mais Amazon facture %2$s hors photos</string>
+    <string name="reup_done">Renvoyés : %1$d</string>
     <string name="auto_t">Sauvegarde automatique</string>
     <string name="auto_off_d">Désactivée. Les nouvelles photos et vidéos iraient d\'elles-mêmes dans le coffre, en Wi-Fi, même l\'app fermée</string>
     <string name="auto_on_d">Activée : les nouvelles photos et vidéos vont d\'elles-mêmes dans le coffre, en Wi-Fi, même l\'app fermée</string>

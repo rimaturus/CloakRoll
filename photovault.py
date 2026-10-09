@@ -7,7 +7,7 @@ PhotoVault PoC: any file -> AES-256-GCM -> valid PNG made of noise pixels, and b
 
 Same file format as the PhotoVault Android app (PVT2), so this script is also your
 independent way to decrypt anything the app uploaded: download the PNGs, run `dec`.
-Files over 32 MB are stored as several PNGs ("parts"); `dec` puts them back together
+Files over 16 MB are stored as several PNGs ("parts"); `dec` puts them back together
 when you give it all of them (e.g. the whole downloaded folder).
 
 Password: prompted, or env var PV_PASSWORD.
@@ -19,7 +19,7 @@ from pathlib import Path
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 MAGIC = b"PVT2"
-CHUNK = 32 << 20  # same as the app: bigger files become several PNGs
+CHUNK = 16 << 20  # same as the app: bigger files become several PNGs
 HDR = struct.Struct(">4s16s12sQ")  # magic, salt, nonce, ciphertext length
 SALT_FILE = Path(__file__).with_name("vault.salt")
 _keys = {}
@@ -122,7 +122,7 @@ def meta_of(f):
 
 
 def enc_file(f, out, pw):
-    """One PNG, or for big files one PNG per 32 MB part: part 0 has name/date/size, every part has group + index."""
+    """One PNG, or for big files one PNG per 16 MB part: part 0 has name/date/size, every part has group + index."""
     meta, size = meta_of(f), f.stat().st_size
     if size <= CHUNK:
         dst = out / (os.urandom(8).hex() + ".png")

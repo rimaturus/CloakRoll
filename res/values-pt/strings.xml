@@ -452,6 +452,13 @@
     <string name="previews_d">%1$d sem prévia. Baixa cada um uma vez (%2$s): melhor no Wi-Fi. Abrir um item também cria a prévia dele</string>
     <string name="previews_progress">Prévias: %1$d de %2$d</string>
     <string name="previews_done">Prévias criadas: %1$d</string>
+    <string name="stor_amz_other">%1$s cobrados fora das fotos (vídeos, documentos, Outros): usam os 5 GB do plano gratuito. Configurações: Reenviar os arquivos contados como Outros</string>
+    <string name="reup_t">Reenviar os arquivos contados como Outros</string>
+    <string name="reup_d">A Amazon conta alguns arquivos do cofre fora das fotos ilimitadas, nos 5 GB do plano gratuito. Envia-os de novo em partes menores e move as cópias antigas para a lixeira do Amazon Photos. Melhor no Wi-Fi</string>
+    <string name="reup_progress">Reenviando: %1$d de %2$d</string>
+    <string name="reup_none">Nenhum arquivo do cofre é contado fora das fotos</string>
+    <string name="reup_mismatch">Parado, nada mudou: o cofre tem %1$s de arquivos não lidos como fotos, mas a Amazon cobra %2$s fora das fotos</string>
+    <string name="reup_done">Reenviados: %1$d</string>
     <string name="auto_t">Backup automático</string>
     <string name="auto_off_d">Desativado. Fotos e vídeos novos iriam sozinhos para o cofre, no Wi-Fi, mesmo com o app fechado</string>
     <string name="auto_on_d">Ativado: fotos e vídeos novos vão sozinhos para o cofre, no Wi-Fi, mesmo com o app fechado</string>

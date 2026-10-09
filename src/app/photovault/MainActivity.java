@@ -2542,6 +2542,9 @@ public class MainActivity extends Activity {
             u.row(sto, Ui.IMAGE, s(R.string.previews_t), s(R.string.previews_d, bare.size(), human(bytes)), null,
                     new View.OnClickListener() { public void onClick(View v) { startJob(SyncService.PREVIEWS); showGallery(); } });
         }
+        if (st.base() instanceof Amazon && !st.reencrypting() && !st.moving())
+            u.row(sto, Ui.CLOUD, s(R.string.reup_t), s(R.string.reup_d), null,
+                    new View.OnClickListener() { public void onClick(View v) { startJob(SyncService.REUPLOAD); showGallery(); } });
         if (st.base() instanceof Local) {
             u.row(sto, Ui.FOLDER, s(R.string.local_change_t), s(R.string.local_change_d), null,
                     new View.OnClickListener() { public void onClick(View v) { pickFolder("vault"); } });

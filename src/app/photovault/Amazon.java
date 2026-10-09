@@ -160,8 +160,13 @@ final class Amazon extends Cloud {
                 JSONObject n = d.getJSONObject(i);
                 if (!seen.add(n.getString("id"))) continue;
                 added++;
-                if ("AVAILABLE".equals(n.optString("status", "AVAILABLE"))) // skip anything in the Amazon trash
-                    out.add(node(n.getString("id"), n.optString("name"), n.optString("createdDate")));
+                if (!"AVAILABLE".equals(n.optString("status", "AVAILABLE"))) continue; // skip anything in the Amazon trash
+                JSONObject cp = n.optJSONObject("contentProperties");
+                // "photo": Amazon read it as an image (counted in unlimited photos); otherwise it lands in "Other"
+                out.add(node(n.getString("id"), n.optString("name"), n.optString("createdDate"))
+                        .put("size", cp == null ? 0 : cp.optLong("size"))
+                        .put("type", cp == null ? "" : cp.optString("contentType"))
+                        .put("photo", cp != null && cp.optString("contentType").startsWith("image/") && cp.has("image")));
             }
             token = r.isNull("nextToken") ? "" : r.optString("nextToken", "");
             if (token.isEmpty() && d.length() < limit) { res.complete = true; break; }
@@ -183,7 +188,9 @@ final class Amazon extends Cloud {
         JSONObject n;
         try { n = new JSONObject(finish(c, "POST", url, t0, false)); } finally { c.disconnect(); }
         JSONObject cp = n.optJSONObject("contentProperties");
-        return new JSONObject().put("id", n.getString("id")).put("type", cp == null ? "" : cp.optString("contentType"));
+        String type = cp == null ? "" : cp.optString("contentType");
+        if (!type.startsWith("image/")) Journal.add("  Amazon recorded the upload as \"" + type + "\", not as a photo");
+        return new JSONObject().put("id", n.getString("id")).put("type", type);
     }
 
     @Override void download(String id, File dst, Progress p) throws IOException {
@@ -236,7 +243,22 @@ final class Amazon extends Cloud {
         if (ph == null) return new String[]{"warn", st.app.getString(R.string.stor_amz_none)};
         long bill = ph.optJSONObject("billable") == null ? -1 : ph.getJSONObject("billable").optLong("bytes", -1);
         long total = ph.optJSONObject("total") == null ? -1 : ph.getJSONObject("total").optLong("bytes", -1);
-        if (bill == 0) return new String[]{"ok", st.app.getString(R.string.stor_amz_ok, Store.human(total))};
-        return new String[]{"warn", st.app.getString(R.string.stor_amz_warn, Store.human(bill), Store.human(total))};
+        if (bill != 0) return new String[]{"warn", st.app.getString(R.string.stor_amz_warn, Store.human(bill), Store.human(total))};
+        long other = nonPhoto(u);
+        if (other > 0) return new String[]{"warn", st.app.getString(R.string.stor_amz_other, Store.human(other))};
+        return new String[]{"ok", st.app.getString(R.string.stor_amz_ok, Store.human(total))};
+    }
+
+    /** Bytes Amazon bills outside unlimited photos (videos, documents, "Other"): the 5 GB of the free plan. */
+    long nonPhoto() throws Exception { return nonPhoto(new JSONObject(call("GET", drive() + "/account/usage?" + BASE, null, false))); }
+
+    private static long nonPhoto(JSONObject usage) {
+        long sum = 0;
+        for (Iterator<String> i = usage.keys(); i.hasNext(); ) {
+            String key = i.next();
+            JSONObject c = usage.optJSONObject(key), b = c == null ? null : c.optJSONObject("billable");
+            if (!"photo".equals(key) && b != null) sum += b.optLong("bytes");
+        }
+        return sum;
     }
 }

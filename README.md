@@ -125,7 +125,7 @@ No contacts, location, camera or microphone permission. Without automatic backup
 - **Live progress**: the banner in the gallery shows what is happening, how much data is through, the speed of the job over the last minute and the time left (from that speed, so encryption time and network hiccups are in it; from the remembered speeds until the job has run for a few seconds). Tap it for the *Activity* screen: files and bytes done, elapsed and remaining time, speed now and on average, how long each step (encryption, upload, download, decryption) has taken in this job, and the connection in use (Wi-Fi or mobile data, metered or not, what the link says it can do)
 - **Transfer statistics** (*Settings*): the measured upload, download, encryption and decryption speeds of your phone and connection, and what they mean for typical files
 - **Mobile data**: automatic backup is Wi-Fi only unless you allow mobile data; adding more than 50 MB by hand while on mobile data asks first, with the size. Browsing the gallery costs no data (previews are on the phone); originals are downloaded only when you ask
-- Encrypt and upload many photos and videos at once, of any size; big files go up as 32 MB encrypted parts, and a part cut short by the network is sent again by itself instead of failing the whole file. The queue keeps running in the background with a progress notification and a *Stop* button
+- Encrypt and upload many photos and videos at once, of any size; big files go up as 16 MB encrypted parts, and a part cut short by the network is sent again by itself instead of failing the whole file. The queue keeps running in the background with a progress notification and a *Stop* button
 - Gallery with instant previews. Opening an item shows its small preview (kept encrypted on the phone) and downloads nothing: the full-quality original is fetched only when you tap *Original* or *Save to phone*, so browsing costs no data. Swipe left and right to move between items; pinch or double-tap to zoom
 - **Folders**: create folders, long-press photos to select several and *Move* or *Delete* them, rename or delete folders (their photos are kept). Folder names and contents are saved in the cloud in one more encrypted file, together with the list of your items (name, date, size), so the provider can't read them and a new phone gets them back
 - *Cloud view* button: see the exact file the cloud stores
@@ -187,7 +187,7 @@ plaintext = metadata length (u16, big-endian) | metadata JSON {name, taken, mime
 key = PBKDF2-HMAC-SHA256(UTF-8 password, salt, 600000 iterations, 32 bytes)
 ```
 
-**Big files** (over 32 MB) are split into parts of 32 MB, each one a complete PNG like the above, encrypted and authenticated on its own:
+**Big files** (over 16 MB) are split into parts of 16 MB (32 MB in earlier versions; both are read), each one a complete PNG like the above, encrypted and authenticated on its own:
 
 ```
 part 0 metadata = {name, taken, mime, group, part: 0, parts: n, size, ids: [cloud ids of parts 1..n-1], thumb}
@@ -238,7 +238,7 @@ Source layout:
 
 - **Amazon: unofficial API.** Amazon has no public Photos API. Cloakroll uses the same private web requests as the Amazon Photos website (the endpoints documented by the open-source [amazon_photos](https://github.com/trevorhobenshield/amazon_photos) project). If Amazon changes them, uploads stop until the app is updated. Your stored files stay decryptable with `photovault.py`.
 - **Amazon: terms.** Prime includes unlimited *photos* and 5 GB for *videos*. Storing encrypted videos as PNG images goes against the spirit of that offer, and the more video you store, the more it stands out. Amazon could restrict or close the account. Photos are the intended use; keep another backup of any video you care about.
-- **Size.** No limit per item: files over 32 MB are stored as several encrypted parts. A big video is downloaded completely before it plays, so opening a 2 GB video takes a few minutes on Wi-Fi.
+- **Size.** No limit per item: files over 16 MB are stored as several encrypted parts. A big video is downloaded completely before it plays, so opening a 2 GB video takes a few minutes on Wi-Fi.
 - **Password.** It can't be recovered. Changing it re-encrypts the whole vault: every file is downloaded and uploaded again, and until that finishes the old password still opens the files not done yet.
 - **OneDrive: storage.** Files count against your OneDrive quota (5 GB free, 1 TB with Microsoft 365). During a password change the old copies stay in the recycle bin, so the vault needs about twice its size for a while.
 - **OneDrive: app registration.** Microsoft requires every app that signs in with a Microsoft account to be registered; builds need the registration's client ID (a free app registration in the Azure portal, public client with PKCE, no secret; redirect URI `io.github.rimaturus.photovault://auth`).

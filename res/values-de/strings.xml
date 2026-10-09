@@ -452,6 +452,13 @@
     <string name="previews_d">%1$d ohne Vorschau. Lädt jedes einmal herunter (%2$s): besser im WLAN. Auch das Öffnen eines Elements erstellt seine Vorschau</string>
     <string name="previews_progress">Vorschauen: %1$d von %2$d</string>
     <string name="previews_done">Vorschauen erstellt: %1$d</string>
+    <string name="stor_amz_other">%1$s außerhalb der Fotos berechnet (Videos, Dokumente, Sonstiges): belegt die 5 GB des kostenlosen Tarifs. Einstellungen: Als Sonstiges gezählte Dateien neu hochladen</string>
+    <string name="reup_t">Als Sonstiges gezählte Dateien neu hochladen</string>
+    <string name="reup_d">Amazon zählt einige Dateien des Tresors nicht zu den unbegrenzten Fotos, sondern zu den 5 GB des kostenlosen Tarifs. Lädt sie in kleineren Teilen neu hoch und verschiebt die alten Kopien in den Papierkorb von Amazon Photos. Besser im WLAN</string>
+    <string name="reup_progress">Neu hochladen: %1$d von %2$d</string>
+    <string name="reup_none">Keine Datei des Tresors wird außerhalb der Fotos gezählt</string>
+    <string name="reup_mismatch">Angehalten, nichts geändert: Der Tresor hat %1$s an Dateien, die nicht als Fotos gelesen wurden, Amazon berechnet aber %2$s außerhalb der Fotos</string>
+    <string name="reup_done">Neu hochgeladen: %1$d</string>
     <string name="auto_t">Automatische Sicherung</string>
     <string name="auto_off_d">Aus. Neue Fotos und Videos kämen von selbst in den Tresor, im WLAN, auch bei geschlossener App</string>
     <string name="auto_on_d">An: Neue Fotos und Videos kommen von selbst in den Tresor, im WLAN, auch bei geschlossener App</string>

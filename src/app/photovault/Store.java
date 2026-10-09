@@ -28,8 +28,9 @@ final class Store {
     /**
      * Files bigger than this are stored as several PNGs ("parts") of at most this size, each encrypted and
      * authenticated on its own, so there is no size limit and memory use stays small.
+     * 16 MB (was 32): Amazon counted some of the bigger noise PNGs as "Other", outside unlimited photos.
      */
-    static final int CHUNK = 32 << 20;
+    static final int CHUNK = 16 << 20;
     static final long AUTO_LOCK_MS = 60_000, PICKER_LOCK_MS = 10 * 60_000;
 
     private static Store instance;

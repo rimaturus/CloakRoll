@@ -452,6 +452,13 @@
     <string name="previews_d">%1$d senza anteprima. Li scarica una volta ciascuno (%2$s): meglio con il Wi-Fi. Anche aprire un elemento crea la sua anteprima</string>
     <string name="previews_progress">Anteprime: %1$d di %2$d</string>
     <string name="previews_done">Anteprime create: %1$d</string>
+    <string name="stor_amz_other">%1$s conteggiati fuori dalle foto (video, documenti, Altro): usano i 5 GB del piano gratuito. Impostazioni: Ricarica i file contati come Altro</string>
+    <string name="reup_t">Ricarica i file contati come Altro</string>
+    <string name="reup_d">Amazon conta alcuni file della cassaforte fuori dalle foto illimitate, nei 5 GB del piano gratuito. Li ricarica in parti più piccole e sposta le vecchie copie nel cestino di Amazon Photos. Meglio con il Wi-Fi</string>
+    <string name="reup_progress">Ricaricamento: %1$d di %2$d</string>
+    <string name="reup_none">Nessun file della cassaforte è contato fuori dalle foto</string>
+    <string name="reup_mismatch">Fermato, nulla è cambiato: la cassaforte ha %1$s di file non letti come foto, ma Amazon ne conteggia %2$s fuori dalle foto</string>
+    <string name="reup_done">Ricaricati: %1$d</string>
     <string name="auto_t">Backup automatico</string>
     <string name="auto_off_d">Disattivo. Le nuove foto e i nuovi video andrebbero da soli nella cassaforte, con il Wi-Fi, anche ad app chiusa</string>
     <string name="auto_on_d">Attivo: le nuove foto e i nuovi video vanno da soli nella cassaforte, con il Wi-Fi, anche ad app chiusa</string>
