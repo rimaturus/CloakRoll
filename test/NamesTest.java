@@ -41,6 +41,13 @@ public class NamesTest {
         type("clip.mp4", "video/mp4", Names.VIDEO);
         type("image.jpg", "image/jpeg", -1);
         type(null, null, -1);
+
+        long t = new GregorianCalendar(2026, 7, 2, 17, 13, 7).getTimeInMillis();
+        if (!"2026-08-02 17.13.07.jpg".equals(Names.pickerName("1000000034.jpg", "1000000034", t))) throw new AssertionError("picker id name");
+        date(Names.pickerName("1000000034.jpg", "1000000034", t), 2026, 8, 2, 17, 13, 7);
+        if (!"PXL_20260802_171307.jpg".equals(Names.pickerName("PXL_20260802_171307.jpg", "1000000034", t))) throw new AssertionError("real name kept");
+        if (!"1000000034.jpg".equals(Names.pickerName("1000000034.jpg", "1000000034", 0))) throw new AssertionError("no date: kept");
+        if (!"42.jpg".equals(Names.pickerName("42.jpg", "document:7", t))) throw new AssertionError("not a picker id");
         System.out.println("names ok");
     }
 }

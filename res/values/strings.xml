@@ -96,7 +96,7 @@
     <string name="wrong_password">Wrong password.</string>
     <string name="existing_vault">Existing vault</string>
     <string name="selftest_title">Self-test</string>
-    <string name="selftest_note">Before you trust it with real photos, Cloakroll runs the whole chain once with a test image on your %1$s and removes it afterwards.</string>
+    <string name="selftest_note">Before you trust it with real photos, Cloakroll runs the whole chain once with a test image on the storage you chose (%1$s) and removes it afterwards.</string>
     <string name="cap_mine">What you see</string>
     <string name="cap_theirs">What %1$s stores</string>
     <string name="st1">Encrypt a test image on this phone</string>
@@ -118,7 +118,7 @@
     <string name="d_decrypt_bad">decrypted data differs</string>
     <string name="d_storage_fail">could not read storage use: %1$s</string>
     <string name="d_trash">moved to the %1$s</string>
-    <string name="selftest_ok">All checks passed. %1$s stores your encrypted files bit-for-bit, and only this app can open them.</string>
+    <string name="selftest_ok">All checks passed. The storage you chose (%1$s) keeps your encrypted files bit-for-bit, and only this app can open them.</string>
     <string name="bio_on_recommended">Turn on fingerprint unlock (recommended)</string>
     <string name="open_vault">Open my vault</string>
     <string name="selftest_bad">The test stopped at the step marked with a cross. Nothing personal was uploaded.</string>
@@ -214,7 +214,7 @@
     <string name="promise_d">• No ads. No trackers, no analytics, no crash reporting.\n• No servers and no accounts of ours: the app talks only to %1$s, only with encrypted files.\n• Nothing is collected, so nothing can be sold or leaked by us.\n• Free and open source (GPL-3.0): anyone can check what the app does.\n• Funded only by voluntary donations. Donating unlocks nothing: every feature is free for everyone.</string>
     <string name="where_t">Where your data is</string>
     <string name="where_cloud">• %1$s: %2$s, %3$s (big files are several). They also show up in the %1$s app as images of static: that\'s them, don\'t delete them there.</string>
-    <string name="where_folders">• Folders and list: the folder names, which item is in which, and the list of your items (name, date, size) are saved there as one more encrypted PNG (subfolder \"index\"), so a new phone gets them back with Sync without downloading every file. %1$s can\'t read any of it.</string>
+    <string name="where_folders">• Folders and list: the folder names, which item is in which, and the list of your items (name, date, size) are saved there as one more encrypted PNG (subfolder \"index\"), so a new phone gets them back with Sync without downloading every file. Like everything else, it is encrypted with your key.</string>
     <string name="where_phone">• This phone: the list of items and small previews, both encrypted with your vault key, in app-private storage, excluded from backups and phone-to-phone transfers.</string>
     <string name="where_signin_od">• Sign-in: a Microsoft token, stored encrypted with a key in this phone\'s secure hardware.</string>
     <string name="where_signin_amazon">• Sign-in: the Amazon session cookies of the sign-in page, in app-private storage.</string>

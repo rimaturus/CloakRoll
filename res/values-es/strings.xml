@@ -96,7 +96,7 @@
     <string name="wrong_password">Contraseña incorrecta.</string>
     <string name="existing_vault">Bóveda existente</string>
     <string name="selftest_title">Autoprueba</string>
-    <string name="selftest_note">Antes de confiarle fotos reales, Cloakroll prueba toda la cadena una vez con una imagen de prueba en tu %1$s y luego la quita.</string>
+    <string name="selftest_note">Antes de confiarle fotos reales, Cloakroll prueba toda la cadena una vez con una imagen de prueba en el almacenamiento que elegiste (%1$s) y luego la quita.</string>
     <string name="cap_mine">Lo que ves tú</string>
     <string name="cap_theirs">Lo que guarda %1$s</string>
     <string name="st1">Cifrar una imagen de prueba en este teléfono</string>
@@ -118,7 +118,7 @@
     <string name="d_decrypt_bad">los datos descifrados no coinciden</string>
     <string name="d_storage_fail">no se pudo leer el espacio usado: %1$s</string>
     <string name="d_trash">movido a la %1$s</string>
-    <string name="selftest_ok">Todas las comprobaciones superadas. %1$s guarda tus archivos cifrados bit a bit, y solo esta app puede abrirlos.</string>
+    <string name="selftest_ok">Todas las comprobaciones superadas. El almacenamiento que elegiste (%1$s) guarda tus archivos cifrados bit a bit, y solo esta app puede abrirlos.</string>
     <string name="bio_on_recommended">Activar el desbloqueo con huella (recomendado)</string>
     <string name="open_vault">Abrir mi bóveda</string>
     <string name="selftest_bad">La prueba se detuvo en el paso marcado con una cruz. No se subió nada personal.</string>
@@ -214,7 +214,7 @@
     <string name="promise_d">• Sin anuncios. Sin rastreadores, sin analíticas, sin informes de fallos.\n• Sin servidores ni cuentas nuestras: la app solo habla con %1$s, y solo con archivos cifrados.\n• No recopilamos nada, así que no podemos vender ni filtrar nada.\n• Gratis y de código abierto (GPL-3.0): cualquiera puede comprobar qué hace la app.\n• Financiada solo con donaciones voluntarias. Donar no desbloquea nada: todas las funciones son gratis para todos.</string>
     <string name="where_t">Dónde están tus datos</string>
     <string name="where_cloud">• %1$s: %2$s, %3$s (los archivos grandes ocupan varios). También aparecen en la app de %1$s como imágenes de ruido: son ellos, no los borres allí.</string>
-    <string name="where_folders">• Carpetas y lista: los nombres de las carpetas, qué elemento está en cuál y la lista de tus elementos (nombre, fecha, tamaño) se guardan allí en un PNG cifrado más (subcarpeta \"index\"), así un teléfono nuevo los recupera al sincronizar sin descargar cada archivo. %1$s no puede leer nada de eso.</string>
+    <string name="where_folders">• Carpetas y lista: los nombres de las carpetas, qué elemento está en cuál y la lista de tus elementos (nombre, fecha, tamaño) se guardan allí en un PNG cifrado más (subcarpeta \"index\"), así un teléfono nuevo los recupera al sincronizar sin descargar cada archivo. Como todo lo demás, está cifrado con tu clave.</string>
     <string name="where_phone">• Este teléfono: la lista de elementos y las pequeñas vistas previas, ambas cifradas con la clave de tu bóveda, en el almacenamiento privado de la app, excluidas de las copias de seguridad y de las transferencias entre teléfonos.</string>
     <string name="where_signin_od">• Inicio de sesión: un token de Microsoft, guardado cifrado con una clave en el hardware seguro del teléfono.</string>
     <string name="where_signin_amazon">• Inicio de sesión: las cookies de sesión de Amazon de la página de inicio de sesión, en el almacenamiento privado de la app.</string>

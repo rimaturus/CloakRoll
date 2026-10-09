@@ -96,7 +96,7 @@
     <string name="wrong_password">Falsches Passwort.</string>
     <string name="existing_vault">Bestehender Tresor</string>
     <string name="selftest_title">Selbsttest</string>
-    <string name="selftest_note">Bevor du ihm echte Fotos anvertraust, testet Cloakroll die ganze Kette einmal mit einem Testbild auf deinem %1$s und entfernt es danach.</string>
+    <string name="selftest_note">Bevor du ihm echte Fotos anvertraust, testet Cloakroll die ganze Kette einmal mit einem Testbild auf dem gewählten Speicher (%1$s) und entfernt es danach.</string>
     <string name="cap_mine">Was du siehst</string>
     <string name="cap_theirs">Was %1$s speichert</string>
     <string name="st1">Testbild auf diesem Handy verschlüsseln</string>
@@ -118,7 +118,7 @@
     <string name="d_decrypt_bad">entschlüsselte Daten weichen ab</string>
     <string name="d_storage_fail">Speichernutzung nicht lesbar: %1$s</string>
     <string name="d_trash">in den %1$s verschoben</string>
-    <string name="selftest_ok">Alle Prüfungen bestanden. %1$s speichert deine verschlüsselten Dateien bitgenau, und nur diese App kann sie öffnen.</string>
+    <string name="selftest_ok">Alle Prüfungen bestanden. Der gewählte Speicher (%1$s) bewahrt deine verschlüsselten Dateien bitgenau auf, und nur diese App kann sie öffnen.</string>
     <string name="bio_on_recommended">Entsperren per Fingerabdruck einschalten (empfohlen)</string>
     <string name="open_vault">Meinen Tresor öffnen</string>
     <string name="selftest_bad">Der Test hat beim angekreuzten Schritt angehalten. Nichts Persönliches wurde hochgeladen.</string>
@@ -214,7 +214,7 @@
     <string name="promise_d">• Keine Werbung. Keine Tracker, keine Analysen, keine Absturzberichte.\n• Keine eigenen Server und Konten: Die App spricht nur mit %1$s, und nur mit verschlüsselten Dateien.\n• Wir sammeln nichts, also können wir nichts verkaufen oder verlieren.\n• Kostenlos und Open Source (GPL-3.0): Jeder kann prüfen, was die App tut.\n• Nur durch freiwillige Spenden finanziert. Spenden schaltet nichts frei: Jede Funktion ist für alle kostenlos.</string>
     <string name="where_t">Wo deine Daten liegen</string>
     <string name="where_cloud">• %1$s: %2$s, %3$s (große Dateien sind mehrere). Sie erscheinen auch in der %1$s-App als Rauschbilder: Das sind sie, lösche sie dort nicht.</string>
-    <string name="where_folders">• Ordner und Liste: Die Ordnernamen, welches Element in welchem liegt, und die Liste deiner Elemente (Name, Datum, Größe) werden dort als weiteres verschlüsseltes PNG gespeichert (Unterordner \"index\"), damit ein neues Handy sie per Synchronisierung zurückbekommt, ohne jede Datei herunterzuladen. %1$s kann nichts davon lesen.</string>
+    <string name="where_folders">• Ordner und Liste: Die Ordnernamen, welches Element in welchem liegt, und die Liste deiner Elemente (Name, Datum, Größe) werden dort als weiteres verschlüsseltes PNG gespeichert (Unterordner \"index\"), damit ein neues Handy sie per Synchronisierung zurückbekommt, ohne jede Datei herunterzuladen. Wie alles andere ist es mit deinem Schlüssel verschlüsselt.</string>
     <string name="where_phone">• Dieses Handy: die Liste der Elemente und kleine Vorschauen, beide mit deinem Tresor-Schlüssel verschlüsselt, im privaten Speicher der App, ausgenommen von Backups und Übertragungen zwischen Handys.</string>
     <string name="where_signin_od">• Anmeldung: ein Microsoft-Token, verschlüsselt gespeichert mit einem Schlüssel in der sicheren Hardware des Handys.</string>
     <string name="where_signin_amazon">• Anmeldung: die Amazon-Sitzungscookies der Anmeldeseite, im privaten Speicher der App.</string>

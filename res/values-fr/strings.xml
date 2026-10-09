@@ -96,7 +96,7 @@
     <string name="wrong_password">Mot de passe incorrect.</string>
     <string name="existing_vault">Coffre existant</string>
     <string name="selftest_title">Autotest</string>
-    <string name="selftest_note">Avant de lui confier de vraies photos, Cloakroll teste toute la chaîne une fois avec une image de test sur votre %1$s, puis la retire.</string>
+    <string name="selftest_note">Avant de lui confier de vraies photos, Cloakroll teste toute la chaîne une fois avec une image de test sur l\'espace que vous avez choisi (%1$s), puis la retire.</string>
     <string name="cap_mine">Ce que vous voyez</string>
     <string name="cap_theirs">Ce que %1$s stocke</string>
     <string name="st1">Chiffrer une image de test sur ce téléphone</string>
@@ -118,7 +118,7 @@
     <string name="d_decrypt_bad">les données déchiffrées diffèrent</string>
     <string name="d_storage_fail">impossible de lire l\'espace utilisé : %1$s</string>
     <string name="d_trash">déplacé dans la %1$s</string>
-    <string name="selftest_ok">Tous les contrôles sont réussis. %1$s conserve vos fichiers chiffrés au bit près, et seule cette app peut les ouvrir.</string>
+    <string name="selftest_ok">Tous les contrôles sont réussis. L\'espace que vous avez choisi (%1$s) conserve vos fichiers chiffrés au bit près, et seule cette app peut les ouvrir.</string>
     <string name="bio_on_recommended">Activer le déverrouillage par empreinte (recommandé)</string>
     <string name="open_vault">Ouvrir mon coffre</string>
     <string name="selftest_bad">Le test s\'est arrêté à l\'étape marquée d\'une croix. Rien de personnel n\'a été envoyé.</string>
@@ -214,7 +214,7 @@
     <string name="promise_d">• Pas de pub. Ni traceurs, ni statistiques, ni rapports de plantage.\n• Aucun serveur ni compte chez nous : l\'app ne parle qu\'à %1$s, et uniquement avec des fichiers chiffrés.\n• Rien n\'est collecté, donc rien ne peut être vendu ni divulgué par nous.\n• Gratuite et open source (GPL-3.0) : chacun peut vérifier ce que fait l\'app.\n• Financée uniquement par des dons volontaires. Donner ne débloque rien : toutes les fonctions sont gratuites pour tous.</string>
     <string name="where_t">Où sont vos données</string>
     <string name="where_cloud">• %1$s : %2$s, %3$s (les gros fichiers en font plusieurs). Ils apparaissent aussi dans l\'app %1$s comme des images de bruit : ce sont eux, ne les supprimez pas là-bas.</string>
-    <string name="where_folders">• Dossiers et liste : les noms des dossiers, quel élément est dans lequel et la liste de vos éléments (nom, date, taille) sont enregistrés là-bas dans un PNG chiffré de plus (sous-dossier « index »), pour qu\'un nouveau téléphone les récupère avec la synchronisation sans télécharger chaque fichier. %1$s ne peut rien en lire.</string>
+    <string name="where_folders">• Dossiers et liste : les noms des dossiers, quel élément est dans lequel et la liste de vos éléments (nom, date, taille) sont enregistrés là-bas dans un PNG chiffré de plus (sous-dossier « index »), pour qu\'un nouveau téléphone les récupère avec la synchronisation sans télécharger chaque fichier. Comme tout le reste, il est chiffré avec votre clé.</string>
     <string name="where_phone">• Ce téléphone : la liste des éléments et de petits aperçus, tous deux chiffrés avec la clé du coffre, dans le stockage privé de l\'app, exclus des sauvegardes et des transferts entre téléphones.</string>
     <string name="where_signin_od">• Connexion : un jeton Microsoft, stocké chiffré avec une clé dans le matériel sécurisé du téléphone.</string>
     <string name="where_signin_amazon">• Connexion : les cookies de session Amazon de la page de connexion, dans le stockage privé de l\'app.</string>

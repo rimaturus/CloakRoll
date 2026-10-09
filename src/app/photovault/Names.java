@@ -26,6 +26,15 @@ public final class Names {
         return m.find() ? Long.parseLong(m.group(1)) : 0;
     }
 
+    /**
+     * Android's photo picker may hide a file's name and give only its media id ("1000000034.jpg"): then the name is made
+     * from the date the picker reports ("2026-08-02 17.13.07.jpg"), so the item still sorts by date. Other names are kept.
+     */
+    public static String pickerName(String name, String id, long taken) {
+        if (name == null || id == null || taken <= 0 || !id.matches("\\d+") || !name.startsWith(id + ".")) return name;
+        return new java.text.SimpleDateFormat("yyyy-MM-dd HH.mm.ss", Locale.ROOT).format(new java.util.Date(taken)) + name.substring(id.length());
+    }
+
     public static final int SCREENSHOT = 0, RECORDING = 1, WHATSAPP = 2, TELEGRAM = 3, SOCIAL = 4, CAMERA = 5, VIDEO = 6, TYPES = 7;
 
     private static final Pattern[] TYPE = {

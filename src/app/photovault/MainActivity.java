@@ -2698,7 +2698,7 @@ public class MainActivity extends Activity {
         about(l, s(R.string.where_t), (phone ? s(R.string.where_local, vaultPlace(), q(R.plurals.pngs, st.items.size()))
                 : s(R.string.where_cloud, c.name(), vaultPlace(), q(R.plurals.pngs, st.items.size()))) + "\n"
                 + (st.keepsCopy() ? s(R.string.where_copy) + "\n" : "")
-                + s(R.string.where_folders, c.name()) + "\n" + s(R.string.where_phone) + "\n"
+                + s(R.string.where_folders) + "\n" + s(R.string.where_phone) + "\n"
                 + s(by(R.string.where_signin_amazon, R.string.where_signin_od, R.string.where_signin_google, R.string.where_signin_local)) + "\n"
                 + s(bioEnabled() ? R.string.where_key_bio : R.string.where_key) + (Backup.on(st) ? "\n" + s(R.string.where_key_auto) : ""));
         about(l, s(R.string.crypto_t), s(R.string.crypto_d, prefs.getString("salt", "")));

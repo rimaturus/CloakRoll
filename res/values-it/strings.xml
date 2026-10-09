@@ -96,7 +96,7 @@
     <string name="wrong_password">Password errata.</string>
     <string name="existing_vault">Cassaforte esistente</string>
     <string name="selftest_title">Autotest</string>
-    <string name="selftest_note">Prima di affidargli foto vere, Cloakroll prova tutta la catena una volta con un\'immagine di prova sul tuo %1$s, poi la rimuove.</string>
+    <string name="selftest_note">Prima di affidargli foto vere, Cloakroll prova tutta la catena una volta con un\'immagine di prova sullo spazio che hai scelto (%1$s), poi la rimuove.</string>
     <string name="cap_mine">Ciò che vedi tu</string>
     <string name="cap_theirs">Ciò che salva %1$s</string>
     <string name="st1">Cifra un\'immagine di prova sul telefono</string>
@@ -118,7 +118,7 @@
     <string name="d_decrypt_bad">i dati decifrati sono diversi</string>
     <string name="d_storage_fail">impossibile leggere lo spazio usato: %1$s</string>
     <string name="d_trash">spostato nel %1$s</string>
-    <string name="selftest_ok">Tutti i controlli superati. %1$s conserva i tuoi file cifrati bit per bit, e solo questa app può aprirli.</string>
+    <string name="selftest_ok">Tutti i controlli superati. Lo spazio che hai scelto (%1$s) conserva i tuoi file cifrati bit per bit, e solo questa app può aprirli.</string>
     <string name="bio_on_recommended">Attiva lo sblocco con impronta (consigliato)</string>
     <string name="open_vault">Apri la mia cassaforte</string>
     <string name="selftest_bad">Il test si è fermato al passo segnato con la croce. Non è stato caricato nulla di personale.</string>
@@ -214,7 +214,7 @@
     <string name="promise_d">• Niente pubblicità. Niente tracker, analisi o segnalazioni di crash.\n• Nessun nostro server o account: l\'app comunica solo con %1$s, e solo con file cifrati.\n• Non raccogliamo nulla, quindi non possiamo vendere né perdere nulla.\n• Gratuita e open source (GPL-3.0): chiunque può verificare cosa fa l\'app.\n• Finanziata solo da donazioni volontarie. Donare non sblocca nulla: ogni funzione è gratis per tutti.</string>
     <string name="where_t">Dove sono i tuoi dati</string>
     <string name="where_cloud">• %1$s: %2$s, %3$s (i file grandi ne occupano diversi). Compaiono anche nell\'app %1$s come immagini di rumore: sono loro, non eliminarle lì.</string>
-    <string name="where_folders">• Cartelle ed elenco: i nomi delle cartelle, quale elemento sta in quale e l\'elenco dei tuoi elementi (nome, data, dimensione) sono salvati lì in un altro PNG cifrato (sottocartella \"index\"), così un telefono nuovo li recupera con la sincronizzazione senza scaricare ogni file. %1$s non può leggere niente di tutto questo.</string>
+    <string name="where_folders">• Cartelle ed elenco: i nomi delle cartelle, quale elemento sta in quale e l\'elenco dei tuoi elementi (nome, data, dimensione) sono salvati lì in un altro PNG cifrato (sottocartella \"index\"), così un telefono nuovo li recupera con la sincronizzazione senza scaricare ogni file. Come tutto il resto, è cifrato con la tua chiave.</string>
     <string name="where_phone">• Questo telefono: l\'elenco degli elementi e le piccole anteprime, entrambi cifrati con la chiave della cassaforte, nella memoria privata dell\'app, esclusi da backup e trasferimenti tra telefoni.</string>
     <string name="where_signin_od">• Accesso: un token Microsoft, salvato cifrato con una chiave nell\'hardware sicuro del telefono.</string>
     <string name="where_signin_amazon">• Accesso: i cookie di sessione di Amazon della pagina di accesso, nella memoria privata dell\'app.</string>

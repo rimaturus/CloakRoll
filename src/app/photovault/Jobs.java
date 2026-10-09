@@ -80,7 +80,7 @@ final class Jobs {
             tick(0);
             try {
                 String name = "item", mime = ctx.getContentResolver().getType(u);
-                long taken = System.currentTimeMillis();
+                long taken = 0;
                 try (Cursor c = ctx.getContentResolver().query(u, null, null, null, null)) {
                     if (c != null && c.moveToFirst()) {
                         int i = c.getColumnIndex(OpenableColumns.DISPLAY_NAME);
@@ -89,6 +89,8 @@ final class Jobs {
                         if (i >= 0 && !c.isNull(i) && c.getLong(i) > 0) taken = c.getLong(i);
                     }
                 }
+                name = Names.pickerName(name, u.getLastPathSegment(), taken);
+                if (taken == 0) taken = System.currentTimeMillis();
                 if (mime == null) mime = "application/octet-stream";
                 Store.Item it = new Store.Item();
                 boolean undated = into.isEmpty() && Names.date(name) == 0; // the main view is in order of the dates in the names
