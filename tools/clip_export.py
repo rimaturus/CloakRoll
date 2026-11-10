@@ -1,4 +1,4 @@
-"""Makes the smart-search model files (run by .github/workflows/clip.yml, published as release clip-v1).
+"""Makes the smart-search model files (run by .github/workflows/clip.yml, published as release clip-v2).
 
 OpenAI CLIP ViT-B/32 (MIT license) split in two ONNX files, weights quantized to int8:
   clip-image.onnx  pixels float[1,3,224,224] -> embedding float[1,512] (unit length)
@@ -37,7 +37,7 @@ with torch.no_grad():
     torch.onnx.export(Text(model), torch.tensor([tok("a photo of a dog")["input_ids"]]), "txt32.onnx", input_names=["ids"],
                       output_names=["embedding"], dynamic_axes={"ids": {1: "n"}}, opset_version=17, dynamo=False)
 for a, b in (("img32.onnx", "clip-image.onnx"), ("txt32.onnx", "clip-text.onnx")):
-    quantize_dynamic(a, os.path.join(out, b), op_types_to_quantize=["MatMul", "Gemm"])
+    quantize_dynamic(a, os.path.join(out, b), per_channel=True, op_types_to_quantize=["MatMul", "Gemm", "Gather"])
 
 # merges.txt: "#version" line, then one merge per line
 tok.save_vocabulary(".")

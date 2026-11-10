@@ -1,5 +1,5 @@
 name: Smart search model
-# Makes the files of release clip-v1 (tools/clip_export.py), once: the app downloads them from there,
+# Makes the files of release clip-v2 (tools/clip_export.py), once: the app downloads them from there,
 # checked against the SHA-256 pinned in Clip.java.
 on:
   push:
@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - id: have
-        run: if gh release view clip-v1 > /dev/null 2>&1; then echo yes=1 >> "$GITHUB_OUTPUT"; fi
+        run: if gh release view clip-v2 > /dev/null 2>&1; then echo yes=1 >> "$GITHUB_OUTPUT"; fi
       - if: steps.have.outputs.yes != '1'
         run: |
           pip install --index-url https://download.pytorch.org/whl/cpu torch==2.8.0
@@ -28,4 +28,5 @@ jobs:
           { echo "OpenAI CLIP ViT-B/32 (MIT license), ONNX, int8 weights, for Cloakroll's smart search."
             echo; echo '```'; cat out/SHA256SUMS; echo; cat out/check.txt
             echo; echo "onnxruntime-android $V $(sha256sum ort.aar | cut -d' ' -f1)"; unzip -l ort.aar; echo '```'; } > notes.md
-          gh release create clip-v1 out/* --title "Smart search model (CLIP ViT-B/32)" --notes-file notes.md
+          gh release delete clip-v1 --cleanup-tag -y || true
+          gh release create clip-v2 out/* --title "Smart search model (CLIP ViT-B/32)" --notes-file notes.md
