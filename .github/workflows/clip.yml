@@ -1,0 +1,31 @@
+name: Smart search model
+# Makes the files of release clip-v1 (tools/clip_export.py), once: the app downloads them from there,
+# checked against the SHA-256 pinned in Clip.java.
+on:
+  push:
+    branches: [smart-search]
+    paths: [tools/clip_export.py, .github/workflows/clip.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  model:
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: have
+        run: if gh release view clip-v1 > /dev/null 2>&1; then echo yes=1 >> "$GITHUB_OUTPUT"; fi
+      - if: steps.have.outputs.yes != '1'
+        run: |
+          pip install --index-url https://download.pytorch.org/whl/cpu torch==2.8.0
+          pip install transformers==4.56.2 onnx==1.19.0 onnxruntime==1.22.1 pillow requests
+          python tools/clip_export.py out
+          (cd out && sha256sum clip-image.onnx clip-text.onnx clip-merges.txt > SHA256SUMS)
+          V=$(curl -fsSL https://repo1.maven.org/maven2/com/microsoft/onnxruntime/onnxruntime-android/maven-metadata.xml | grep -o '<release>[^<]*' | cut -d'>' -f2)
+          curl -fsSLo ort.aar "https://repo1.maven.org/maven2/com/microsoft/onnxruntime/onnxruntime-android/$V/onnxruntime-android-$V.aar"
+          { echo "OpenAI CLIP ViT-B/32 (MIT license), ONNX, int8 weights, for Cloakroll's smart search."
+            echo; echo '```'; cat out/SHA256SUMS; echo; cat out/check.txt
+            echo; echo "onnxruntime-android $V $(sha256sum ort.aar | cut -d' ' -f1)"; unzip -l ort.aar; echo '```'; } > notes.md
+          gh release create clip-v1 out/* --title "Smart search model (CLIP ViT-B/32)" --notes-file notes.md
