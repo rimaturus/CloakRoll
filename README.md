@@ -204,7 +204,7 @@ The 36-byte header is authenticated as GCM associated data. The format is implem
 No Gradle and no Android Studio needed. On Ubuntu 24.04:
 
 ```
-sudo apt install aapt apksigner dalvik-exchange zipalign openjdk-21-jdk-headless zip unzip curl
+sudo apt install aapt apksigner zipalign openjdk-21-jdk-headless zip unzip curl
 KS_PASS='a-strong-password' ./build.sh           # creates photovault.jks on first run; DONATE_URL=... to change the donation link
 KS_PASS='a-strong-password' PLAY=1 ./build.sh     # Google Play variant: no donation or source links (Play payments policy)
 KS_PASS='a-strong-password' PLAY=1 AAB=1 ./build.sh   # the same as an App Bundle (.aab) for Google Play, with code transparency
@@ -213,7 +213,7 @@ ONEDRIVE_CLIENT_ID='your-app-id' GOOGLE_CLIENT_ID='your-client-id' KS_PASS='...'
 
 On Windows, with Android Studio installed (its JDK and the SDK build-tools), `build-win.sh` takes the same options from Git Bash.
 
-Without `ONEDRIVE_CLIENT_ID` or `GOOGLE_CLIENT_ID` the app builds fine and shows that option as not available. `build.sh` downloads the Android API jars from Google's SDK repository (and bundletool from Google's releases, ONNX Runtime from Maven Central), checks each against a pinned SHA-256 on every build, compiles, and signs. **Keep `photovault.jks` private and out of git** (it is in `.gitignore`): anyone who has it can sign "updates" that install over your users' copies.
+Without `ONEDRIVE_CLIENT_ID` or `GOOGLE_CLIENT_ID` the app builds fine and shows that option as not available. `build.sh` downloads the Android API jars from Google's SDK repository (and d8 and bundletool from Google, ONNX Runtime from Maven Central), checks each against a pinned SHA-256 on every build, compiles, and signs. **Keep `photovault.jks` private and out of git** (it is in `.gitignore`): anyone who has it can sign "updates" that install over your users' copies.
 
 Source layout:
 

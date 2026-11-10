@@ -9,10 +9,6 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update -q && sudo apt-get install -yq aapt apksigner dalvik-exchange zipalign zip unzip
-      - name: r8 (d8) versions and SHA-256, to pin in build.sh
-        run: |
-          curl -fsSL https://dl.google.com/dl/android/maven2/com/android/tools/r8/maven-metadata.xml | grep -o '<version>[0-9.]*</version>' | tail -8
-          for v in 8.9.35 8.10.24 8.11.18 8.12.14; do curl -fsSLo r8.jar https://dl.google.com/dl/android/maven2/com/android/tools/r8/$v/r8-$v.jar && echo "r8 $v $(sha256sum r8.jar | cut -d' ' -f1)" || echo "r8 $v missing"; done
+      - run: sudo apt-get update -q && sudo apt-get install -yq aapt apksigner zipalign zip unzip
       - run: KS_PASS=throwaway-ci-key ./build.sh
       - run: unzip -l PhotoVault.apk | grep -E "classes.dex|lib/"

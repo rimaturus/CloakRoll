@@ -1,6 +1,6 @@
 #!/bin/sh
-# Builds PhotoVault without Gradle: aapt/aapt2 + javac + dx, then an APK (zipalign + apksigner) or an App Bundle (bundletool).
-#   Ubuntu 24.04:  sudo apt install aapt apksigner dalvik-exchange zipalign openjdk-21-jdk-headless zip unzip curl
+# Builds PhotoVault without Gradle: aapt/aapt2 + javac + d8, then an APK (zipalign + apksigner) or an App Bundle (bundletool).
+#   Ubuntu 24.04:  sudo apt install aapt apksigner zipalign openjdk-21-jdk-headless zip unzip curl
 #   Termux (Android, .aab only):  pkg install git openjdk-21 aapt aapt2 d8 zip unzip curl
 #   KS_PASS=... ./build.sh                 PhotoVault.apk, GitHub build (with the donation link)
 #   KS_PASS=... PLAY=1 ./build.sh          PhotoVault-play.apk, Google Play texts (no donation link: Play's payments policy)
@@ -36,6 +36,9 @@ fetch "$RES_JAR" 6cea1df3efb77103ac3e2beb9bf4718964b0e0869ab16d39d29d5cbae1c147a
 ORT_V=1.31.1; ORT=sdk/onnxruntime-android-$ORT_V.aar
 fetch "$ORT" d4d50660300ed2c4f38ffdfd5ab5bfa3a22f995f282dda24f42ea3ea55467b49 \
     https://repo1.maven.org/maven2/com/microsoft/onnxruntime/onnxruntime-android/$ORT_V/onnxruntime-android-$ORT_V.aar
+R8=sdk/r8-8.12.14.jar
+command -v d8 >/dev/null || fetch "$R8" 2732a57f8c4f11ba02f223c97df91f122e483135d2991830ea5e14175c7d541a \
+    https://dl.google.com/dl/android/maven2/com/android/tools/r8/8.12.14/r8-8.12.14.jar
 [ "$AAB" != 1 ] || fetch "$BUNDLETOOL" a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29 \
     https://github.com/google/bundletool/releases/download/1.18.3/bundletool-all-1.18.3.jar
 KEYSTORE="${KEYSTORE-photovault.jks}"
@@ -61,10 +64,11 @@ else
     aapt package -f -0 arsc -M AndroidManifest.xml -S res -I "$RES_JAR" -F build/res.apk -J build/gen --custom-package app.photovault
 fi
 javac -nowarn -Xlint:-options -source 8 -target 8 -bootclasspath "$JAR" -cp build/ort/classes.jar -d build/classes $(find src build/gen -name '*.java')
-if command -v dalvik-exchange >/dev/null; then
-    dalvik-exchange --dex --min-sdk-version=26 --output=build/classes.dex build/classes build/ort/classes.jar
-else # Termux: d8 instead of Debian's dx
-    jar cf build/classes.jar -C build/classes . && d8 --release --min-api 33 --lib "$JAR" --output build build/classes.jar build/ort/classes.jar
+jar cf build/classes.jar -C build/classes .
+if command -v d8 >/dev/null; then # Termux
+    d8 --release --min-api 33 --lib "$JAR" --output build build/classes.jar build/ort/classes.jar
+else # Google's d8 (Debian's dx can't read ONNX Runtime's Java 17 classes)
+    java -cp "$R8" com.android.tools.r8.D8 --release --min-api 33 --lib "$JAR" --output build build/classes.jar build/ort/classes.jar
 fi
 [ -f "$KEYSTORE" ] || keytool -genkeypair -keystore "$KEYSTORE" -storepass "$KS_PASS" -keypass "$KS_PASS" \
     -alias photovault -keyalg RSA -keysize 4096 -validity 10000 -dname "CN=PhotoVault"

@@ -1699,15 +1699,18 @@ public class MainActivity extends Activity {
     void findJunk() {
         final byte[] k = keyCopy();
         if (k == null) return;
+        final List<Store.Item> all = st.items;
         final List<String> ids = new ArrayList<>();
-        for (Store.Item it : st.items) ids.add(it.id);
+        for (Store.Item it : all) ids.add(it.id);
         toast(s(R.string.clip_searching));
         thumbIo.execute(new Runnable() { public void run() {
             try {
                 final List<String> junk = st.clip.junk(k, ids);
+                final int missing = st.clip.missing(k, all);
                 post(new Runnable() { public void run() {
                     if (st.key == null) return;
-                    if (junk.isEmpty()) { toast(s(R.string.junk_none)); return; }
+                    if (missing > 0 && !st.jobRunning) { startJob(SyncService.INDEX); toast(q(R.plurals.clip_missing, missing)); }
+                    if (junk.isEmpty()) { if (missing == 0) toast(s(R.string.junk_none)); return; }
                     saveScroll();
                     searching = true;
                     query = "";
