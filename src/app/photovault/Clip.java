@@ -25,8 +25,8 @@ final class Clip {
     static final String URL = "https://github.com/rimaturus/CloakRoll/releases/download/clip-v4/";
     static final String IMAGE = "clip-image.onnx", TEXT = "clip-text.onnx", MERGES = "clip-merges.txt";
     static final String[][] FILES = { // name, SHA-256, bytes
-            {IMAGE, "IMAGE_SHA", "0"},
-            {TEXT, "TEXT_SHA", "0"},
+            {IMAGE, "c0d0ab0ed3a7382b80756325b8e2ea8b0fe01196f0db2df16265145088a2c30a", "106212272"},
+            {TEXT, "daf1cb9ce4cbefd93ddc53d554e0529885bedafd775955d783e5c4c58c2ffafe", "40127267"},
             {MERGES, "d308b7377a8ceaa9707a21614fe8c831b9196e197b7aeb69833359362907af02", "524605"}};
     static final float MATCH = 0.2f; // search: the least similarity shown
     static final int MAX_HITS = 300;

@@ -21,7 +21,7 @@ Amazon Prime includes unlimited full-resolution photo storage, and OneDrive and 
 | | |
 |---|---|
 | **No ads** | Not now, not later. |
-| **No tracking** | No analytics, no crash reporting, no third-party SDKs. The app has **zero** third-party libraries. |
+| **No tracking** | No analytics, no crash reporting, no tracking SDKs. One third-party library: [ONNX Runtime](https://onnxruntime.ai) (Microsoft, MIT), which only runs the optional [smart search](#smart-search) model on the phone. |
 | **No data collection, no data selling** | There are no Cloakroll servers and no Cloakroll accounts. The app talks only to the cloud storage you choose (Amazon Photos, OneDrive or Google Drive), and only sends it encrypted files. We never receive anything, so there is nothing to sell or to leak. |
 | **Open source** | GPL-3.0. About 4,000 lines of plain Java and Python that anyone can read. The whole cryptography is in one file, [`Vault.java`](src/app/photovault/Vault.java) (280 lines). |
 | **No lock-in** | Your vault opens without the app too: [`photovault.py`](photovault.py), one small Python file, decrypts it on any PC. [How](#recover-your-files-without-the-app). |
@@ -134,6 +134,7 @@ No contacts, location, camera or microphone permission. Without automatic backup
 - Fingerprint unlock, auto-lock, no screenshots
 - **Change the vault password** (*Settings > Change vault password*): the app shows first what it costs (data, time), then re-encrypts every file in the cloud with the new key in the background, resuming by itself if interrupted
 - *Sync*: restores your vault on a new phone and removes items you deleted on the provider's website. The list comes from that encrypted file, so restoring downloads no photos: previews are made when you open an item, or all at once with *Settings > Download the missing previews*. A file that is damaged in the cloud (it doesn't open on two Syncs) is left where it is and skipped, so it can't hold up a restore or a password change
+- <a id="smart-search"></a>**Smart search** (*Settings*, off by default): find items by what they show, in English ("dog", "beach at sunset", "family lunch": type it in the search field and press *Search* on the keyboard), and *Menu > Find junk* selects screenshots, memes and greeting images so you can check them and delete what you don't want. Turning it on downloads OpenAI's CLIP ViT-B/32 model (MIT license) once from this repository's release [`clip-v4`](https://github.com/rimaturus/CloakRoll/releases/tag/clip-v4), made by [`tools/clip_export.py`](tools/clip_export.py) and checked against SHA-256 values in the code. The previews are turned into vectors on the phone, through ONNX Runtime, and kept encrypted with the vault key like the previews; nothing about the photos or the searches leaves the phone. New uploads are looked at right after, and new junk is announced. The model has no content filter: it finds whatever you describe
 - Save a decrypted copy back to your gallery
 - Self-test on your own account before you store anything: upload, check that the cloud keeps the file bit-for-bit, decrypt, check the storage, clean up
 - Light and dark theme, following the phone
@@ -212,7 +213,7 @@ ONEDRIVE_CLIENT_ID='your-app-id' GOOGLE_CLIENT_ID='your-client-id' KS_PASS='...'
 
 On Windows, with Android Studio installed (its JDK and the SDK build-tools), `build-win.sh` takes the same options from Git Bash.
 
-Without `ONEDRIVE_CLIENT_ID` or `GOOGLE_CLIENT_ID` the app builds fine and shows that option as not available. `build.sh` downloads the Android API jars from Google's SDK repository (and bundletool from Google's releases), checks each against a pinned SHA-256 on every build, compiles, and signs. **Keep `photovault.jks` private and out of git** (it is in `.gitignore`): anyone who has it can sign "updates" that install over your users' copies.
+Without `ONEDRIVE_CLIENT_ID` or `GOOGLE_CLIENT_ID` the app builds fine and shows that option as not available. `build.sh` downloads the Android API jars from Google's SDK repository (and bundletool from Google's releases, ONNX Runtime from Maven Central), checks each against a pinned SHA-256 on every build, compiles, and signs. **Keep `photovault.jks` private and out of git** (it is in `.gitignore`): anyone who has it can sign "updates" that install over your users' copies.
 
 Source layout:
 
@@ -229,6 +230,7 @@ Source layout:
 | `src/app/photovault/Stats.java` | Measured speeds, time estimates, live figures of the job under way |
 | `src/app/photovault/Store.java` | Shared state, encrypted local index and previews |
 | `src/app/photovault/SyncService.java` | Background uploads and sync |
+| `src/app/photovault/Clip.java`, `ClipTokens.java` | Smart search: model download, previews to vectors, search, junk finder; CLIP's tokenizer |
 | `src/app/photovault/MainActivity.java` | All screens |
 | `src/app/photovault/Ui.java` | Colors, cards, buttons and icons, drawn in code |
 | `res/values*/strings.xml` | All texts, one file per language (default: English) |
