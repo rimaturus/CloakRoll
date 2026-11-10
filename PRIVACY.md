@@ -1,6 +1,6 @@
 # Privacy policy
 
-*Cloakroll (formerly PhotoVault), last updated 9 October 2026 (version 1.12.0)*
+*Cloakroll (formerly PhotoVault), last updated 10 November 2026 (version 1.13.0)*
 
 **Cloakroll collects no personal data.** The developer receives nothing from the app: no analytics, no crash reports, no identifiers, no usage statistics, no advertising IDs. There are no Cloakroll servers and no Cloakroll accounts, and the app contains no advertising and no tracking or analytics SDKs. Its one third-party library, ONNX Runtime (Microsoft, MIT license), only runs the optional smart-search model on the phone and has no network access of its own. Everything the app does happens on your phone and between your phone and the storage account you chose.
 

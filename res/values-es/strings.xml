@@ -489,7 +489,7 @@
     <string name="tour6_d">En un teléfono nuevo, inicia sesión en el mismo almacenamiento, escribe la misma contraseña y Sincronizar lo trae todo en segundos. Sin la contraseña nadie puede recuperar las fotos, ni nosotros: guárdala bien.</string>
     <string name="whats_new_t">Novedades de Cloakroll %1$s</string>
     <string name="whats_new_off">No mostrar tras las actualizaciones</string>
-    <string name="whats_new">• Progreso de un vistazo: el banner muestra datos transferidos, velocidad y tiempo restante; tócalo para la pantalla Actividad (archivos, bytes, tiempo transcurrido, duración de cada paso, conexión).\n• El tiempo restante sale de la velocidad de la propia tarea en el último minuto, sobre todos los datos que quedan por mover.\n• La copia automática ya no va de 300 en 300 archivos: una ejecución toma todo lo pendiente.\n• Cambiar almacenamiento (Ajustes): inicia sesión en otro servicio o carpeta y mueve allí tus elementos en segundo plano, o empieza vacía.\n• Añadir más de 50 MB con datos móviles pide confirmación.</string>
+    <string name="whats_new">• Búsqueda inteligente (Ajustes, desactivada hasta que la actives): encuentra fotos por lo que muestran, en inglés (\"dog\", \"beach at sunset\"), y pulsa Buscar en el teclado. Todo se analiza solo en este teléfono.\n• Menú &gt; Buscar basura: capturas, memes e imágenes de saludo, seleccionados para que los revises y borres.</string>
     <string name="auto_net_t">¿Con qué conexión?</string>
     <string name="auto_net_d">Las fotos y vídeos pueden ser grandes: con datos móviles consumen tu tarifa.</string>
     <string name="auto_net_wifi">Solo Wi-Fi</string>

@@ -489,7 +489,7 @@
     <string name="tour6_d">On a new phone, sign in to the same storage, enter the same password and Sync brings everything back in seconds. Nobody can recover the photos without the password, not even us: keep it safe.</string>
     <string name="whats_new_t">What\'s new in Cloakroll %1$s</string>
     <string name="whats_new_off">Don\'t show this after updates</string>
-    <string name="whats_new">• Progress at a glance: the banner shows data through, speed and time left; tap it for the Activity screen (files, bytes, elapsed, each step\'s time, connection).\n• Time left is worked out from the job\'s own speed over the last minute, over all the data still to move.\n• Automatic backup no longer goes 300 files at a time: one run takes everything pending.\n• Change storage (Settings): sign in to another service or folder, and move your items there in the background, or start empty.\n• Adding more than 50 MB on mobile data asks first.</string>
+    <string name="whats_new">• Smart search (Settings, off until you turn it on): find photos by what they show, in English (\"dog\", \"beach at sunset\"), then press Search on the keyboard. Everything is analysed on this phone only.\n• Menu &gt; Find junk: screenshots, memes and greeting images, selected for you to check and delete.</string>
     <string name="auto_net_t">Which connection?</string>
     <string name="auto_net_d">Photos and videos can be big: on mobile data they count against your plan.</string>
     <string name="auto_net_wifi">Only Wi-Fi</string>
