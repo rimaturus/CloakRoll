@@ -580,4 +580,36 @@
     <string name="mobile_q">Upload on mobile data?</string>
     <string name="mobile_d">%1$s would go over mobile data now, and count against your plan. Automatic backup on Wi-Fi only avoids this.</string>
     <string name="mobile_now">Upload now</string>
+    <!-- smart search -->
+    <string name="clip_t">Smart search</string>
+    <string name="clip_on_d">On: search by what the photos show (in English); Menu &gt; Find junk</string>
+    <string name="clip_off_d">Off. Find photos by what they show, and the junk to delete. Everything stays on this phone</string>
+    <string name="clip_on_q">Downloads the search model (%1$s) once, from Cloakroll\'s GitHub page: better on Wi-Fi. Then your photos are looked at on this phone only, from their previews: nothing about them leaves it.\n\nSearch in English: \"dog\", \"beach at sunset\", \"family lunch\", then press Search on the keyboard.</string>
+    <string name="clip_off_q">Deletes the search model and the search index from this phone. Your photos are not touched.</string>
+    <string name="clip_turn_on">Download</string>
+    <string name="clip_turn_off">Turn off</string>
+    <string name="clip_downloading">Downloading the search model: %1$s of %2$s</string>
+    <string name="clip_progress">Smart search: looking at item %1$d</string>
+    <string name="search_hint_smart">Name, or what it shows + Search</string>
+    <string name="clip_searching">Searching…</string>
+    <string name="clip_none">Nothing matches. Describe it in English, e.g. \"dog on a beach\"</string>
+    <string name="menu_junk">Find junk</string>
+    <string name="junk_none">No junk found</string>
+    <string name="junk_found_d">Screenshots, memes and greeting images. They are selected: unselect the ones to keep, then tap Delete.</string>
+    <plurals name="clip_done">
+        <item quantity="one">Smart search: %1$d new item looked at</item>
+        <item quantity="other">Smart search: %1$d new items looked at</item>
+    </plurals>
+    <plurals name="clip_junk">
+        <item quantity="one">%1$d new item looks like junk: Menu &gt; Find junk</item>
+        <item quantity="other">%1$d new items look like junk: Menu &gt; Find junk</item>
+    </plurals>
+    <plurals name="clip_missing">
+        <item quantity="one">%1$d item is not looked at yet: it is being done now, search again later</item>
+        <item quantity="other">%1$d items are not looked at yet: it is being done now, search again later</item>
+    </plurals>
+    <plurals name="junk_found_t">
+        <item quantity="one">%1$d item looks like junk</item>
+        <item quantity="other">%1$d items look like junk</item>
+    </plurals>
 </resources>

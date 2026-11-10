@@ -578,4 +578,36 @@
     <string name="mobile_q">Caricare con i dati mobili?</string>
     <string name="mobile_d">%1$s passerebbero ora sui dati mobili, pesando sul tuo piano. Il backup automatico solo in Wi-Fi lo evita.</string>
     <string name="mobile_now">Carica ora</string>
+    <!-- smart search -->
+    <string name="clip_t">Ricerca intelligente</string>
+    <string name="clip_on_d">Attiva: cerca per contenuto (in inglese); Menu &gt; Trova spazzatura</string>
+    <string name="clip_off_d">Disattiva. Trova le foto per ciò che mostrano e la spazzatura da eliminare. Tutto resta su questo telefono</string>
+    <string name="clip_on_q">Scarica una volta il modello di ricerca (%1$s) dalla pagina GitHub di Cloakroll: meglio in Wi-Fi. Poi le foto vengono analizzate solo su questo telefono, dalle anteprime: niente esce dal telefono.\n\nCerca in inglese: \"dog\", \"beach at sunset\", \"family lunch\", poi premi Cerca sulla tastiera.</string>
+    <string name="clip_off_q">Elimina il modello e l\'indice di ricerca da questo telefono. Le foto non vengono toccate.</string>
+    <string name="clip_turn_on">Scarica</string>
+    <string name="clip_turn_off">Disattiva</string>
+    <string name="clip_downloading">Download del modello di ricerca: %1$s di %2$s</string>
+    <string name="clip_progress">Ricerca intelligente: analizzo l\'elemento %1$d</string>
+    <string name="search_hint_smart">Nome, o cosa mostra (in inglese) + Cerca</string>
+    <string name="clip_searching">Ricerca…</string>
+    <string name="clip_none">Nessun risultato. Descrivilo in inglese, es. \"dog on a beach\"</string>
+    <string name="menu_junk">Trova spazzatura</string>
+    <string name="junk_none">Nessuna spazzatura trovata</string>
+    <string name="junk_found_d">Screenshot, meme e immagini di auguri. Sono selezionati: deseleziona quelli da tenere, poi tocca Elimina.</string>
+    <plurals name="clip_done">
+        <item quantity="one">Ricerca intelligente: %1$d nuovo elemento analizzato</item>
+        <item quantity="other">Ricerca intelligente: %1$d nuovi elementi analizzati</item>
+    </plurals>
+    <plurals name="clip_junk">
+        <item quantity="one">%1$d nuovo elemento sembra spazzatura: Menu &gt; Trova spazzatura</item>
+        <item quantity="other">%1$d nuovi elementi sembrano spazzatura: Menu &gt; Trova spazzatura</item>
+    </plurals>
+    <plurals name="clip_missing">
+        <item quantity="one">%1$d elemento non ancora analizzato: lo faccio ora, cerca di nuovo più tardi</item>
+        <item quantity="other">%1$d elementi non ancora analizzati: lo faccio ora, cerca di nuovo più tardi</item>
+    </plurals>
+    <plurals name="junk_found_t">
+        <item quantity="one">%1$d elemento sembra spazzatura</item>
+        <item quantity="other">%1$d elementi sembrano spazzatura</item>
+    </plurals>
 </resources>

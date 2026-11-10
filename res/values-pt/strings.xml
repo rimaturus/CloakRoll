@@ -578,4 +578,36 @@
     <string name="mobile_q">Enviar pelos dados móveis?</string>
     <string name="mobile_d">%1$s passariam agora pelos dados móveis e contariam na sua franquia. O backup automático só por Wi-Fi evita isso.</string>
     <string name="mobile_now">Enviar agora</string>
+    <!-- smart search -->
+    <string name="clip_t">Pesquisa inteligente</string>
+    <string name="clip_on_d">Ativada: pesquisa pelo conteúdo (em inglês); Menu &gt; Encontrar lixo</string>
+    <string name="clip_off_d">Desativada. Encontre fotos pelo que mostram e o lixo a apagar. Tudo fica neste telemóvel</string>
+    <string name="clip_on_q">Transfere uma vez o modelo de pesquisa (%1$s) da página GitHub do Cloakroll: melhor em Wi-Fi. Depois as fotos são analisadas só neste telemóvel, a partir das pré-visualizações: nada sai dele.\n\nPesquise em inglês: \"dog\", \"beach at sunset\", \"family lunch\" e toque em Pesquisar no teclado.</string>
+    <string name="clip_off_q">Apaga o modelo e o índice de pesquisa deste telemóvel. As fotos não são alteradas.</string>
+    <string name="clip_turn_on">Transferir</string>
+    <string name="clip_turn_off">Desativar</string>
+    <string name="clip_downloading">A transferir o modelo de pesquisa: %1$s de %2$s</string>
+    <string name="clip_progress">Pesquisa inteligente: a analisar o item %1$d</string>
+    <string name="search_hint_smart">Nome, ou o que mostra (em inglês) + Pesquisar</string>
+    <string name="clip_searching">A pesquisar…</string>
+    <string name="clip_none">Nenhum resultado. Descreva em inglês, ex. \"dog on a beach\"</string>
+    <string name="menu_junk">Encontrar lixo</string>
+    <string name="junk_none">Nenhum lixo encontrado</string>
+    <string name="junk_found_d">Capturas de ecrã, memes e imagens de saudações. Estão selecionados: desmarque os que quer manter e toque em Apagar.</string>
+    <plurals name="clip_done">
+        <item quantity="one">Pesquisa inteligente: %1$d item novo analisado</item>
+        <item quantity="other">Pesquisa inteligente: %1$d itens novos analisados</item>
+    </plurals>
+    <plurals name="clip_junk">
+        <item quantity="one">%1$d item novo parece lixo: Menu &gt; Encontrar lixo</item>
+        <item quantity="other">%1$d itens novos parecem lixo: Menu &gt; Encontrar lixo</item>
+    </plurals>
+    <plurals name="clip_missing">
+        <item quantity="one">%1$d item ainda não analisado: está a ser feito, pesquise de novo mais tarde</item>
+        <item quantity="other">%1$d itens ainda não analisados: está a ser feito, pesquise de novo mais tarde</item>
+    </plurals>
+    <plurals name="junk_found_t">
+        <item quantity="one">%1$d item parece lixo</item>
+        <item quantity="other">%1$d itens parecem lixo</item>
+    </plurals>
 </resources>

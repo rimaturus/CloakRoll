@@ -578,4 +578,36 @@
     <string name="mobile_q">Über mobile Daten hochladen?</string>
     <string name="mobile_d">%1$s würden jetzt über mobile Daten gehen und zum Datenvolumen zählen. Automatisches Backup nur im WLAN vermeidet das.</string>
     <string name="mobile_now">Jetzt hochladen</string>
+    <!-- smart search -->
+    <string name="clip_t">Intelligente Suche</string>
+    <string name="clip_on_d">An: Suche nach Inhalt (auf Englisch); Menü &gt; Müll finden</string>
+    <string name="clip_off_d">Aus. Fotos nach ihrem Inhalt finden, und Müll zum Löschen. Alles bleibt auf diesem Handy</string>
+    <string name="clip_on_q">Lädt das Suchmodell (%1$s) einmal von Cloakrolls GitHub-Seite: besser im WLAN. Danach werden deine Fotos nur auf diesem Handy analysiert, anhand der Vorschauen: nichts davon verlässt es.\n\nSuche auf Englisch: \"dog\", \"beach at sunset\", \"family lunch\", dann auf der Tastatur Suchen tippen.</string>
+    <string name="clip_off_q">Löscht Suchmodell und Suchindex von diesem Handy. Deine Fotos bleiben unberührt.</string>
+    <string name="clip_turn_on">Herunterladen</string>
+    <string name="clip_turn_off">Ausschalten</string>
+    <string name="clip_downloading">Suchmodell wird geladen: %1$s von %2$s</string>
+    <string name="clip_progress">Intelligente Suche: Element %1$d wird analysiert</string>
+    <string name="search_hint_smart">Name, oder was es zeigt (Englisch) + Suchen</string>
+    <string name="clip_searching">Suche…</string>
+    <string name="clip_none">Nichts gefunden. Beschreibe es auf Englisch, z. B. \"dog on a beach\"</string>
+    <string name="menu_junk">Müll finden</string>
+    <string name="junk_none">Kein Müll gefunden</string>
+    <string name="junk_found_d">Screenshots, Memes und Grußbilder. Sie sind ausgewählt: Abwählen, was bleiben soll, dann Löschen tippen.</string>
+    <plurals name="clip_done">
+        <item quantity="one">Intelligente Suche: %1$d neues Element analysiert</item>
+        <item quantity="other">Intelligente Suche: %1$d neue Elemente analysiert</item>
+    </plurals>
+    <plurals name="clip_junk">
+        <item quantity="one">%1$d neues Element sieht nach Müll aus: Menü &gt; Müll finden</item>
+        <item quantity="other">%1$d neue Elemente sehen nach Müll aus: Menü &gt; Müll finden</item>
+    </plurals>
+    <plurals name="clip_missing">
+        <item quantity="one">%1$d Element noch nicht analysiert: läuft jetzt, später erneut suchen</item>
+        <item quantity="other">%1$d Elemente noch nicht analysiert: läuft jetzt, später erneut suchen</item>
+    </plurals>
+    <plurals name="junk_found_t">
+        <item quantity="one">%1$d Element sieht nach Müll aus</item>
+        <item quantity="other">%1$d Elemente sehen nach Müll aus</item>
+    </plurals>
 </resources>

@@ -101,6 +101,7 @@ final class Store {
     private final GoogleDrive google;
     final Local local;  // the phone folder: the vault itself ("local"), or where the copies go next to a cloud
     final Stats stats;
+    final Clip clip;    // smart search
     private volatile Transfers transfers;
 
     private Store(Context app) {
@@ -112,6 +113,7 @@ final class Store {
         google = new GoogleDrive(this);
         local = new Local(this);
         stats = new Stats(this);
+        clip = new Clip(this);
         deletePlayback(); // leftovers if the app was killed while a video was open
     }
 
@@ -190,6 +192,7 @@ final class Store {
         items = new ArrayList<>();
         folders = new ArrayList<>();
         thumbs.evictAll();
+        clip.forget();
         deletePlayback();
     }
 
@@ -451,6 +454,11 @@ final class Store {
                 ready.add(f);
             } catch (Exception e) { f.delete(); } // unreadable preview: the item just shows without one
         }
+        File vectors = new File(app.getFilesDir(), "clip.bin"); // smart search's vectors: same as a preview
+        if (vectors.exists()) try {
+            writeSynced(new File(vectors.getPath() + ".new"), Vault.seal(newK, Vault.open(oldK, readFile(vectors))));
+            ready.add(vectors);
+        } catch (Exception e) { vectors.delete(); } // made again by the next indexing
         String oldSalt = prefs.getString("salt", "");
         for (Item it : ix.items) if (it.salt.isEmpty()) it.salt = oldSalt; // files from before v1.3 use the only key there was
         File tmp = new File(app.getFilesDir(), "index.bin.new");

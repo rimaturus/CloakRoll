@@ -2,6 +2,7 @@ package app.photovault;
 
 import android.content.Context;
 import android.database.Cursor;
+import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.SystemClock;
 import android.provider.MediaStore;
@@ -36,7 +37,16 @@ final class Jobs {
     private final ArrayDeque<long[]> samples = new ArrayDeque<>(); // {when, bytes through}: the job's speed over the last minute
     Cloud from;                // a move: files are downloaded from here and uploaded to the storage in use
 
-    Jobs(Context ctx, Store st, Host host, String tmp) { this.ctx = ctx; this.st = st; this.host = host; this.tmp = tmp; }
+    private volatile String lastDone; // the last job's result, shown again after a quiet smart-search indexing
+    private volatile boolean lastBad;
+
+    Jobs(Context ctx, Store st, final Host h, String tmp) {
+        this.ctx = ctx; this.st = st; this.tmp = tmp;
+        host = new Host() {
+            public void show(String text, int pct) { h.show(text, pct); }
+            public void done(String text, boolean bad) { lastDone = text; lastBad = bad; h.done(text, bad); }
+        };
+    }
 
     /** A job begins: `total` bytes in `files` files, each going through `steps`. */
     void begin(long total, int files, String... steps) {
@@ -579,6 +589,49 @@ final class Jobs {
             Journal.add("previews stopped: " + e);
             host.done(ctx.getString(R.string.v_error, st.explain(e)), true);
             if (Store.isAuth(e)) st.post(new Runnable() { public void run() { st.needLogin = true; st.changed(); } });
+        }
+    }
+
+    /**
+     * Smart search: downloads the model if it isn't on the phone yet, then turns each new preview into a vector and
+     * flags the junk among them. `quiet` (after an upload): says something only if junk turned up, otherwise the
+     * upload's own result stays shown.
+     */
+    void index(byte[] k, int id, boolean quiet) {
+        Clip c = st.clip;
+        if (!c.on() || id <= cancelUpTo) return;
+        final String before = lastDone;
+        final boolean beforeBad = lastBad;
+        try {
+            if (!c.ready()) c.download(new Cloud.Progress() { public void on(long d, long t) {
+                host.show(ctx.getString(R.string.clip_downloading, Store.human(d), Store.human(t)), (int) (100 * d / Math.max(1, t)));
+            }});
+            List<Store.Item> items = st.readIndex(k).items;
+            Set<String> all = new HashSet<>();
+            for (Store.Item it : items) all.add(it.id);
+            boolean pruned = c.keepOnly(k, all);
+            Map<String, float[]> have = c.snapshot(k);
+            List<String> fresh = new ArrayList<>();
+            for (Store.Item it : items) {
+                if (id <= cancelUpTo || !c.on()) break;
+                if (have.containsKey(it.id) || !st.thumbFile(it.id).exists()) continue;
+                host.show(ctx.getString(R.string.clip_progress, fresh.size() + 1), -1);
+                Bitmap b = st.thumb(it.id, k);
+                c.put(k, it.id, b == null ? new float[0] : c.image(b));
+                fresh.add(it.id);
+                if (fresh.size() % 200 == 0) c.save(k);
+            }
+            if (!fresh.isEmpty() || pruned) c.save(k);
+            c.closeImage();
+            int junk = fresh.isEmpty() ? 0 : c.junk(k, fresh).size();
+            if (junk > 0) host.done(plural(R.plurals.clip_junk, junk), false);
+            else if (!quiet) host.done(plural(R.plurals.clip_done, fresh.size()), id <= cancelUpTo);
+            else if (!fresh.isEmpty() && before != null) host.done(before, beforeBad);
+        } catch (Throwable e) {
+            Journal.add("search index stopped: " + e);
+            c.closeImage();
+            if (!quiet) host.done(ctx.getString(R.string.v_error, st.explain(e)), true);
+            else if (before != null) host.done(before, beforeBad);
         }
     }
 

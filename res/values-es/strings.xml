@@ -578,4 +578,36 @@
     <string name="mobile_q">¿Subir con datos móviles?</string>
     <string name="mobile_d">%1$s irían ahora por datos móviles y contarían en tu plan. La copia automática solo por Wi-Fi lo evita.</string>
     <string name="mobile_now">Subir ahora</string>
+    <!-- smart search -->
+    <string name="clip_t">Búsqueda inteligente</string>
+    <string name="clip_on_d">Activada: busca por contenido (en inglés); Menú &gt; Buscar basura</string>
+    <string name="clip_off_d">Desactivada. Encuentra fotos por lo que muestran y la basura que borrar. Todo se queda en este teléfono</string>
+    <string name="clip_on_q">Descarga una vez el modelo de búsqueda (%1$s) desde la página de GitHub de Cloakroll: mejor con Wi-Fi. Después tus fotos se analizan solo en este teléfono, a partir de sus vistas previas: nada sale de él.\n\nBusca en inglés: \"dog\", \"beach at sunset\", \"family lunch\", y pulsa Buscar en el teclado.</string>
+    <string name="clip_off_q">Borra el modelo y el índice de búsqueda de este teléfono. Tus fotos no se tocan.</string>
+    <string name="clip_turn_on">Descargar</string>
+    <string name="clip_turn_off">Desactivar</string>
+    <string name="clip_downloading">Descargando el modelo de búsqueda: %1$s de %2$s</string>
+    <string name="clip_progress">Búsqueda inteligente: analizando el elemento %1$d</string>
+    <string name="search_hint_smart">Nombre, o lo que muestra (en inglés) + Buscar</string>
+    <string name="clip_searching">Buscando…</string>
+    <string name="clip_none">Ningún resultado. Descríbelo en inglés, p. ej. \"dog on a beach\"</string>
+    <string name="menu_junk">Buscar basura</string>
+    <string name="junk_none">No se ha encontrado basura</string>
+    <string name="junk_found_d">Capturas de pantalla, memes e imágenes de saludo. Están seleccionados: desmarca los que quieras conservar y toca Borrar.</string>
+    <plurals name="clip_done">
+        <item quantity="one">Búsqueda inteligente: %1$d elemento nuevo analizado</item>
+        <item quantity="other">Búsqueda inteligente: %1$d elementos nuevos analizados</item>
+    </plurals>
+    <plurals name="clip_junk">
+        <item quantity="one">%1$d elemento nuevo parece basura: Menú &gt; Buscar basura</item>
+        <item quantity="other">%1$d elementos nuevos parecen basura: Menú &gt; Buscar basura</item>
+    </plurals>
+    <plurals name="clip_missing">
+        <item quantity="one">%1$d elemento aún sin analizar: se hace ahora, busca de nuevo más tarde</item>
+        <item quantity="other">%1$d elementos aún sin analizar: se hace ahora, busca de nuevo más tarde</item>
+    </plurals>
+    <plurals name="junk_found_t">
+        <item quantity="one">%1$d elemento parece basura</item>
+        <item quantity="other">%1$d elementos parecen basura</item>
+    </plurals>
 </resources>

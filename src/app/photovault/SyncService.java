@@ -18,7 +18,7 @@ import java.util.concurrent.Executors;
  * Each job works with its own copy of the key, wiped when the job ends. The notification never shows file names.
  */
 public class SyncService extends Service {
-    static final String UPLOAD = "upload", BACKUP = "backup", SYNC = "sync", REENCRYPT = "reencrypt", PREVIEWS = "previews", MOVE = "move", REUPLOAD = "reupload", STOP = "stop", CHANNEL = "sync";
+    static final String UPLOAD = "upload", BACKUP = "backup", SYNC = "sync", REENCRYPT = "reencrypt", PREVIEWS = "previews", MOVE = "move", REUPLOAD = "reupload", INDEX = "index", STOP = "stop", CHANNEL = "sync";
     static final int NOTE = 1, DONE_NOTE = 2;
 
     final ExecutorService worker = Executors.newSingleThreadExecutor();
@@ -69,14 +69,14 @@ public class SyncService extends Service {
         if (STOP.equals(action)) {
             jobs.cancelUpTo = seq;
             if (pending > 0) show(getString(R.string.stopping), -1);
-        } else if (st.key != null && Arrays.asList(UPLOAD, BACKUP, SYNC, REENCRYPT, PREVIEWS, MOVE, REUPLOAD).contains(action)) {
+        } else if (st.key != null && Arrays.asList(UPLOAD, BACKUP, SYNC, REENCRYPT, PREVIEWS, MOVE, REUPLOAD, INDEX).contains(action)) {
             final byte[] k = st.key.clone(), salt = st.salt(); // taken together: they always belong to the same key
             final int id = ++seq;
             final List<Uri> uris = new ArrayList<>();
             ClipData c = in.getClipData();
             if (c != null) for (int n = 0; n < c.getItemCount(); n++) uris.add(c.getItemAt(n).getUri());
             final boolean upload = UPLOAD.equals(action), backup = BACKUP.equals(action), reencrypt = REENCRYPT.equals(action),
-                    previews = PREVIEWS.equals(action), move = MOVE.equals(action), reupload = REUPLOAD.equals(action);
+                    previews = PREVIEWS.equals(action), move = MOVE.equals(action), reupload = REUPLOAD.equals(action), index = INDEX.equals(action);
             final String into = in.getStringExtra("folder") == null ? "" : in.getStringExtra("folder");
             pending++;
             st.busyJobs = pending;
@@ -87,8 +87,9 @@ public class SyncService extends Service {
                         done(getString(upload ? R.string.not_added_pw : R.string.stopped_pw), true);
                         return;
                     }
-                    if (upload) jobs.upload(k, salt, uris, into, id);
-                    else if (backup) backup(k, salt, id);
+                    if (upload) { jobs.upload(k, salt, uris, into, id); jobs.index(k, id, true); }
+                    else if (backup) { backup(k, salt, id); jobs.index(k, id, true); }
+                    else if (index) jobs.index(k, id, false);
                     else if (reencrypt) jobs.reencrypt(k, id);
                     else if (previews) jobs.previews(k, id);
                     else if (move) jobs.move(k, id);

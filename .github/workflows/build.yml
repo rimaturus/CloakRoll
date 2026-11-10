@@ -1,0 +1,14 @@
+name: Build check
+# Builds the APK with a throwaway key, to check that the code compiles and ONNX Runtime is packed in.
+on:
+  push:
+    branches: [smart-search]
+  workflow_dispatch:
+jobs:
+  apk:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -q && sudo apt-get install -yq aapt apksigner dalvik-exchange zipalign zip unzip
+      - run: KS_PASS=throwaway-ci-key ./build.sh
+      - run: unzip -l PhotoVault.apk | grep -E "classes.dex|lib/"

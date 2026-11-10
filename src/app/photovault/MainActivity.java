@@ -104,6 +104,7 @@ public class MainActivity extends Activity {
     final Map<String, String> renames = new HashMap<>();  // folder renamed while open: old -> new name
     String query = "";                                    // search by name; from the top level it looks into every folder
     boolean searching;                                    // the search field is shown
+    List<String> hits;                                    // smart search or junk: the items found, best first; null = by name
     EditText searchField;
     int kind, order;                                      // filter: KINDS; sort: ORDERS
     static final int[] KINDS = {R.string.filter_all, R.string.filter_photos, R.string.filter_videos};
@@ -227,6 +228,7 @@ public class MainActivity extends Activity {
             openFolder = "";
             query = "";
             searching = false;
+            hits = null;
             selected.clear();
             scrollPos.clear();
             renames.clear();
@@ -281,7 +283,7 @@ public class MainActivity extends Activity {
             case "gallery":
                 saveScroll();
                 if (!selected.isEmpty()) { selected.clear(); showGallery(); }
-                else if (searching) { searching = false; query = ""; showGallery(); }
+                else if (searching) { searching = false; query = ""; hits = null; showGallery(); }
                 else if (!openFolder.isEmpty()) { openFolder = ""; showGallery(); }
                 else finish();
                 break;
@@ -367,6 +369,7 @@ public class MainActivity extends Activity {
         m.add(0, 7, 0, R.string.filter);
         m.add(0, 8, 0, R.string.select_all);
         if (openFolder.isEmpty()) m.add(0, 9, 0, R.string.menu_classify);
+        if (st.clip.on() && st.clip.ready()) m.add(0, 10, 0, R.string.menu_junk);
         m.add(0, 4, 0, s(R.string.menu_sync, cloudName()));
         m.add(0, 5, 0, R.string.settings);
         if (!Config.DONATE_URL.isEmpty()) m.add(0, 6, 0, R.string.menu_support);
@@ -381,6 +384,7 @@ public class MainActivity extends Activity {
                 case 7: filterMenu(anchor); break;
                 case 8: select(1); break;
                 case 9: classify(null); break;
+                case 10: findJunk(); break;
             }
             return true;
         }});
@@ -1472,6 +1476,8 @@ public class MainActivity extends Activity {
         String q = query.trim().toLowerCase(Locale.ROOT);
         boolean everywhere = openFolder.isEmpty() && !q.isEmpty();
         if (openFolder.isEmpty()) for (String f : st.folders) if (f.toLowerCase(Locale.ROOT).contains(q)) c.add(f);
+        Map<String, Integer> rank = new HashMap<>(); // smart search or junk: everywhere, best first
+        if (hits != null) { c.clear(); for (String id : hits) rank.put(id, rank.size()); }
         for (Store.Item it : st.items) {
             String f = known.contains(it.folder) ? it.folder : ""; // unknown folder name: show it at the top level
             if (!f.isEmpty()) {
@@ -1479,12 +1485,17 @@ public class MainActivity extends Activity {
                 counts.put(f, n == null ? 1 : n + 1);
                 if (!covers.containsKey(f)) covers.put(f, it);
             }
-            if ((everywhere || f.equals(openFolder)) && (kind == 0 || it.video() == (kind == 2)) && it.name.toLowerCase(Locale.ROOT).contains(q)) {
+            if (hits != null ? rank.containsKey(it.id) && (kind == 0 || it.video() == (kind == 2))
+                    : (everywhere || f.equals(openFolder)) && (kind == 0 || it.video() == (kind == 2)) && it.name.toLowerCase(Locale.ROOT).contains(q)) {
                 shown.add(it);
                 ids.add(it.id);
             }
         }
-        if (order != 0) Collections.sort(shown, new Comparator<Store.Item>() { public int compare(Store.Item a, Store.Item b) {
+        final Map<String, Integer> r = rank;
+        if (hits != null) Collections.sort(shown, new Comparator<Store.Item>() { public int compare(Store.Item a, Store.Item b) {
+            return r.get(a.id) - r.get(b.id);
+        }});
+        else if (order != 0) Collections.sort(shown, new Comparator<Store.Item>() { public int compare(Store.Item a, Store.Item b) {
             return order == 1 ? Long.compare(a.when(), b.when()) : order == 2 ? a.name.compareToIgnoreCase(b.name) : Long.compare(b.size, a.size);
         }});
         c.addAll(shown);
@@ -1557,7 +1568,13 @@ public class MainActivity extends Activity {
             LinearLayout sr = u.hbox();
             sr.setBackground(Ui.round(u.field, u.dp(14)));
             final EditText e = searchField = new EditText(this);
-            e.setHint(R.string.search_hint);
+            final boolean smart = st.clip.on() && st.clip.ready();
+            e.setHint(smart ? R.string.search_hint_smart : R.string.search_hint);
+            e.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);
+            e.setOnEditorActionListener(new TextView.OnEditorActionListener() { public boolean onEditorAction(TextView v, int a, KeyEvent k) {
+                if (smart && !query.trim().isEmpty()) smartSearch(query.trim());
+                return true;
+            }});
             e.setHintTextColor(u.muted);
             e.setTextColor(u.text);
             e.setTextSize(16);
@@ -1571,6 +1588,7 @@ public class MainActivity extends Activity {
                 public void onTextChanged(CharSequence t, int a, int n, int c) { }
                 public void afterTextChanged(Editable t) {
                     query = t.toString();
+                    hits = null; // typing: back to the search by name
                     rebuildCells();
                     adapter.notifyDataSetChanged();
                     subtitleView.setText(gallerySubtitle());
@@ -1648,6 +1666,63 @@ public class MainActivity extends Activity {
         restoreScroll();
         refresh();
         if (st.changing()) askMove(); // signed in to another storage, and the question was lost (screen restarted)
+    }
+
+    /** Smart search: the items whose content matches the text, best first. */
+    void smartSearch(final String text) {
+        final byte[] k = keyCopy();
+        if (k == null) return;
+        final List<Store.Item> all = st.items;
+        WindowInsetsController c = getWindow().getInsetsController();
+        if (c != null) c.hide(WindowInsets.Type.ime());
+        subtitleView.setText(s(R.string.clip_searching));
+        thumbIo.execute(new Runnable() { public void run() {
+            try {
+                final List<String> found = st.clip.search(k, text);
+                final int missing = st.clip.missing(k, all);
+                post(new Runnable() { public void run() {
+                    if (!"gallery".equals(screen) || !searching || !text.equals(query.trim())) return; // left or typed meanwhile
+                    if (missing > 0 && !st.jobRunning) { startJob(SyncService.INDEX); toast(q(R.plurals.clip_missing, missing)); }
+                    else if (found.isEmpty()) toast(s(R.string.clip_none));
+                    hits = found;
+                    scrollPos.remove(openFolder);
+                    showGallery();
+                }});
+            } catch (final Exception e) {
+                Journal.add("smart search failed: " + e);
+                post(new Runnable() { public void run() { toast(s(R.string.v_error, explain(e))); } });
+            } finally { Arrays.fill(k, (byte) 0); }
+        }});
+    }
+
+    /** The items that look like junk (screenshots, memes, greeting images), selected, for a check before deleting them. */
+    void findJunk() {
+        final byte[] k = keyCopy();
+        if (k == null) return;
+        final List<String> ids = new ArrayList<>();
+        for (Store.Item it : st.items) ids.add(it.id);
+        toast(s(R.string.clip_searching));
+        thumbIo.execute(new Runnable() { public void run() {
+            try {
+                final List<String> junk = st.clip.junk(k, ids);
+                post(new Runnable() { public void run() {
+                    if (st.key == null) return;
+                    if (junk.isEmpty()) { toast(s(R.string.junk_none)); return; }
+                    saveScroll();
+                    searching = true;
+                    query = "";
+                    hits = junk;
+                    selected.clear();
+                    selected.addAll(junk);
+                    showGallery();
+                    new AlertDialog.Builder(MainActivity.this).setTitle(q(R.plurals.junk_found_t, junk.size()))
+                            .setMessage(R.string.junk_found_d).setPositiveButton(R.string.ok, null).show();
+                }});
+            } catch (final Exception e) {
+                Journal.add("junk search failed: " + e);
+                post(new Runnable() { public void run() { toast(s(R.string.v_error, explain(e))); } });
+            } finally { Arrays.fill(k, (byte) 0); }
+        }});
     }
 
     /** The search field, with the keyboard up. */
@@ -2542,6 +2617,18 @@ public class MainActivity extends Activity {
             u.row(sto, Ui.IMAGE, s(R.string.previews_t), s(R.string.previews_d, bare.size(), human(bytes)), null,
                     new View.OnClickListener() { public void onClick(View v) { startJob(SyncService.PREVIEWS); showGallery(); } });
         }
+        final boolean smart = st.clip.on();
+        u.row(sto, Ui.FILTER, s(R.string.clip_t), s(smart ? R.string.clip_on_d : R.string.clip_off_d), u.toggle(smart),
+                new View.OnClickListener() { public void onClick(View v) {
+                    new AlertDialog.Builder(MainActivity.this).setTitle(R.string.clip_t)
+                            .setMessage(smart ? s(R.string.clip_off_q) : s(R.string.clip_on_q, human(Clip.modelBytes())))
+                            .setPositiveButton(smart ? R.string.clip_turn_off : R.string.clip_turn_on, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                                prefs.edit().putBoolean("smart_search", !smart).apply();
+                                if (smart) st.clip.remove(); else startJob(SyncService.INDEX);
+                                showSettings();
+                            }})
+                            .setNegativeButton(R.string.cancel, null).show();
+                }});
         if (st.base() instanceof Amazon && !st.reencrypting() && !st.moving())
             u.row(sto, Ui.CLOUD, s(R.string.reup_t), s(R.string.reup_d), null,
                     new View.OnClickListener() { public void onClick(View v) { startJob(SyncService.REUPLOAD); showGallery(); } });

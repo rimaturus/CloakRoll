@@ -578,4 +578,36 @@
     <string name="mobile_q">Envoyer en données mobiles ?</string>
     <string name="mobile_d">%1$s passeraient maintenant par les données mobiles et compteraient dans votre forfait. La sauvegarde automatique en Wi-Fi seulement l\'évite.</string>
     <string name="mobile_now">Envoyer maintenant</string>
+    <!-- smart search -->
+    <string name="clip_t">Recherche intelligente</string>
+    <string name="clip_on_d">Activée : recherche par contenu (en anglais) ; Menu &gt; Trouver les inutiles</string>
+    <string name="clip_off_d">Désactivée. Trouvez les photos par ce qu\'elles montrent, et les inutiles à supprimer. Tout reste sur ce téléphone</string>
+    <string name="clip_on_q">Télécharge une fois le modèle de recherche (%1$s) depuis la page GitHub de Cloakroll : mieux en Wi-Fi. Ensuite vos photos sont analysées sur ce téléphone uniquement, à partir des aperçus : rien n\'en sort.\n\nCherchez en anglais : \"dog\", \"beach at sunset\", \"family lunch\", puis appuyez sur Rechercher sur le clavier.</string>
+    <string name="clip_off_q">Supprime le modèle et l\'index de recherche de ce téléphone. Vos photos ne sont pas touchées.</string>
+    <string name="clip_turn_on">Télécharger</string>
+    <string name="clip_turn_off">Désactiver</string>
+    <string name="clip_downloading">Téléchargement du modèle de recherche : %1$s sur %2$s</string>
+    <string name="clip_progress">Recherche intelligente : analyse de l\'élément %1$d</string>
+    <string name="search_hint_smart">Nom, ou ce qu\'elle montre (en anglais) + Rechercher</string>
+    <string name="clip_searching">Recherche…</string>
+    <string name="clip_none">Aucun résultat. Décrivez-le en anglais, ex. \"dog on a beach\"</string>
+    <string name="menu_junk">Trouver les inutiles</string>
+    <string name="junk_none">Rien d\'inutile trouvé</string>
+    <string name="junk_found_d">Captures d\'écran, mèmes et images de vœux. Elles sont sélectionnées : désélectionnez celles à garder, puis touchez Supprimer.</string>
+    <plurals name="clip_done">
+        <item quantity="one">Recherche intelligente : %1$d nouvel élément analysé</item>
+        <item quantity="other">Recherche intelligente : %1$d nouveaux éléments analysés</item>
+    </plurals>
+    <plurals name="clip_junk">
+        <item quantity="one">%1$d nouvel élément semble inutile : Menu &gt; Trouver les inutiles</item>
+        <item quantity="other">%1$d nouveaux éléments semblent inutiles : Menu &gt; Trouver les inutiles</item>
+    </plurals>
+    <plurals name="clip_missing">
+        <item quantity="one">%1$d élément pas encore analysé : c\'est en cours, cherchez à nouveau plus tard</item>
+        <item quantity="other">%1$d éléments pas encore analysés : c\'est en cours, cherchez à nouveau plus tard</item>
+    </plurals>
+    <plurals name="junk_found_t">
+        <item quantity="one">%1$d élément semble inutile</item>
+        <item quantity="other">%1$d éléments semblent inutiles</item>
+    </plurals>
 </resources>
