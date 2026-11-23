@@ -105,17 +105,27 @@ final class Amazon extends Cloud {
         return body;
     }
 
+    /** Amazon throttles with 429/503 (e.g. many deletes in a row): waits and tries again, like OneDrive and Google Drive. */
     private static String call(String method, String url, JSONObject json, boolean allow409) throws IOException {
-        long t0 = System.currentTimeMillis();
-        HttpURLConnection c = open(method, url);
-        if (json != null) {
-            byte[] b = json.toString().getBytes("UTF-8");
-            c.setDoOutput(true);
-            c.setRequestProperty("Content-Type", "application/json");
-            c.setFixedLengthStreamingMode(b.length);
-            try (OutputStream o = c.getOutputStream()) { o.write(b); }
+        for (int attempt = 0; ; attempt++) {
+            long t0 = System.currentTimeMillis();
+            HttpURLConnection c = open(method, url);
+            try {
+                if (json != null) {
+                    byte[] b = json.toString().getBytes("UTF-8");
+                    c.setDoOutput(true);
+                    c.setRequestProperty("Content-Type", "application/json");
+                    c.setFixedLengthStreamingMode(b.length);
+                    try (OutputStream o = c.getOutputStream()) { o.write(b); }
+                }
+                return finish(c, method, url, t0, allow409);
+            } catch (ApiError e) {
+                if ((e.code != 429 && e.code != 503) || attempt >= 4) throw e;
+                long wait = Math.min(60, Math.max(2L << attempt, c.getHeaderFieldLong("Retry-After", 0)));
+                Journal.add("  Amazon asks to wait " + wait + " s");
+                try { Thread.sleep(wait * 1000); } catch (InterruptedException x) { throw new java.io.InterruptedIOException(); }
+            } finally { c.disconnect(); }
         }
-        try { return finish(c, method, url, t0, allow409); } finally { c.disconnect(); }
     }
 
     /** Folder "PhotoVault" at the top of the Amazon Drive behind Amazon Photos. */

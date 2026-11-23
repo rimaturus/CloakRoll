@@ -162,6 +162,8 @@
     <string name="new_folder_dots">Neuer Ordner...</string>
     <string name="delete_files_msg">Die verschlüsselten Dateien landen in deinem %1$s und verschwinden aus dieser App.</string>
     <string name="delete_failed">Löschen fehlgeschlagen: %1$s</string>
+    <string name="deleting">%1$d von %2$d werden gelöscht…</string>
+    <string name="delete_phone_too">Auch von diesem Telefon löschen (%1$d, %2$s)</string>
     <string name="locked_toast">Der Tresor ist gesperrt.</string>
     <string name="upload_start_failed">Upload konnte nicht gestartet werden: %1$s</string>
     <string name="job_start_failed">Hintergrundaufgabe konnte nicht gestartet werden: %1$s</string>
@@ -489,7 +491,7 @@
     <string name="tour6_d">Auf einem neuen Handy meldest du dich beim selben Speicher an, gibst dasselbe Passwort ein, und die Synchronisierung holt alles in Sekunden zurück. Ohne Passwort kann niemand die Fotos wiederherstellen, auch wir nicht: bewahre es gut auf.</string>
     <string name="whats_new_t">Neu in Cloakroll %1$s</string>
     <string name="whats_new_off">Nach Updates nicht mehr zeigen</string>
-    <string name="whats_new">• Fortschritt auf einen Blick: das Banner zeigt übertragene Daten, Tempo und Restzeit; antippen für den Bildschirm Aktivität (Dateien, Bytes, vergangene Zeit, Dauer jedes Schritts, Verbindung).\n• Die Restzeit folgt dem eigenen Tempo des Vorgangs in der letzten Minute, über alle noch zu bewegenden Daten.\n• Das automatische Backup geht nicht mehr in Schritten von 300 Dateien: ein Lauf nimmt alles Ausstehende.\n• Speicher wechseln (Einstellungen): bei einem anderen Dienst oder Ordner anmelden und die Elemente im Hintergrund dorthin umziehen, oder leer anfangen.\n• Mehr als 50 MB über mobile Daten hinzuzufügen wird erst bestätigt.</string>
+    <string name="whats_new">• Beim Löschen erscheint ein Fortschrittsbalken.\n• Beim Löschen bietet Cloakroll an, auch die Kopien auf diesem Telefon zu löschen, damit das automatische Backup sie nicht erneut hochlädt.\n• Amazon Photos: Ist Amazon überlastet (HTTP 503/429), wartet die App und versucht es erneut, statt abzubrechen.</string>
     <string name="auto_net_t">Über welche Verbindung?</string>
     <string name="auto_net_d">Fotos und Videos können groß sein: über mobile Daten zählen sie zu deinem Tarif.</string>
     <string name="auto_net_wifi">Nur WLAN</string>
