@@ -162,6 +162,8 @@
     <string name="new_folder_dots">New folder...</string>
     <string name="delete_files_msg">The encrypted files go to your %1$s and disappear from this app.</string>
     <string name="delete_failed">Delete failed: %1$s</string>
+    <string name="deleting">Deleting %1$d of %2$d…</string>
+    <string name="delete_phone_too">Also delete from this phone (%1$d, %2$s)</string>
     <string name="locked_toast">Vault is locked.</string>
     <string name="upload_start_failed">Could not start the upload: %1$s</string>
     <string name="job_start_failed">Could not start the background job: %1$s</string>
@@ -489,7 +491,7 @@
     <string name="tour6_d">On a new phone, sign in to the same storage, enter the same password and Sync brings everything back in seconds. Nobody can recover the photos without the password, not even us: keep it safe.</string>
     <string name="whats_new_t">What\'s new in Cloakroll %1$s</string>
     <string name="whats_new_off">Don\'t show this after updates</string>
-    <string name="whats_new">• Progress at a glance: the banner shows data through, speed and time left; tap it for the Activity screen (files, bytes, elapsed, each step\'s time, connection).\n• Time left is worked out from the job\'s own speed over the last minute, over all the data still to move.\n• Automatic backup no longer goes 300 files at a time: one run takes everything pending.\n• Change storage (Settings): sign in to another service or folder, and move your items there in the background, or start empty.\n• Adding more than 50 MB on mobile data asks first.</string>
+    <string name="whats_new">• Deleting shows a progress bar.\n• When you delete, Cloakroll offers to delete the copies still on this phone too, so the automatic backup doesn\'t upload them again.\n• Amazon Photos: when Amazon is busy (HTTP 503/429) the app waits and tries again instead of stopping.</string>
     <string name="auto_net_t">Which connection?</string>
     <string name="auto_net_d">Photos and videos can be big: on mobile data they count against your plan.</string>
     <string name="auto_net_wifi">Only Wi-Fi</string>

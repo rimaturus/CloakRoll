@@ -162,6 +162,8 @@
     <string name="new_folder_dots">Nuova cartella...</string>
     <string name="delete_files_msg">I file cifrati finiscono nel tuo %1$s e spariscono da questa app.</string>
     <string name="delete_failed">Eliminazione non riuscita: %1$s</string>
+    <string name="deleting">Eliminazione %1$d di %2$d…</string>
+    <string name="delete_phone_too">Elimina anche dal telefono (%1$d, %2$s)</string>
     <string name="locked_toast">La cassaforte è bloccata.</string>
     <string name="upload_start_failed">Impossibile avviare il caricamento: %1$s</string>
     <string name="job_start_failed">Impossibile avviare il lavoro in background: %1$s</string>
@@ -489,7 +491,7 @@
     <string name="tour6_d">Su un telefono nuovo, accedi allo stesso spazio, inserisci la stessa password e la sincronizzazione riporta tutto in pochi secondi. Senza password nessuno può recuperare le foto, nemmeno noi: conservala bene.</string>
     <string name="whats_new_t">Novità di Cloakroll %1$s</string>
     <string name="whats_new_off">Non mostrare dopo gli aggiornamenti</string>
-    <string name="whats_new">• Avanzamento a colpo d\'occhio: il banner mostra dati trasferiti, velocità e tempo rimanente; toccalo per la schermata Attività (file, byte, tempo trascorso, durata di ogni passo, connessione).\n• Il tempo rimanente viene dalla velocità del lavoro stesso nell\'ultimo minuto, su tutti i dati ancora da spostare.\n• Il backup automatico non va più a 300 file per volta: una sola esecuzione prende tutto ciò che è in attesa.\n• Cambia archiviazione (Impostazioni): accedi a un altro servizio o cartella e sposta lì i tuoi elementi in background, oppure parti vuoto.\n• Aggiungere più di 50 MB con i dati mobili chiede conferma.</string>
+    <string name="whats_new">• L\'eliminazione mostra una barra di avanzamento.\n• Quando elimini, Cloakroll propone di eliminare anche le copie ancora sul telefono, così il backup automatico non le ricarica.\n• Amazon Photos: se Amazon è sovraccarico (HTTP 503/429) l\'app aspetta e riprova invece di fermarsi.</string>
     <string name="auto_net_t">Con quale connessione?</string>
     <string name="auto_net_d">Foto e video possono essere grandi: con i dati mobili consumano il tuo piano.</string>
     <string name="auto_net_wifi">Solo Wi-Fi</string>

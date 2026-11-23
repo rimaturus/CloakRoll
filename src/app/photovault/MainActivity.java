@@ -57,7 +57,7 @@ import org.json.JSONObject;
 public class MainActivity extends Activity {
     static final String VERIFY = Store.VERIFY, BIO_ALIAS = "photovault_fingerprint", REDIRECT_SCHEME = "io.github.rimaturus.photovault";
     static final int BIO_NEGATIVE_BUTTON = 13; // BiometricPrompt.BIOMETRIC_ERROR_NEGATIVE_BUTTON, which the SDK jar hides
-    static final int REQ_PICK = 1, REQ_NOTIF = 2, REQ_MEDIA = 3, REQ_FREE = 4, REQ_TREE = 10, RUN = 1, OK = 2, WARN = 3, BAD = 4, INFO_TEXT = 0xB3FFFFFF, INFO_ERROR = 0xFFFF9A93;
+    static final int REQ_PICK = 1, REQ_NOTIF = 2, REQ_MEDIA = 3, REQ_FREE = 4, REQ_DEL_PHONE = 5, REQ_TREE = 10, RUN = 1, OK = 2, WARN = 3, BAD = 4, INFO_TEXT = 0xB3FFFFFF, INFO_ERROR = 0xFFFF9A93;
     static final int MATCH = ViewGroup.LayoutParams.MATCH_PARENT, WRAP = ViewGroup.LayoutParams.WRAP_CONTENT;
     static final List<String> VAULT_SCREENS = Arrays.asList("gallery", "viewer", "settings", "about", "changepw", "stats", "tour", "activity");
     static final int TOUR_PAGES = 6;
@@ -78,6 +78,7 @@ public class MainActivity extends Activity {
     /** What the folder picker is open for; its index is added to REQ_TREE, so the answer survives a restart of the screen. */
     static final String[] TREE_FOR = {"vault", "copy", "copy_settings"};
     boolean picking, connecting, testing, started, askingMove;
+    List<String> afterPhoneDelete; // items to delete from the vault once Android has deleted the phone's copies
     long nextLoginTry, nextAutoBackup; // the automatic backup looks for new files at most every 30 s
     volatile int viewToken;
     WebView web;
@@ -1964,10 +1965,34 @@ public class MainActivity extends Activity {
     }
 
     void confirmDeleteSelected() {
-        final List<String> ids = new ArrayList<>(selected);
-        new AlertDialog.Builder(this).setTitle(q(R.plurals.delete_n_q, ids.size()))
-                .setMessage(s(R.string.delete_files_msg, st.cloud().trashName()))
-                .setPositiveButton(R.string.delete, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { deleteItems(ids); } })
+        List<String> ids = new ArrayList<>(selected);
+        askDelete(ids, q(R.plurals.delete_n_q, ids.size()), s(R.string.delete_files_msg, st.cloud().trashName()));
+    }
+
+    /**
+     * Asks before deleting. If the phone still holds copies of these files (same name and size), offers to delete them
+     * too: first from the phone (Android asks), then from the vault, so the automatic backup can't upload them again.
+     */
+    void askDelete(final List<String> ids, String title, String msg) {
+        final List<Uri> onPhone = new ArrayList<>();
+        long[] bytes = {0};
+        if (Backup.allowed(this)) {
+            Set<String> want = new HashSet<>();
+            for (String r : ids) want.add(st.currentId(r));
+            List<Store.Item> its = new ArrayList<>();
+            for (Store.Item it : st.items) if (want.contains(it.id)) its.add(it);
+            onPhone.addAll(Backup.backedUp(this, its, bytes));
+        }
+        LinearLayout box = u.vbox();
+        box.setPadding(u.dp(24), u.dp(8), u.dp(24), 0);
+        u.body(box, msg);
+        final CheckBox phone = onPhone.isEmpty() ? null : u.check(box, s(R.string.delete_phone_too, onPhone.size(), human(bytes[0])));
+        new AlertDialog.Builder(this).setTitle(title).setView(box)
+                .setPositiveButton(R.string.delete, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                    if (phone == null || !phone.isChecked()) { deleteItems(ids); return; }
+                    afterPhoneDelete = ids;
+                    deleteFromPhone(onPhone, REQ_DEL_PHONE);
+                }})
                 .setNegativeButton(R.string.cancel, null).show();
     }
 
@@ -1984,6 +2009,14 @@ public class MainActivity extends Activity {
         final byte[] k = keyCopy();
         if (k == null) return;
         final Cloud cloud = st.cloud();
+        final int total = files.size();
+        final ProgressBar bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        bar.setMax(total);
+        bar.setProgressTintList(ColorStateList.valueOf(u.accent));
+        FrameLayout pad = new FrameLayout(this);
+        pad.setPadding(u.dp(24), u.dp(8), u.dp(24), u.dp(8));
+        pad.addView(bar);
+        final AlertDialog progress = new AlertDialog.Builder(this).setMessage(s(R.string.deleting, 0, total)).setView(pad).setCancelable(false).show();
         viewIo.execute(new Runnable() { public void run() {
             final Set<String> gone = new HashSet<>();
             try {
@@ -1991,7 +2024,11 @@ public class MainActivity extends Activity {
                 for (Map.Entry<String, List<String>> e : files.entrySet()) {
                     for (String n : e.getValue()) {
                         batch.add(n);
-                        if (batch.size() == 50) { cloud.trashAll(batch); batch.clear(); gone.addAll(waiting); waiting.clear(); }
+                        if (batch.size() == 50) {
+                            cloud.trashAll(batch); batch.clear(); gone.addAll(waiting); waiting.clear();
+                            final int done = gone.size();
+                            post(new Runnable() { public void run() { bar.setProgress(done); progress.setMessage(s(R.string.deleting, done, total)); } });
+                        }
                     }
                     if (batch.isEmpty()) gone.add(e.getKey()); else waiting.add(e.getKey());
                 }
@@ -2011,6 +2048,7 @@ public class MainActivity extends Activity {
                 Journal.add("delete: list not updated, Sync fixes it: " + e);
             } finally { Arrays.fill(k, (byte) 0); }
             post(new Runnable() { public void run() {
+                if (!isDestroyed()) progress.dismiss();
                 for (String id : gone) st.thumbs.remove(id);
                 Iterator<Store.Item> i = viewList.iterator();
                 while (i.hasNext()) if (gone.contains(i.next().id)) i.remove();
@@ -2100,11 +2138,11 @@ public class MainActivity extends Activity {
         } catch (Exception e) { toast(explain(e)); }
     }
 
-    /** Free up space: Android's own dialog asks before the phone's copies of backed-up files are deleted. */
-    void freeUpSpace(List<Uri> uris) {
+    /** Android's own dialog asks before the phone's copies of backed-up files are deleted; the answer comes to onActivityResult as `req`. */
+    void deleteFromPhone(List<Uri> uris, int req) {
         try {
             startIntentSenderForResult(MediaStore.createDeleteRequest(getContentResolver(), uris.subList(0, Math.min(uris.size(), 500))).getIntentSender(),
-                    REQ_FREE, null, 0, 0, 0);
+                    req, null, 0, 0, 0);
             picking = true;
         } catch (Exception e) { toast(explain(e)); }
     }
@@ -2119,6 +2157,12 @@ public class MainActivity extends Activity {
     @Override protected void onActivityResult(int req, int res, Intent data) {
         picking = false;
         if (req == REQ_FREE) { if (res == RESULT_OK) { toast(s(R.string.free_done)); if (st.key != null) showSettings(); } return; }
+        if (req == REQ_DEL_PHONE) { // Android's dialog cancelled: nothing is deleted, from the vault either
+            List<String> ids = afterPhoneDelete;
+            afterPhoneDelete = null;
+            if (res == RESULT_OK && ids != null) deleteItems(ids);
+            return;
+        }
         if (req >= REQ_TREE && req < REQ_TREE + TREE_FOR.length) {
             folderPicked(TREE_FOR[req - REQ_TREE], res == RESULT_OK && data != null ? data.getData() : null);
             return;
@@ -2455,13 +2499,8 @@ public class MainActivity extends Activity {
         }});
     }
 
-    void confirmDelete(final Store.Item it) {
-        new AlertDialog.Builder(this).setTitle(R.string.delete_one_q)
-                .setMessage(s(R.string.delete_one_msg, st.cloud().trashName()))
-                .setPositiveButton(R.string.delete, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
-                    deleteItems(Collections.singletonList(it.id));
-                }})
-                .setNegativeButton(R.string.cancel, null).show();
+    void confirmDelete(Store.Item it) {
+        askDelete(Collections.singletonList(it.id), s(R.string.delete_one_q), s(R.string.delete_one_msg, st.cloud().trashName()));
     }
 
     void closeViewer() { viewToken++; deletePlaying(); }
@@ -2529,7 +2568,7 @@ public class MainActivity extends Activity {
             long[] bytes = {0};
             final List<Uri> held = Backup.backedUp(this, st.items, bytes);
             if (!held.isEmpty()) u.row(sto, Ui.TRASH, s(R.string.free_t), s(R.string.free_d, held.size(), human(bytes[0])), null,
-                    new View.OnClickListener() { public void onClick(View v) { freeUpSpace(held); } });
+                    new View.OnClickListener() { public void onClick(View v) { deleteFromPhone(held, REQ_FREE); } });
         }
         u.row(sto, Ui.CHECK, s(R.string.selftest_t), s(R.string.selftest_d), null,
                 new View.OnClickListener() { public void onClick(View v) { showSelfTest(); } });

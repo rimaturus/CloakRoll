@@ -162,6 +162,8 @@
     <string name="new_folder_dots">Nouveau dossier...</string>
     <string name="delete_files_msg">Les fichiers chiffrés vont dans votre %1$s et disparaissent de cette app.</string>
     <string name="delete_failed">Échec de la suppression : %1$s</string>
+    <string name="deleting">Suppression %1$d sur %2$d…</string>
+    <string name="delete_phone_too">Supprimer aussi du téléphone (%1$d, %2$s)</string>
     <string name="locked_toast">Le coffre est verrouillé.</string>
     <string name="upload_start_failed">Impossible de lancer l\'envoi : %1$s</string>
     <string name="job_start_failed">Impossible de lancer la tâche en arrière-plan : %1$s</string>
@@ -489,7 +491,7 @@
     <string name="tour6_d">Sur un nouveau téléphone, connectez-vous au même espace, saisissez le même mot de passe et la synchronisation ramène tout en quelques secondes. Sans mot de passe, personne ne peut récupérer les photos, pas même nous : gardez-le bien.</string>
     <string name="whats_new_t">Nouveautés de Cloakroll %1$s</string>
     <string name="whats_new_off">Ne plus afficher après les mises à jour</string>
-    <string name="whats_new">• Progression en un coup d\'œil : la bannière montre les données transférées, la vitesse et le temps restant ; touchez-la pour l\'écran Activité (fichiers, octets, temps écoulé, durée de chaque étape, connexion).\n• Le temps restant vient de la vitesse de la tâche elle-même sur la dernière minute, sur toutes les données à déplacer.\n• La sauvegarde automatique ne va plus par lots de 300 fichiers : une exécution prend tout ce qui est en attente.\n• Changer de stockage (Réglages) : connectez-vous à un autre service ou dossier et déplacez-y vos éléments en arrière-plan, ou commencez vide.\n• Ajouter plus de 50 Mo en données mobiles demande confirmation.</string>
+    <string name="whats_new">• La suppression affiche une barre de progression.\n• Lors d\'une suppression, Cloakroll propose de supprimer aussi les copies encore sur le téléphone, pour que la sauvegarde automatique ne les renvoie pas.\n• Amazon Photos : si Amazon est surchargé (HTTP 503/429), l\'app attend et réessaie au lieu de s\'arrêter.</string>
     <string name="auto_net_t">Avec quelle connexion ?</string>
     <string name="auto_net_d">Les photos et vidéos peuvent être lourdes : en données mobiles, elles comptent dans votre forfait.</string>
     <string name="auto_net_wifi">Wi-Fi seulement</string>

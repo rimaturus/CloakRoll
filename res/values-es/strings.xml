@@ -162,6 +162,8 @@
     <string name="new_folder_dots">Nueva carpeta...</string>
     <string name="delete_files_msg">Los archivos cifrados van a tu %1$s y desaparecen de esta app.</string>
     <string name="delete_failed">No se pudo eliminar: %1$s</string>
+    <string name="deleting">Eliminando %1$d de %2$d…</string>
+    <string name="delete_phone_too">Eliminar también del teléfono (%1$d, %2$s)</string>
     <string name="locked_toast">La bóveda está bloqueada.</string>
     <string name="upload_start_failed">No se pudo iniciar la subida: %1$s</string>
     <string name="job_start_failed">No se pudo iniciar la tarea en segundo plano: %1$s</string>
@@ -489,7 +491,7 @@
     <string name="tour6_d">En un teléfono nuevo, inicia sesión en el mismo almacenamiento, escribe la misma contraseña y Sincronizar lo trae todo en segundos. Sin la contraseña nadie puede recuperar las fotos, ni nosotros: guárdala bien.</string>
     <string name="whats_new_t">Novedades de Cloakroll %1$s</string>
     <string name="whats_new_off">No mostrar tras las actualizaciones</string>
-    <string name="whats_new">• Progreso de un vistazo: el banner muestra datos transferidos, velocidad y tiempo restante; tócalo para la pantalla Actividad (archivos, bytes, tiempo transcurrido, duración de cada paso, conexión).\n• El tiempo restante sale de la velocidad de la propia tarea en el último minuto, sobre todos los datos que quedan por mover.\n• La copia automática ya no va de 300 en 300 archivos: una ejecución toma todo lo pendiente.\n• Cambiar almacenamiento (Ajustes): inicia sesión en otro servicio o carpeta y mueve allí tus elementos en segundo plano, o empieza vacía.\n• Añadir más de 50 MB con datos móviles pide confirmación.</string>
+    <string name="whats_new">• Al eliminar se muestra una barra de progreso.\n• Al eliminar, Cloakroll ofrece eliminar también las copias que siguen en el teléfono, para que la copia automática no las vuelva a subir.\n• Amazon Photos: si Amazon está saturado (HTTP 503/429), la app espera y vuelve a intentarlo en lugar de detenerse.</string>
     <string name="auto_net_t">¿Con qué conexión?</string>
     <string name="auto_net_d">Las fotos y vídeos pueden ser grandes: con datos móviles consumen tu tarifa.</string>
     <string name="auto_net_wifi">Solo Wi-Fi</string>
